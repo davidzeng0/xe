@@ -1,48 +1,62 @@
 cmake_minimum_required(VERSION 3.0.0)
 project(xe CXX)
 
-set(XE_OPTFLAGS "")
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
+include(simd)
+include(cpu)
+
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++20")
+
+set(XE_LINKER_FLAGS "")
 
 if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
-	set(CMAKE_CXX_FLAGS "-fcoroutines")
-	set(XE_OPTFLAGS "-flto")
+	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fcoroutines -fno-pie -no-pie")
+	set(CMAKE_CXX_FLAGS_RELEASE "-O3 -mtune=native")
 elseif(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
-	set(CMAKE_CXX_FLAGS "-std=c++2a -fcoroutines-ts -stdlib=libc++")
-	add_definitions(-DXE_COROUTINES_EXPERIMENTAL)
+	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fcoroutines-ts -stdlib=libc++")
+	set(CMAKE_CXX_FLAGS_RELEASE "-O3 -mtune=native")
+	set(XE_LINKER_FLAGS "-fuse-ld=lld")
 else()
-	message(SEND_ERROR "unsupported compiler")
+	message(SEND_ERROR "Unsupported Compiler")
 endif()
 
+set(XE_FLTO TRUE)
 if(${CMAKE_BUILD_TYPE} STREQUAL "Debug")
-	add_definitions(-DXE_DEBUG)
-else()
-	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${XE_OPTFLAGS}")
-	set(CMAKE_EXE_LINKER_FLAGS "${XE_OPTFLAGS}")
+	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DXE_DEBUG")
+elseif(${CMAKE_BUILD_TYPE} STREQUAL "Release")
+	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g")
+	if(XE_FLTO)
+		set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -flto")
+		set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${XE_LINKER_FLAGS}")
+	endif()
 endif()
 
 include_directories(".")
-include_directories("ev")
-include_directories("arch")
+include_directories("robin-hood-hashing/src/include")
+include_directories(${CMAKE_CURRENT_BINARY_DIR})
 
 set(SOURCES "")
 file(GLOB SOURCES
-	"util/*.cpp"
-	"string/*.cpp"
-	"ev/*.cpp"
-	"net/*.cpp"
-	"arch/default/*.cpp")
+	"xe/*.cc"
+	"xe/io/*.cc"
+	"xe/net/*.cc"
+	"xe/net/proto/*.cc"
+)
 
-add_library(xe ${SOURCES})
-target_link_libraries(xe uring pthread)
+set(ARCH "")
+file(GLOB ARCH "xe/arch/default/*.cc")
 
-add_executable(echoserver "example/echoserver.cpp")
+add_library(xe ${SOURCES} ${ARCH})
+target_link_libraries(xe uring cares wolfssl)
+
+add_executable(echoserver "example/echoserver.cc")
 target_link_libraries(echoserver xe)
 
-add_executable(coroutine_echoserver "example/coroutine_echoserver.cpp")
+add_executable(coroutine_echoserver "example/coroutine_echoserver.cc")
 target_link_libraries(coroutine_echoserver xe)
 
-add_executable(client "example/client.cpp")
+add_executable(client "example/client.cc")
 target_link_libraries(client xe)
 
-add_executable(timer "example/timer.cpp")
+add_executable(timer "example/timer.cc")
 target_link_libraries(timer xe)
