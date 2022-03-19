@@ -1,4 +1,5 @@
 #include <string.h>
+#include <netdb.h>
 #include "xe/mem.h"
 #include "xe/log.h"
 #include "xe/common.h"
@@ -89,9 +90,6 @@ int main(){
 	xe_timer timer;
 
 	int ret;
-
-	/* memset 0 */
-	xe_zeroall(&options, &loop, &timer);
 
 	options.capacity = 2048; /* sqes and cqes */
 

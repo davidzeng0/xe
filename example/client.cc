@@ -1,4 +1,5 @@
 #include <string.h>
+#include <netdb.h>
 #include "xe/mem.h"
 #include "xe/log.h"
 #include "xe/common.h"
@@ -36,9 +37,6 @@ int main(){
 	xe_socket socket(loop);
 
 	int ret;
-
-	/* memset 0 */
-	xe_zeroall(&options, &loop);
 
 	options.capacity = 8; /* sqes and cqes */
 

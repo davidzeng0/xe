@@ -114,9 +114,6 @@ int main(){
 
 	int ret;
 
-	/* memset 0 */
-	xe_zeroall(&options, &loop, &timer);
-
 	options.capacity = 2048; /* sqes and cqes */
 
 	/* init */

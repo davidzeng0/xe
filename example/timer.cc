@@ -14,9 +14,6 @@ int main(){
 
 	int ret;
 
-	/* memset 0 */
-	xe_zeroall(&timer, &options, &loop);
-
 	options.capacity = 8; /* sqes and cqes */
 
 	/* init */
