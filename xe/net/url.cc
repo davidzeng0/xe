@@ -50,36 +50,36 @@ static inline bool regnamechr(char c){
 xe_url::xe_url(){}
 
 xe_url::xe_url(xe_string string){
-	_string = string;
+	string_ = string;
 }
 
 xe_string xe_url::string(){
-	return _string;
+	return string_;
 }
 
 int xe_url::parse(){
 	uint i = 0;
 	uint scheme = 0, authl = 0, user = 0, host = 0, path = 0;
 
-	if(0 < _string.length()){
-		switch(_string[0]){
+	if(0 < string_.length()){
+		switch(string_[0]){
 			case '[':
 				goto host;
 			case ']':
 				return XE_MALFORMED_URL;
 			default:
-				if(!letter(_string[0]))
+				if(!letter(string_[0]))
 					goto auth;
 		}
 	}
 
-	while(i < _string.length()){
-		switch(_string[i]){
+	while(i < string_.length()){
+		switch(string_[i]){
 			case ':': {
 				uint left = i++;
 
-				if(i < _string.length())
-					switch(_string[i]){
+				if(i < string_.length())
+					switch(string_[i]){
 						case '[':
 							scheme = left;
 							authl = i;
@@ -91,7 +91,7 @@ int xe_url::parse(){
 						case '/':
 							scheme = left;
 
-							if(++i < _string.length() && _string[i] == '/')
+							if(++i < string_.length() && string_[i] == '/')
 								i++;
 							authl = i;
 							user = i;
@@ -104,7 +104,7 @@ int xe_url::parse(){
 							user = i;
 							host = i;
 
-							if(_string[i] == '#'){
+							if(string_[i] == '#'){
 								path = i;
 
 								goto finish;
@@ -115,12 +115,12 @@ int xe_url::parse(){
 							authl = i;
 							user = ++i;
 
-							if(i < _string.length() && _string[i] == '[')
+							if(i < string_.length() && string_[i] == '[')
 								goto host;
 
 							goto auth;
 						default:
-							if(!xe_cisi(_string[i])){
+							if(!xe_cisi(string_[i])){
 								scheme = left;
 								authl = left + 1;
 								user = authl;
@@ -130,8 +130,8 @@ int xe_url::parse(){
 
 							i++;
 					}
-				while(i < _string.length())
-					switch(_string[i]){
+				while(i < string_.length())
+					switch(string_[i]){
 						case '[':
 							return XE_MALFORMED_URL;
 						case ']':
@@ -141,7 +141,7 @@ int xe_url::parse(){
 						case '#':
 							host = i;
 
-							if(_string[i] == '#'){
+							if(string_[i] == '#'){
 								path = i;
 
 								goto finish;
@@ -153,11 +153,11 @@ int xe_url::parse(){
 							authl = left + 1;
 							user = ++i;
 
-							if(i < _string.length() && _string[i] == '[')
+							if(i < string_.length() && string_[i] == '[')
 								goto host;
 							goto auth;
 						default:
-							if(!xe_cisi(_string[i])){
+							if(!xe_cisi(string_[i])){
 								scheme = left;
 								authl = left + 1;
 								user = authl;
@@ -178,7 +178,7 @@ int xe_url::parse(){
 			case '@':
 				user = ++i;
 
-				if(i < _string.length() && _string[i] == '[')
+				if(i < string_.length() && string_[i] == '[')
 					goto host;
 				goto auth;
 			case '/':
@@ -186,7 +186,7 @@ int xe_url::parse(){
 			case '#':
 				host = i;
 
-				if(_string[i] == '#'){
+				if(string_[i] == '#'){
 					path = i;
 
 					goto finish;
@@ -209,19 +209,19 @@ int xe_url::parse(){
 
 	auth:
 
-	if(i < _string.length()){
-		switch(_string[i]){
+	if(i < string_.length()){
+		switch(string_[i]){
 			case '@':
 				user = ++i;
 
-				if(i < _string.length() && _string[i] == '[')
+				if(i < string_.length() && string_[i] == '[')
 					goto host;
 			case '/':
 			case '?':
 			case '#':
 				host = i;
 
-				if(_string[i] == '#'){
+				if(string_[i] == '#'){
 					path = i;
 
 					goto finish;
@@ -237,12 +237,12 @@ int xe_url::parse(){
 		}
 	}
 
-	while(i < _string.length()){
-		switch(_string[i]){
+	while(i < string_.length()){
+		switch(string_[i]){
 			case '@':
 				user = ++i;
 
-				if(i < _string.length() && _string[i] == '[')
+				if(i < string_.length() && string_[i] == '[')
 					goto host;
 				break;
 			case '/':
@@ -250,7 +250,7 @@ int xe_url::parse(){
 			case '#':
 				host = i;
 
-				if(_string[i] == '#'){
+				if(string_[i] == '#'){
 					path = i;
 
 					goto finish;
@@ -267,14 +267,14 @@ int xe_url::parse(){
 
 	host:
 
-	while(i < _string.length()){
-		switch(_string[i]){
+	while(i < string_.length()){
+		switch(string_[i]){
 			case '/':
 			case '?':
 			case '#':
 				host = i;
 
-				if(_string[i] == '#'){
+				if(string_[i] == '#'){
 					path = i;
 
 					goto finish;
@@ -293,8 +293,8 @@ int xe_url::parse(){
 
 	path:
 
-	while(i < _string.length()){
-		switch(_string[i]){
+	while(i < string_.length()){
+		switch(string_[i]){
 			case '#':
 				path = i;
 
@@ -309,19 +309,19 @@ int xe_url::parse(){
 	finish:
 
 	for(uint i = 0; i < scheme; i++)
-		if(!schemechr(_string[i]))
+		if(!schemechr(string_[i]))
 			return XE_MALFORMED_URL;
 	if(user > 0)
 		for(uint i = authl; i < user - 1; i++)
-			if(!userchr(_string[i]))
+			if(!userchr(string_[i]))
 				return XE_MALFORMED_URL;
 	i = user;
 
-	if(i < _string.length() && _string[i] == '['){
+	if(i < string_.length() && string_[i] == '['){
 		uint k = host;
 
 		while(i < host){
-			if(_string[i] == ']'){
+			if(string_[i] == ']'){
 				if(k < host)
 					return XE_MALFORMED_URL;
 				k = i;
@@ -337,27 +337,27 @@ int xe_url::parse(){
 		uint k = host;
 
 		while(i < host)
-			if(_string[i] == ':'){
+			if(string_[i] == ':'){
 				if(k < host)
 					return XE_MALFORMED_URL;
 				k = i++;
-			}else if(!regnamechr(_string[i]))
+			}else if(!regnamechr(string_[i]))
 				return XE_MALFORMED_URL;
 			else
 				i++;
 		i = k;
 	}
 
-	if(i < _string.length() && _string[i] == ':'){
+	if(i < string_.length() && string_[i] == ':'){
 		n_host = i;
 
 		uint port = 0;
 
 		while(++i < host)
-			if(!xe_cisi(_string[i]))
+			if(!xe_cisi(string_[i]))
 				return XE_MALFORMED_URL;
 			else{
-				port = port * 10 + xe_ctoi(_string[i]);
+				port = port * 10 + xe_ctoi(string_[i]);
 
 				if(port > 0xffff)
 					return XE_MALFORMED_URL;
@@ -365,7 +365,7 @@ int xe_url::parse(){
 		v_port = port;
 	}else{
 		n_host = host;
-		v_port = -1;
+		v_port = 0;
 	}
 
 	n_scheme = scheme;
@@ -378,25 +378,27 @@ int xe_url::parse(){
 }
 
 xe_string xe_url::scheme(){
-	return _string.substring(0, n_scheme);
+	return string_.substring(0, n_scheme);
 }
 
 xe_string xe_url::user_info(){
-	return _string.substring(n_authl, n_user);
+	return string_.substring(n_authl, n_user);
 }
 
 xe_string xe_url::host(){
-	return _string.substring(n_user, n_host);
+	if(n_host > 0 && n_user < string_.length() && string_[n_user] == '[' && string_[n_host - 1] == ']')
+		return string_.substring(n_user + 1, n_host - 1);
+	return string_.substring(n_user, n_host);
 }
 
 xe_string xe_url::path(){
-	return _string.substring(n_port, n_path);
+	return string_.substring(n_port, n_path);
 }
 
-int xe_url::port(){
+uint xe_url::port(){
 	return v_port;
 }
 
 void xe_url::free(){
-	_string.free();
+	string_.free();
 }

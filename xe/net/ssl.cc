@@ -55,6 +55,7 @@ void xe_ssl::set_fd(int fd){
 
 int xe_ssl::verify_host(xe_string host){
 	WOLFSSL* ssl = (WOLFSSL*)data;
+	xe_string host_copy;
 
 	wolfSSL_set_verify(ssl, SSL_VERIFY_PEER, null);
 
@@ -64,18 +65,15 @@ int xe_ssl::verify_host(xe_string host){
 		return XE_ENOMEM;
 	}
 
-	char temp = host.data()[host.length()];
-	int ret;
+	int err = 0;
 
-	host.data()[host.length()] = 0;
-
-	ret = wolfSSL_check_domain_name(ssl, host.c_str());
-
-	host.data()[host.length()] = temp;
-
-	if(ret != WOLFSSL_SUCCESS)
+	if(!host_copy.copy(host))
 		return XE_ENOMEM;
-	return 0;
+	if(wolfSSL_check_domain_name(ssl, host_copy.c_str()) != WOLFSSL_SUCCESS)
+		err = XE_ENOMEM;
+	host_copy.free();
+
+	return err;
 }
 
 int xe_ssl::set_alpn(xe_string protocols){
@@ -98,6 +96,8 @@ int xe_ssl::connect(int flags){
 
 	if(wolfSSL_connect(ssl) == WOLFSSL_SUCCESS)
 		return 0;
+	int err;
+
 	switch(wolfSSL_get_error(ssl, -1)){
 		case WOLFSSL_ERROR_WANT_READ:
 		case WOLFSSL_ERROR_WANT_WRITE:
@@ -107,9 +107,9 @@ int xe_ssl::connect(int flags){
 		case ASN_NO_SIGNER_E:
 			return XE_SSL_NO_SIGNER;
 		case SOCKET_ERROR_E:
-			if(errno == 0)
-				return XE_EOF;
-			return xe_syserror(errno);
+			if((err = xe_errno()))
+				return err;
+			return XE_ECONNRESET;
 	}
 
 	return XE_SSL;
@@ -151,7 +151,7 @@ int xe_ssl::recv(xe_ptr buffer, size_t len, int flags){
 		case WOLFSSL_ERROR_WANT_WRITE:
 			return XE_EAGAIN;
 		case SOCKET_ERROR_E:
-			return xe_syserror(errno);
+			return xe_errno();
 	}
 
 	return XE_SSL;
@@ -173,7 +173,7 @@ int xe_ssl::send(xe_cptr buffer, size_t len, int flags){
 		case WOLFSSL_ERROR_WANT_WRITE:
 			return XE_EAGAIN;
 		case SOCKET_ERROR_E:
-			return xe_syserror(errno);
+			return xe_errno();
 	}
 
 	return XE_SSL;

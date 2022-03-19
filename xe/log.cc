@@ -22,8 +22,8 @@ enum{
 #define XE_FORMAT(color) color "%-6s" XE_COLOR(252) " %12s:%-4u " XE_COLOR_RESET
 #define XE_LOG_FORMAT(color) color "[%s @ %#x] " XE_COLOR_RESET
 
-void xe_log_setlevel(xe_loglevel _level){
-	level = _level;
+void xe_log_setlevel(xe_loglevel level_){
+	level = level_;
 }
 
 static void xe__print(uint type, xe_cstr file, uint line, xe_cstr str, va_list args){
@@ -43,8 +43,13 @@ static void xe__print(uint type, xe_cstr file, uint line, xe_cstr str, va_list a
 			typestr = "ERROR";
 
 			break;
-		case XE_LOG_DEBUG:
+		case XE_LOG_VERBOSE:
 			format = XE_FORMAT(XE_COLOR(223));
+			typestr = "VERBOSE";
+
+			break;
+		case XE_LOG_DEBUG:
+			format = XE_FORMAT(XE_COLOR(177));
 			typestr = "DEBUG";
 
 			break;
@@ -95,8 +100,12 @@ static void xe__log(uint type, xe_cstr name, xe_cptr addr, xe_cstr str, va_list 
 			format = XE_LOG_FORMAT(XE_COLOR(196));
 
 			break;
-		case XE_LOG_DEBUG:
+		case XE_LOG_VERBOSE:
 			format = XE_LOG_FORMAT(XE_COLOR(223));
+
+			break;
+		case XE_LOG_DEBUG:
+			format = XE_LOG_FORMAT(XE_COLOR(177));
 
 			break;
 		case XE_LOG_TRACE:

@@ -29,8 +29,9 @@ struct xe_endpoint{
 };
 
 struct xe_resolve{
-	xe_loop& loop;
 	xe_ptr resolver;
+	xe_loop* loop;
+	xe_net_ctx* net;
 
 	int pollfd;
 	int tfd;
@@ -40,17 +41,17 @@ struct xe_resolve{
 
 	size_t count;
 
-	xe_resolve(xe_loop& loop);
+	xe_resolve();
 
-	int init(xe_resolve_ctx& ctx);
+	int init(xe_net_ctx& net, xe_loop& loop, xe_resolve_ctx& ctx);
 	void close();
 
 	int start();
 	void stop();
 
-	int resolve(xe_net_ctx& net, xe_string host, xe_endpoint& endpoint);
+	int resolve(xe_string host, xe_endpoint& endpoint);
 private:
-	static void io(xe_handle&, int);
+	static void io(xe_loop_handle&, int);
 
 	friend struct ::xe_loop;
 };

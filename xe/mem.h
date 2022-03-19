@@ -1,6 +1,8 @@
 #pragma once
 #include <utility>
+#include <new>
 #include "types.h"
+#include "overflow.h"
 
 xe_ptr xe_malloc(size_t elem_size, size_t bytes);
 xe_ptr xe_malloc_aligned(size_t alignment, size_t elem_size, size_t bytes);
@@ -77,29 +79,38 @@ static inline void xe_zeroall(Args... args){
 	(xe_zero(args), ...);
 }
 
-template<class T, typename ...Args>
+template<class T, typename... Args>
+static inline void xe_construct(T* ptr, Args&& ...args){
+	new (ptr) T(std::forward<Args>(args)...);
+}
+
+template<class T>
+static inline void xe_deconstruct(T* ptr){
+	ptr -> ~T();
+}
+
+template<class T, typename... Args>
 static inline T* xe_new(Args&& ...args){
 	T* ptr = xe_alloc<T>();
 
 	if(ptr)
-		new (ptr) T(std::forward<Args>(args)...);
+		xe_construct(ptr, args...);
 	return ptr;
 }
 
-template<class T, typename ...Args>
+template<class T, typename... Args>
 static inline T* xe_znew(Args&& ...args){
 	T* ptr = xe_zalloc<T>();
 
 	if(ptr)
-		new (ptr) T(std::forward<Args>(args)...);
+		xe_construct(ptr, args...);
 	return ptr;
 }
 
 template<class T>
 static inline void xe_delete(T* ptr){
 	if(ptr){
-		ptr -> ~T();
-
+		xe_deconstruct(ptr);
 		xe_dealloc(ptr);
 	}
 }

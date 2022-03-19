@@ -12,12 +12,12 @@
 #include "io/socket.h"
 #include "io/file.h"
 
-#define XE_IO_ARGS xe_ptr user_data, xe_handle::xe_callback callback, ulong u1, ulong u2, xe_handle_type handle_type
+#define XE_IO_ARGS xe_ptr user_data, xe_loop_handle::xe_callback callback, ulong u1, ulong u2, xe_loop_handle_type handle_type
 #define XE_IO_ARGS_PASS user_data, callback, u1, u2, handle_type
 
 enum xe_loop_constants{
 	ENTRY_COUNT = 1024, /* default sqe and cqe count */
-	MAX_ENTRIES = 16777216 /* max sqe count permitted to allow packing xe_handle_type and handle index into a signed int */
+	MAX_ENTRIES = 16777216 /* max sqe count permitted to allow packing xe_loop_handle_type and handle index into a signed int */
 };
 
 enum xe_timer_flags{
@@ -28,7 +28,10 @@ enum xe_timer_flags{
 	XE_TIMER_CANCELLING = 0x8
 };
 
-static inline uint xe_handle_packed_type(xe_handle_type handle_type){
+/* handle pack
+ * | 1 bit zero | 7bit handle_type | 24bit handle_index |
+ */
+static inline uint xe_handle_packed_type(xe_loop_handle_type handle_type){
 	return (uint)handle_type << 24;
 }
 
@@ -43,8 +46,8 @@ static inline uint xe_handle_unpack_index(ulong packed){
 static inline bool xe_handle_invalid(xe_loop& loop, int handle){
 	return handle < 0 ||
 		xe_handle_unpack_index(handle) >= loop.num_capacity ||
-		xe_handle_unpack_type(handle) <= XE_HANDLE_NONE ||
-		xe_handle_unpack_type(handle) >= XE_HANDLE_LAST;
+		xe_handle_unpack_type(handle) <= XE_LOOP_HANDLE_NONE ||
+		xe_handle_unpack_type(handle) >= XE_LOOP_HANDLE_LAST;
 }
 
 template<typename F>
@@ -55,16 +58,16 @@ static int xe_queue_io(xe_loop& loop, int op, XE_IO_ARGS, F init_sqe){
 	xe_assert(loop.num_queued + loop.num_handles + loop.num_reserved <= loop.num_capacity);
 
 	io_uring_sqe* sqe;
-	xe_handle* handle;
+	xe_loop_handle* handle;
 
-	if(handle_type <= XE_HANDLE_NONE || handle_type >= XE_HANDLE_LAST)
+	if(handle_type <= XE_LOOP_HANDLE_NONE || handle_type >= XE_LOOP_HANDLE_LAST)
 		return XE_EINVAL;
 	if(loop.num_queued + loop.num_handles + loop.num_reserved >= loop.num_capacity)
 		return XE_ETOOMANYHANDLES;
 	loop.num_queued++;
 	sqe = &loop.ring.sq.sqes[loop.ring.sq.sqe_tail++ & loop.ring.sq.sqe_head];
 
-	xe_assert(sqe -> user_data < loop.num_capacity); /* {sqe -> user_data} is the index of the {xe_handle} that is linked to this sqe */
+	xe_assert(sqe -> user_data < loop.num_capacity); /* {sqe -> user_data} is the index of the {xe_loop_handle} that is linked to this sqe */
 
 	/* copy io handle information */
 	handle = &loop.handles[sqe -> user_data];
@@ -72,7 +75,7 @@ static int xe_queue_io(xe_loop& loop, int op, XE_IO_ARGS, F init_sqe){
 	handle -> u1 = u1;
 	handle -> u2 = u2;
 
-	if(handle_type == XE_HANDLE_USER)
+	if(handle_type == XE_LOOP_HANDLE_USER)
 		handle -> callback = callback;
 	/* copy io parameters */
 	sqe -> opcode = op;
@@ -112,7 +115,7 @@ static inline void xe_sqe_pipe(io_uring_sqe* sqe, uint flags, int fd_in, ulong o
 }
 
 static int xe_queue_timer_internal(xe_loop& loop, xe_timer& timer){
-	int res = xe_queue_io(loop, IORING_OP_TIMEOUT, &timer, null, 0, 0, XE_HANDLE_TIMER, [&](io_uring_sqe* sqe){
+	int res = xe_queue_io(loop, IORING_OP_TIMEOUT, &timer, null, 0, 0, XE_LOOP_HANDLE_TIMER, [&](io_uring_sqe* sqe){
 		sqe -> flags = 0;
 		sqe -> addr = (ulong)&timer.expire;
 		sqe -> len = 1;
@@ -147,6 +150,22 @@ static int xe_queue_timer(xe_loop& loop, xe_timer& timer){
 	return ret;
 }
 
+xe_timer::xe_timer(){
+	expire = {0, 0};
+	callback = null;
+	start = 0;
+	delay = 0;
+	flags = 0;
+	cancel = -1;
+}
+
+xe_loop_options::xe_loop_options(){
+	capacity = 0;
+	flags = 0;
+	sq_thread_cpu = 0;
+	pad = 0;
+}
+
 void xe_promise::resolve(int res){
 	result = res;
 	ready = true;
@@ -156,17 +175,33 @@ void xe_promise::resolve(int res){
 		waiter.resume();
 }
 
+xe_promise::xe_promise(){
+	waiter = null;
+	ready = false;
+	handle = -1;
+}
+
+xe_loop::xe_loop(){
+	xe_zero(&ring);
+
+	num_handles = 0;
+	num_queued = 0;
+	num_reserved = 0;
+	num_capacity = 0;
+
+	io_buf = null;
+	handles = null;
+}
+
 int xe_loop::init(){
 	xe_loop_options options;
-
-	xe_zero(&options);
 
 	return xe_loop::init_options(options);
 }
 
 int xe_loop::init_options(xe_loop_options& options){
 	xe_buf io_buf;
-	xe_handle* handles;
+	xe_loop_handle* handles;
 	io_uring_params params;
 
 	if(options.flags & ~(xe_loop_options::XE_FLAGS_SQPOLL | xe_loop_options::XE_FLAGS_IOPOLL | xe_loop_options::XE_FLAGS_SQAFF | xe_loop_options::XE_FLAGS_IOBUF))
@@ -209,7 +244,7 @@ int xe_loop::init_options(xe_loop_options& options){
 		return err;
 	}
 
-	handles = xe_alloc_aligned<xe_handle>(0, params.sq_entries);
+	handles = xe_alloc_aligned<xe_loop_handle>(0, params.sq_entries);
 
 	if(!handles){
 		io_uring_queue_exit(&ring);
@@ -223,8 +258,8 @@ int xe_loop::init_options(xe_loop_options& options){
 	xe_zero(handles, params.sq_entries);
 
 	for(uint i = 0; i < params.sq_entries; i++){
-		ring.sq.sqes[i].user_data = i; /* link each sqe to an {xe_handle} */
-		ring.sq.array[i] = i; /* pre-fill the sqe array */
+		ring.sq.sqes[i].user_data = i; /* link each sqe to an {xe_loop_handle} */
+		ring.sq.array[i] = i; /* fill the sqe array */
 	}
 
 	num_capacity = params.sq_entries;
@@ -233,7 +268,7 @@ int xe_loop::init_options(xe_loop_options& options){
 	this -> handles = handles;
 	this -> io_buf = io_buf;
 
-	xe_log_trace("xe_loop", this, "init(), %d entries", num_capacity);
+	xe_log_trace("xe_loop", this, "init(), %u entries", num_capacity);
 
 	return 0;
 }
@@ -263,13 +298,19 @@ int xe_loop::timer_ns(xe_timer& timer, ulong nanos, bool repeat){
 }
 
 int xe_loop::timer_cancel(xe_timer& timer){
+	if(timer.flags & XE_TIMER_CALLBACK){
+		timer.flags &= ~XE_TIMER_REPEAT;
+
+		return 0;
+	}
+
 	if(!(timer.flags & XE_TIMER_ACTIVE))
 		return XE_EINVAL;
 	if(timer.flags & XE_TIMER_CANCELLING)
 		return XE_EALREADY;
 	xe_assert(!xe_handle_invalid(*this, timer.cancel));
 
-	int ret = xe_queue_io(*this, IORING_OP_TIMEOUT_REMOVE, null, null, 0, 0, XE_HANDLE_DISCARD, [&](io_uring_sqe* sqe){
+	int ret = xe_queue_io(*this, IORING_OP_TIMEOUT_REMOVE, null, null, 0, 0, XE_LOOP_HANDLE_DISCARD, [&](io_uring_sqe* sqe){
 		sqe -> flags = 0;
 		sqe -> addr = (ulong)timer.cancel;
 		sqe -> len = 0;
@@ -505,10 +546,10 @@ int xe_loop::cancel(int hd, uint flags, XE_IO_ARGS){
 	});
 }
 
-int xe_loop::modify_handle(int hd, xe_ptr user_data, xe_handle::xe_callback callback, ulong u1, ulong u2){
+int xe_loop::modify_handle(int hd, xe_ptr user_data, xe_loop_handle::xe_callback callback, ulong u1, ulong u2){
 	if(xe_handle_invalid(*this, hd))
 		return XE_EINVAL;
-	xe_handle* handle = &handles[xe_handle_unpack_index(hd)];
+	xe_loop_handle* handle = &handles[xe_handle_unpack_index(hd)];
 
 	handle -> u1 = u1;
 	handle -> u2 = u2;
@@ -521,7 +562,7 @@ int xe_loop::modify_handle(int hd, xe_ptr user_data, xe_handle::xe_callback call
 #define xe_promise_start(op, ...)										\
 	xe_promise promise;													\
 																		\
-	int ret = op(__VA_ARGS__ &promise, null, 0, 0, XE_HANDLE_PROMISE);	\
+	int ret = op(__VA_ARGS__ &promise, null, 0, 0, XE_LOOP_HANDLE_PROMISE);	\
 																		\
 	if(ret < 0)															\
 		promise.resolve(ret);											\
@@ -738,7 +779,7 @@ static int xe_loop_submit(xe_loop& loop, uint wait){
 	ret = xe_loop_enter(loop, submit, wait, flags);
 
 	if(ret < 0)
-		return xe_syserror(errno);
+		return xe_errno();
 	return ret;
 }
 
@@ -746,18 +787,18 @@ static int xe_loop_waitsingle(xe_loop& loop){
 	int ret = xe_loop_enter(loop, 0, 1, IORING_ENTER_GETEVENTS);
 
 	if(ret < 0){
-		ret = errno;
+		ret = xe_errno();
 
-		if(ret == EINTR)
+		if(ret == XE_EINTR)
 			return 0;
-		return xe_syserror(ret);
+		return ret;
 	}
 
 	return 0;
 }
 
 int xe_loop::run(){
-	xe_handle* handle;
+	xe_loop_handle* handle;
 
 	int res;
 
@@ -778,6 +819,8 @@ int xe_loop::run(){
 			res = xe_loop_submit(*this, 1);
 
 			if(res >= 0){
+				xe_log_trace("xe_loop", this, "queued %u handles", res);
+
 				num_handles += res;
 				num_queued -= res;
 				res = 0;
@@ -793,11 +836,14 @@ int xe_loop::run(){
 				cqe_tail = io_uring_smp_load_acquire(ring.cq.ktail);
 			}
 		}else{
+			/* nothing else to do */
 			break;
 		}
 
 		if(res)
 			return res;
+		xe_log_trace("xe_loop", this, "processing %u handles", cqe_tail - cqe_head);
+
 		while(cqe_head != cqe_tail){
 			packed_handle_index = ring.cq.cqes[cqe_head & cqe_mask].user_data;
 			res = ring.cq.cqes[cqe_head & cqe_mask].res;
@@ -813,17 +859,17 @@ int xe_loop::run(){
 			handle = &handles[handle_index];
 
 			switch(packed_handle_index){
-				case XE_HANDLE_DISCARD:
+				case XE_LOOP_HANDLE_DISCARD:
 					break;
-				case XE_HANDLE_TIMER:
+				case XE_LOOP_HANDLE_TIMER:
 					xe_loop_timer(*this, *(xe_timer*)handle -> user_data);
 
 					break;
-				case XE_HANDLE_SOCKET:
+				case XE_LOOP_HANDLE_SOCKET:
 					xe_socket::io(*handle, res);
 
 					break;
-				case XE_HANDLE_FILE:
+				case XE_LOOP_HANDLE_FILE:
 					xe_file::io(*handle, res);
 
 					break;
@@ -835,13 +881,13 @@ int xe_loop::run(){
 					xe_net::xe_resolve::io(*handle, res);
 
 					break;
-				case XE_HANDLE_USER:
+				case XE_LOOP_HANDLE_USER:
 					if(!handle -> callback)
 						break;
 					handle -> callback(*this, handle -> user_data, handle -> u1, handle -> u2, res);
 
 					break;
-				case XE_HANDLE_PROMISE: {
+				case XE_LOOP_HANDLE_PROMISE: {
 					xe_promise* promise = (xe_promise*)handle -> user_data;
 
 					promise -> resolve(res);
@@ -850,7 +896,7 @@ int xe_loop::run(){
 				}
 
 				default:
-					xe_notreached;
+					xe_notreached();
 
 					break;
 			}

@@ -39,6 +39,7 @@ int xe_net_shared::init(){
 int xe_net_shared::init_ssl(xe_cstr cafile, xe_cstr capath){
 	int err;
 
+	endpoints.init();
 	err = resolve.init();
 
 	if(err)
@@ -69,8 +70,8 @@ void xe_net_shared::free(){
 static void xe_net_poll(xe_net_ctx& net){
 	if(net.handle != -1 || !(net.flags & FLAG_ACTIVE))
 		return;
-	net.loop.release(1);
-	net.handle = net.loop.poll(net.pollfd, EPOLLIN, &net, null, 0, 0, XE_NET_CONNECTION);
+	net.loop -> release(1);
+	net.handle = net.loop -> poll(net.pollfd, EPOLLIN, &net, null, 0, 0, XE_NET_CONNECTION);
 
 	xe_assert(net.handle >= 0);
 }
@@ -120,7 +121,7 @@ int xe_net_ctx::resolve(xe_connection& conn, xe_string& host, xe_endpoint& ep){
 
 		entry -> second.pending = null;
 		conn.next = null;
-		err = resolver.resolve(*this, host_copy, ep);
+		err = resolver.resolve(host_copy, ep);
 
 		if(err != XE_EINPROGRESS){
 			if(err)
@@ -171,17 +172,21 @@ int xe_net_ctx::poll(xe_connection& conn, int mode, int fd, int flags){
 	event.data.ptr = &conn;
 
 	if(epoll_ctl(pollfd, mode, fd, &event) < 0)
-		return xe_syserror(errno);
+		return xe_errno();
 	return 0;
 }
 
 void xe_net_ctx::count(){
+	/* refcount */
 	if(!conn_count)
 		xe_net_poll(*this);
+	xe_assert(conn_count < ULONG_MAX);
+
 	conn_count++;
 }
 
 void xe_net_ctx::uncount(){
+	/* refcount */
 	conn_count--;
 }
 
@@ -207,26 +212,24 @@ void xe_net_ctx::remove(xe_connection& conn){
 		connections = conn.next;
 }
 
-xe_net_ctx::xe_net_ctx(xe_loop& loop): loop(loop), resolver(loop){
+xe_net_ctx::xe_net_ctx(){
 	ssl_ctx = null;
 
 	for(uint i = 0; i < XE_PROTOCOL_LAST; i++)
 		protocols[i] = null;
 	connections = null;
-
 	flags = 0;
 	conn_count = 0;
-	pollfd = -1;
-	handle = -1;
 }
 
-xe_net_ctx::~xe_net_ctx(){
-
-}
-
-int xe_net_ctx::init(xe_net_shared& shared){
+int xe_net_ctx::init(xe_loop& loop_, xe_net_shared& shared){
 	int err = XE_ENOMEM;
 	int epfd = -1;
+
+	loop = &loop_;
+	pollfd = -1;
+	handle = -1;
+	endpoints.init();
 
 	for(uint i = 0; i < XE_PROTOCOL_LAST; i++){
 		protocols[i] = allocate_protocol(*this, i);
@@ -238,12 +241,12 @@ int xe_net_ctx::init(xe_net_shared& shared){
 	epfd = epoll_create(MAX_EVENTS);
 
 	if(epfd < 0){
-		err = xe_syserror(errno);
+		err = xe_errno();
 
 		goto fail;
 	}
 
-	if((err = resolver.init(shared.resolve)))
+	if((err = resolver.init(*this, loop_, shared.resolve)))
 		goto fail;
 	ssl_ctx = &shared.ssl;
 	pollfd = epfd;
@@ -282,7 +285,7 @@ void xe_net_ctx::destroy(){
 	if(flags & FLAG_ACTIVE)
 		stop();
 	if(handle != -1){
-		loop.modify_handle(handle, null, null, pollfd, 0);
+		loop -> modify_handle(handle, null, null, pollfd, 0);
 		handle = -1;
 	}else if(pollfd != -1){
 		close(pollfd);
@@ -295,6 +298,8 @@ void xe_net_ctx::destroy(){
 		endpoint.second.endpoint.free();
 	}
 
+	endpoints.free();
+
 	for(uint i = 0; i < XE_PROTOCOL_LAST; i++)
 		xe_delete(protocols[i]);
 }
@@ -302,14 +307,14 @@ void xe_net_ctx::destroy(){
 int xe_net_ctx::start(){
 	if(flags & FLAG_ACTIVE)
 		return 0;
-	if(loop.remain() < 2)
+	if(loop -> remain() < 2)
 		return XE_ETOOMANYHANDLES;
-	loop.reserve(2);
+	loop -> reserve(2);
 
 	int err = resolver.start();
 
 	if(err)
-		loop.release(2);
+		loop -> release(2);
 	else
 		flags |= FLAG_ACTIVE;
 	return err;
@@ -321,23 +326,23 @@ void xe_net_ctx::stop(){
 	resolver.stop();
 
 	if(handle == -1){
-		loop.release(2);
+		loop -> release(2);
 
 		return;
 	}
 
 	int ret;
 
-	loop.release(1);
-	ret = loop.poll_cancel(handle, null, null, 0, 0, XE_HANDLE_DISCARD);
+	loop -> release(1);
+	ret = loop -> poll_cancel(handle, null, null, 0, 0, XE_LOOP_HANDLE_DISCARD);
 
 	xe_assert(ret >= 0);
 }
 
-int xe_net_ctx::open(xe_request& request, xe_string _url){
+int xe_net_ctx::open(xe_request& request, xe_string url_){
 	xe_string url;
 
-	if(!url.copy(_url))
+	if(!url.copy(url_))
 		return XE_ENOMEM;
 	xe_protocol_data* data = request.data;
 	xe_url parser(url);
@@ -371,15 +376,35 @@ int xe_net_ctx::start(xe_request& request){
 	return protocol -> start(request);
 }
 
+int xe_net_ctx::pause(xe_request& request, bool pause){
+	if(request.state == XE_REQUEST_STATE_COMPLETE || request.state == XE_REQUEST_STATE_IDLE)
+		return XE_EINVAL;
+	xe_protocol* protocol = protocols[request.data -> id()];
+
+	protocol -> pause(request, pause);
+
+	return 0;
+}
+
+int xe_net_ctx::end(xe_request& request){
+	if(request.state == XE_REQUEST_STATE_COMPLETE || request.state == XE_REQUEST_STATE_IDLE)
+		return XE_EINVAL;
+	xe_protocol* protocol = protocols[request.data -> id()];
+
+	protocol -> end(request);
+
+	return 0;
+}
+
 xe_loop& xe_net_ctx::get_loop(){
-	return loop;
+	return *loop;
 }
 
 xe_ssl_ctx& xe_net_ctx::get_ssl_ctx(){
 	return *ssl_ctx;
 }
 
-void xe_net_ctx::io(xe_handle& handle, int result){
+void xe_net_ctx::io(xe_loop_handle& handle, int result){
 	if(!handle.user_data){
 		close(handle.u1);
 
@@ -392,7 +417,7 @@ void xe_net_ctx::io(xe_handle& handle, int result){
 
 	if(!(net.flags & FLAG_ACTIVE))
 		return;
-	xe_assert(net.loop.reserve(1));
+	xe_assert(net.loop -> reserve(1));
 
 	epoll_event events[MAX_EVENTS];
 	ulong buf;
@@ -400,10 +425,12 @@ void xe_net_ctx::io(xe_handle& handle, int result){
 	int n = epoll_wait(net.pollfd, events, MAX_EVENTS, 0);
 
 	if(n < 0){
-		xe_assert(errno == EINTR);
+		xe_assert(xe_errno() == XE_EINTR);
 
 		return;
 	}
+
+	xe_log_trace("xe_net_ctx", &net, "processing %i events", n);
 
 	for(int i = 0; i < n; i++){
 		xe_connection* conn = (xe_connection*)events[i].data.ptr;

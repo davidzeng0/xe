@@ -1,7 +1,6 @@
 #pragma once
-#include "common.h"
+#include "types.h"
 #include "container/vector.h"
-#include "container/map.h"
 
 char xe_string_tolower(char c);
 
@@ -33,16 +32,9 @@ static inline int xe_hex(char c){
 }
 
 class xe_string : public xe_array<char>{
-protected:
-	using xe_array<char>::_data;
-	using xe_array<char>::_size;
 public:
-	using xe_array<char>::data;
-	using xe_array<char>::max_size;
-	using xe_array<char>::at;
-	using xe_array<char>::free;
+	constexpr xe_string(){}
 
-	xe_string();
 	xe_string(xe_string&& src);
 	xe_string& operator=(xe_string&& other);
 
@@ -51,21 +43,44 @@ public:
 
 	xe_string(xe_cptr string);
 	xe_string(xe_cptr string, size_t len);
+	xe_string& operator=(xe_cptr string);
 
 	xe_string(xe_vector<char>&& vec);
 
-	xe_string& operator=(xe_cptr string);
-
-	constexpr inline xe_cstr data() const{
-		return _data;
+	constexpr xe_string(xe_cstr string){
+		data_ = (xe_pchar)string;
+		size_ = __builtin_strlen(string);
 	}
 
-	constexpr inline xe_cstr c_str() const{
-		return _data;
+	constexpr xe_string(xe_cstr string, size_t len){
+		data_ = (xe_pchar)string;
+		size_ = len;
 	}
 
-	constexpr inline size_t length() const{
-		return _size;
+	constexpr xe_string(xe_pchar string){
+		data_ = string;
+		size_ = __builtin_strlen(string);
+	}
+
+	constexpr xe_string(xe_pchar string, size_t len){
+		data_ = string;
+		size_ = len;
+	}
+
+	constexpr xe_pchar data(){
+		return data_;
+	}
+
+	constexpr xe_cstr data() const{
+		return data_;
+	}
+
+	constexpr xe_cstr c_str() const{
+		return data_;
+	}
+
+	constexpr size_t length() const{
+		return size_;
 	}
 
 	size_t indexOf(char c) const;
@@ -86,9 +101,7 @@ public:
 
 	void clear();
 
-	constexpr inline size_t hash() const{
-		return xe_hash::hash_bytes(c_str(), length());
-	}
+	size_t hash() const;
 
 	xe_string substring(size_t start);
 	xe_string substring(size_t start, size_t end);

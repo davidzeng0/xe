@@ -6,7 +6,7 @@ namespace xe_net{
 
 class xe_url{
 private:
-	xe_string _string;
+	xe_string string_;
 
 	uint n_scheme;
 	uint n_authl;
@@ -14,7 +14,7 @@ private:
 	uint n_host;
 	uint n_port;
 	uint n_path;
-	int v_port;
+	uint v_port;
 public:
 	xe_url();
 	xe_url(xe_string string);
@@ -28,7 +28,7 @@ public:
 	xe_string host();
 	xe_string path();
 
-	int port();
+	uint port();
 
 	void free();
 };

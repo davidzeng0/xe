@@ -4,6 +4,7 @@
 #include "../error.h"
 #include "../log.h"
 #include "../common.h"
+#include "../assert.h"
 
 enum xe_file_flags{
 	XE_FILE_NONE    = 0x0,
@@ -34,7 +35,7 @@ xe_loop& xe_file::get_loop(){
 int xe_file::open(xe_cstr path, uint flags){
 	if(flags & XE_FILE_OPENING || fd >= 0)
 		return XE_EINVAL;
-	int ret = loop.openat(AT_FDCWD, path, flags, 0, this, null, XE_FILE_OPEN, 0, XE_HANDLE_FILE);
+	int ret = loop.openat(AT_FDCWD, path, flags, 0, this, null, XE_FILE_OPEN, 0, XE_LOOP_HANDLE_FILE);
 
 	if(ret >= 0){
 		flags |= XE_FILE_OPENING;
@@ -47,19 +48,19 @@ int xe_file::open(xe_cstr path, uint flags){
 int xe_file::read(xe_buf buf, uint len, ulong offset, ulong key){
 	if(flags & XE_FILE_OPENING || fd < 0)
 		return XE_EINVAL;
-	return loop.read(fd, buf, len, offset, this, null, XE_FILE_READ, key, XE_HANDLE_FILE);
+	return loop.read(fd, buf, len, offset, this, null, XE_FILE_READ, key, XE_LOOP_HANDLE_FILE);
 }
 
 int xe_file::write(xe_buf buf, uint len, ulong offset, ulong key){
 	if(flags & XE_FILE_OPENING || fd < 0)
 		return XE_EINVAL;
-	return loop.write(fd, buf, len, offset, this, null, XE_FILE_WRITE, key, XE_HANDLE_FILE);
+	return loop.write(fd, buf, len, offset, this, null, XE_FILE_WRITE, key, XE_LOOP_HANDLE_FILE);
 }
 
 int xe_file::cancelopen(){
 	if(!(flags & XE_FILE_OPENING) || (flags & XE_FILE_CLOSING))
 		return XE_EINVAL;
-	int ret = loop.cancel(handle, 0, null, null, 0, 0, XE_HANDLE_DISCARD);
+	int ret = loop.cancel(handle, 0, null, null, 0, 0, XE_LOOP_HANDLE_DISCARD);
 
 	if(ret >= 0){
 		flags |= XE_FILE_CLOSING;
@@ -78,7 +79,7 @@ void xe_file::close(){
 	}
 }
 
-void xe_file::io(xe_handle& handle, int result){
+void xe_file::io(xe_loop_handle& handle, int result){
 	xe_file& file = *(xe_file*)handle.user_data;
 
 	switch(handle.u1){
@@ -104,6 +105,6 @@ void xe_file::io(xe_handle& handle, int result){
 
 			break;
 		default:
-			xe_notreached;
+			xe_notreached();
 	}
 }

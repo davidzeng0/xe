@@ -1,5 +1,4 @@
 #include "request.h"
-#include "proto/http.h"
 
 using namespace xe_net;
 
@@ -8,11 +7,11 @@ xe_request::~xe_request(){
 		xe_delete(data);
 }
 
-void xe_request::set_state(xe_request_state _state){
-	state = _state;
+void xe_request::set_state(xe_request_state state_){
+	state = state_;
 
 	if(callbacks.state)
-		callbacks.state(*this, _state);
+		callbacks.state(*this, state_);
 }
 
 bool xe_request::write(xe_ptr buf, size_t size){
@@ -28,31 +27,72 @@ void xe_request::finished(int error){
 		callbacks.done(*this, error);
 }
 
-int xe_request::set_callback(int option, xe_ptr callback){
-	switch(option){
-		case XE_REQUEST_CALLBACK_STATE:
-			*(xe_ptr*)&callbacks.state = callback;
-
-			break;
-		case XE_REQUEST_CALLBACK_WRITE:
-			*(xe_ptr*)&callbacks.write = callback;
-
-			break;
-		case XE_REQUEST_CALLBACK_DONE:
-			*(xe_ptr*)&callbacks.done = callback;
-
-			break;
-		default:
-			return data -> set(option, callback, 0);
-	}
+int xe_request::set_state_cb(state_cb cb){
+	callbacks.state = cb;
 
 	return 0;
 }
 
-int xe_request::set_http_method(xe_string method, int flags){
-	return data -> set(XE_HTTP_METHOD, &method, flags);
+int xe_request::set_write_cb(write_cb cb){
+	callbacks.write = cb;
+
+	return 0;
 }
 
-int xe_request::set_http_header(xe_string key, xe_string value, int flags){
-	return data -> set(XE_HTTP_HEADER, &key, &value, flags);
+int xe_request::set_done_cb(done_cb cb){
+	callbacks.done = cb;
+
+	return 0;
+}
+
+int xe_request::set_port(ushort port){
+	return data -> set(XE_NET_PORT, (xe_ptr)(ulong)port, 0);
+}
+
+int xe_request::set_connect_timeout(uint timeout_ms){
+	return data -> set(XE_NET_CONNECT_TIMEOUT, (xe_ptr)(ulong)timeout_ms, 0);
+}
+
+int xe_request::set_max_redirects(uint max_redirects){
+	return data -> set(XE_NET_MAX_REDIRECT, (xe_ptr)(ulong)max_redirects, 0);
+}
+
+int xe_request::set_ssl_verify(bool verify){
+	return data -> set(XE_NET_SSL_VERIFY, (xe_ptr)verify, 0);
+}
+
+int xe_request::set_follow_location(bool follow){
+	return data -> set(XE_NET_FOLLOW_LOCATION, (xe_ptr)follow, 0);
+}
+
+int xe_request::set_ip_mode(xe_ip_mode mode){
+	return data -> set(XE_NET_IP_MODE, (xe_ptr)(ulong)mode, 0);
+}
+
+int xe_request::set_recvbuf_size(uint size){
+	return data -> set(XE_NET_RECVBUF_SIZE, (xe_ptr)(ulong)size, 0);
+}
+
+int xe_request::set_http_method(xe_string method, bool clone){
+	return data -> set(XE_HTTP_METHOD, &method, clone ? XE_HTTP_CLONE_STRING : 0);
+}
+
+int xe_request::set_http_header(xe_string key, xe_string value, bool clone){
+	return data -> set(XE_HTTP_HEADER, &key, &value, clone ? XE_HTTP_CLONE_STRING : 0);
+}
+
+int xe_request::set_http_response_cb(xe_http_response_cb cb){
+	return data -> set(XE_HTTP_CALLBACK_RESPONSE, (xe_ptr)cb, 0);
+}
+
+int xe_request::set_http_header_cb(xe_http_header_cb cb){
+	return data -> set(XE_HTTP_CALLBACK_HEADER, (xe_ptr)cb, 0);
+}
+
+void xe_request::close(){
+	if(data){
+		xe_delete(data);
+
+		data = null;
+	}
 }

@@ -1,3 +1,4 @@
+#include "../request.h"
 #include "http.h"
 #include "../conn.h"
 
@@ -61,26 +62,26 @@ public:
 		return *this;
 	}
 
-	bool copy(xe_string& string, bool _clone){
+	bool copy(xe_string& string, bool clone_){
 		free();
 
-		if(_clone){
-			clone = _clone;
+		if(clone_){
+			clone = clone_;
 
 			return xe_string::copy(string);
 		}
 
-		clone = _clone;
-		_data = string.data();
-		_size = string.size();
+		clone = clone_;
+		data_ = string.data();
+		size_ = string.size();
 
 		return true;
 	}
 
 	void free(){
 		if(!clone){
-			_data = null;
-			_size = 0;
+			data_ = null;
+			size_ = 0;
 		}else{
 			xe_string::free();
 		}
@@ -118,10 +119,12 @@ public:
 
 	bool matches(const xe_string& scheme) const;
 
+	int redirect(xe_request& request, xe_string url);
+
 	~xe_http();
 };
 
-class xe_http_data : public xe_protocol_data{
+class xe_http_data : public xe_protocol_data, public xe_net_data{
 public:
 	xe_url url;
 	xe_option_string method;
@@ -134,6 +137,8 @@ public:
 		int (*header)(xe_request& request, xe_string key, xe_string value);
 	} callbacks;
 
+	uint redirects;
+
 	bool ssl_verify;
 
 	int set_method(xe_string& string, int flags);
@@ -143,7 +148,7 @@ public:
 
 	xe_http_data();
 
-	int open(xe_url _url);
+	int open(xe_url url, bool redir = false);
 	int set(int option, xe_ptr value, int flags);
 	int set(int option, xe_ptr value1, xe_ptr value2, int flags);
 
@@ -162,7 +167,7 @@ public:
 		FLAG_REQUEST_ACTIVE = 0x1,
 		FLAG_TRANSFER_ACTIVE = 0x2,
 		FLAG_CONNECTION_CLOSE = 0x4,
-		FLAG_HEAD = 0x8
+		FLAG_BODYLESS = 0x8
 	};
 
 	enum xe_state{
@@ -190,7 +195,7 @@ public:
 		CHUNKED_READ_EXTENSION,
 		CHUNKED_READ_DATA,
 		CHUNKED_READ_END,
-		CHUNKED_FINISH
+		CHUNKED_READ_TRAILERS
 	};
 
 	xe_http& http;
@@ -218,12 +223,19 @@ public:
 
 	ulong content_length;
 
+	xe_string location;
+
+	bool follow;
 	bool in_list;
 
 	xe_http_connection(xe_request* request, xe_http& http, xe_http_connection_list& list):
 		http(http),
 		list(list),
-		request(request){}
+		request(request){
+		data = (xe_http_data*)request -> data;
+		data -> connection = this;
+	}
+
 	bool read_number(xe_string& line, uint& out, uint& i){
 		out = 0;
 
@@ -246,8 +258,8 @@ public:
 		return true;
 	}
 
-	bool read_version(xe_string& line, uint& off){
-		uint major, minor;
+	bool read_version(xe_string& line, uint& off, uint& major, uint& minor){
+		uint version;
 
 		if(!read_digit(line, major, off))
 			return false;
@@ -255,12 +267,12 @@ public:
 			return false;
 		if(!read_digit(line, minor, off))
 			return false;
-		if(major != 1 || minor != 1)
-			flags |= FLAG_CONNECTION_CLOSE;
-		return (major == 1 && minor <= 1) || (major == 0 && minor == 9);
+		version = major * 10 + minor;
+
+		return version >= 9 && version <= 11;
 	}
 
-	int write_status_line(xe_string line){
+	int write_status_line(xe_string& line){
 		if(line.length() < xe_string("HTTP/0.0 0").length())
 			return XE_INVALID_RESPONSE;
 		xe_string begin = "http/";
@@ -268,10 +280,10 @@ public:
 
 		if(!line.substring(0, begin.length()).equalCase(begin))
 			return XE_INVALID_RESPONSE;
-		uint status;
+		uint major, minor, status;
 		uint off = begin.length();
 
-		if(!read_version(line, off))
+		if(!read_version(line, off, major, minor))
 			return XE_INVALID_RESPONSE;
 		if(line[off++] != ' ')
 			return XE_INVALID_RESPONSE;
@@ -283,6 +295,10 @@ public:
 			reason = line.substring(off);
 		}
 
+		if(status >= 100 && status < 200 || status == 204 || status == 304)
+			flags |= FLAG_BODYLESS;
+		xe_log_debug("xe_http", this, "HTTP/%u.%u %u %.*s", major, minor, status, reason.length(), reason.c_str());
+
 		if(data -> callbacks.response && data -> callbacks.response(*request, status, reason))
 			return XE_ABORTED;
 		return 0;
@@ -293,24 +309,31 @@ public:
 
 		if(index != -1){
 			key = line.substring(0, index);
+			index++;
 
-			if(++index < line.length() && line[index] == ' ')
+			while(index < line.length() && line[index] == ' ')
 				index++;
 			value = line.substring(index);
 		}else{
 			key = line;
+
+			xe_log_warn("xe_http", this, "header separator not found");
 		}
 	}
 
 	int handle_header(xe_string& key, xe_string& value){
 		if(key.equalCase("Content-Length")){
 			if(transfer_mode != MODE_NONE)
-				return XE_INVALID_RESPONSE;
+				return 0;
 			ulong clen = 0;
 
 			for(size_t i = 0; i < value.length(); i++){
-				if(!xe_cisi(value[i]) || clen > ULONG_MAX / 10)
+				if(!xe_cisi(value[i]) || clen > ULONG_MAX / 10){
+					xe_log_error("xe_http", this, "content length header exceeds maximum value");
+
 					return XE_INVALID_RESPONSE;
+				}
+
 				clen = 10 * clen + xe_ctoi(value[i]);
 			}
 
@@ -325,22 +348,32 @@ public:
 
 				if(index != -1){
 					str = value.substring(start, index);
-					start = index + 1;
+					index++;
+
+					while(index < value.length() && value[index] == ' ')
+						index++;
+					start = index;
 				}else{
 					str = value.substring(start);
 					start = value.length();
 				}
 
 				if(str.equalCase("chunked")){
-					if(transfer_mode != MODE_NONE)
-						return XE_INVALID_RESPONSE;
 					transfer_mode = MODE_CHUNKS;
 					transfer_encoding |= ENCODING_CHUNKED;
 				}
 			}
 		}else if(key.equalCase("Connection")){
-			if(value.equalCase("close"))
-				flags |= FLAG_CONNECTION_CLOSE;
+			if(value.equalCase("keep-alive"))
+				flags &= ~FLAG_CONNECTION_CLOSE;
+		}else if(data -> follow_location && key.equalCase("Location")){
+			location.free();
+
+			if(!location.copy(value))
+				return XE_ENOMEM;
+			follow = true;
+
+			return 0;
 		}
 
 		return 0;
@@ -402,13 +435,18 @@ public:
 					xe_string line(line_buf, line_end);
 
 					if(read_state == READ_HEADER_STATUS){
-						if((err = write_status_line(line)))
+						if((err = write_status_line(line))){
+							if(err == XE_INVALID_RESPONSE)
+								xe_log_error("xe_http", this, "bad header line");
 							return err;
+						}
+
 						read_state = READ_HEADER;
 					}else{
 						xe_string key, value;
 
 						header_parse(line, key, value);
+						xe_log_debug("xe_http", this, "%.*s: %.*s", key.length(), key.c_str(), value.length(), value.c_str());
 
 						if((err = handle_header(key, value)))
 							return err;
@@ -418,7 +456,7 @@ public:
 				}else{
 					read_state = READ_BODY;
 
-					if(flags & FLAG_HEAD)
+					if(flags & FLAG_BODYLESS)
 						goto finish;
 					switch(transfer_mode){
 						case MODE_NONE:
@@ -448,11 +486,86 @@ public:
 					finish:
 
 					flags &= FLAG_CONNECTION_CLOSE;
+					read_state = READ_NONE;
 
-					if(!flags)
-						read_state = READ_NONE;
 					finished(0);
 
+					break;
+				}
+			}
+		}
+
+		return 0;
+	}
+
+	int write_trailer(xe_bptr buf, size_t len){
+		size_t next, line_end;
+
+		int err;
+
+		while(true){
+			next = xe_string(buf, len).indexOf('\n');
+
+			if(next == -1){
+				if(len >= HEADERBUFFER_SIZE - header_offset || len >= MAXIMUM_HEADER_SIZE - header_total)
+					return XE_HEADERS_TOO_LONG;
+				if(!header_buffer){
+					header_buffer = xe_alloc<byte>(HEADERBUFFER_SIZE);
+
+					if(!header_buffer)
+						return XE_ENOMEM;
+				}
+
+				xe_memcpy(header_buffer + header_offset, buf, len);
+
+				header_offset += len;
+				header_total += len;
+
+				break;
+			}else{
+				xe_bptr line_buf;
+
+				line_end = next++;
+
+				if(next > MAXIMUM_HEADER_SIZE - header_total)
+					return XE_HEADERS_TOO_LONG;
+				header_total += next;
+
+				if(header_offset){
+					if(line_end){
+						if(line_end > HEADERBUFFER_SIZE - header_offset)
+							return XE_HEADERS_TOO_LONG;
+						xe_memcpy(header_buffer + header_offset, buf, line_end);
+					}
+
+					line_end += header_offset;
+					line_buf = header_buffer;
+					header_offset = 0;
+				}else{
+					line_buf = buf;
+				}
+
+				buf += next;
+				len -= next;
+
+				if(line_end > 0 && line_buf[line_end - 1] == '\r')
+					line_end--;
+				if(line_end){
+					xe_string line(line_buf, line_end);
+					xe_string key, value;
+
+					header_parse(line, key, value);
+
+					if(data -> callbacks.header && data -> callbacks.header(*request, key, value))
+						return XE_ABORTED;
+				}else{
+					flags &= FLAG_CONNECTION_CLOSE;
+					read_state = READ_NONE;
+
+					finished(0);
+
+					if(len)
+						return XE_ABORTED;
 					break;
 				}
 			}
@@ -471,17 +584,15 @@ public:
 						int d = xe_hex(*buf);
 
 						if(d >= 0){
-							if(content_length > ULONG_MAX / 16)
+							if(content_length > ULONG_MAX >> 4){
+								xe_log_error("xe_http", this, "chunk size exceeds maximum value");
+
 								return XE_INVALID_RESPONSE;
+							}
+
 							content_length = (content_length << 4) + d;
 						}else{
 							chunked_state = CHUNKED_READ_EXTENSION;
-
-							if(!content_length){
-								flags &= ~FLAG_REQUEST_ACTIVE;
-
-								finished(0);
-							}
 
 							break;
 						}
@@ -500,8 +611,10 @@ public:
 
 						if(content_length)
 							chunked_state = CHUNKED_READ_DATA;
-						else
-							chunked_state = CHUNKED_FINISH;
+						else{
+							header_total = 0;
+							chunked_state = CHUNKED_READ_TRAILERS;
+						}
 					}else{
 						len = 0;
 					}
@@ -518,36 +631,43 @@ public:
 						chunked_state = CHUNKED_READ_END;
 					content_length -= write;
 
-					if(request -> callbacks.write && request -> callbacks.write(*request, buf, write))
+					if(!client_write(buf, write))
 						return XE_ABORTED;
 					len -= write;
 					buf += write;
 
 					break;
-				case CHUNKED_READ_END:
-				case CHUNKED_FINISH: {
+				case CHUNKED_READ_END: {
 					size_t index = xe_string(buf, len).indexOf('\n');
 
 					if(index != -1){
 						len -= index + 1;
 						buf += index + 1;
 
-						if(chunked_state == CHUNKED_READ_END)
-							chunked_state = CHUNKED_READ_SIZE;
-						else{
-							read_state = READ_NONE;
-							flags &= FLAG_CONNECTION_CLOSE;
-						}
+						chunked_state = CHUNKED_READ_SIZE;
 					}else{
 						len = 0;
 					}
 
 					break;
 				}
+
+				case CHUNKED_READ_TRAILERS:
+					return write_trailer(buf, len);
 			}
 		}
 
 		return 0;
+	}
+
+	bool client_write(xe_ptr buf, size_t len){
+		if(follow)
+			return true;
+		xe_log_trace("xe_http", this, "client write %zu bytes", len);
+
+		if(request -> callbacks.write && request -> callbacks.write(*request, buf, len))
+			return false;
+		return true;
 	}
 
 	int write_body(xe_bptr buf, size_t len){
@@ -555,27 +675,26 @@ public:
 			case MODE_CONN:
 				if(!len)
 					finished(0);
-				else if(request -> callbacks.write && request -> callbacks.write(*request, buf, len))
+				else if(!client_write(buf, len))
 					return XE_ABORTED;
 				break;
 			case MODE_CONTENTLENGTH: {
-				ulong write = content_length;
+				ulong write = xe_min(content_length, len);
 
 				if(!len)
-					return XE_EOF;
-				if(len < write)
-					write = len;
-				if(request -> callbacks.write && request -> callbacks.write(*request, buf, write))
+					return XE_PARTIAL_FILE;
+				if(!client_write(buf, write))
 					return XE_ABORTED;
 				content_length -= write;
 
 				if(!content_length){
 					flags &= FLAG_CONNECTION_CLOSE;
+					read_state = READ_NONE;
 
-					if(!flags)
-						read_state = READ_NONE;
 					finished(0);
 
+					if(len > write)
+						return XE_ABORTED;
 					return 0;
 				}
 
@@ -664,14 +783,14 @@ public:
 		return 0;
 	}
 
-	int write(xe_ptr data, size_t size){
+	ssize_t write(xe_ptr data, size_t size){
 		if(!(flags & FLAG_TRANSFER_ACTIVE))
-			return size;
+			return XE_ABORTED;
 		int error;
 
 		if(read_state > READ_NONE && read_state < READ_BODY){
 			if(!size)
-				return XE_EOF;
+				return XE_PARTIAL_FILE;
 			error = write_header((xe_bptr)data, size);
 		}else{
 			error = write_body((xe_bptr)data, size);
@@ -683,7 +802,7 @@ public:
 			if(flags & FLAG_CONNECTION_CLOSE)
 				return 0;
 			else{
-				pause(true);
+				keepalive();
 				list_add();
 			}
 		}
@@ -706,16 +825,33 @@ public:
 	}
 
 	void finished(int error){
-		if(read_state == READ_NONE)
+		if(!(flags & FLAG_CONNECTION_CLOSE))
 			list_add();
-		else
-			read_state = READ_NONE;
 		xe_request* req = request;
+		bool redirected = false;
 
 		if(req){
 			request = null;
 			data -> connection = null;
-			req -> finished(error);
+
+			if(!error && follow){
+				follow = false;
+
+				if(++data -> redirects > data -> max_redirects)
+					error = XE_TOO_MANY_REDIRECTS;
+				else{
+					error = http.redirect(*req, location);
+					location.clear();
+
+					if(!error)
+						redirected = true;
+				}
+			}
+
+			location.free();
+
+			if(!redirected)
+				req -> finished(error);
 		}
 
 		list_remove();
@@ -731,23 +867,15 @@ public:
 		xe_delete(this);
 	}
 
-	int open(xe_request& _request){
+	int open(xe_request& request_){
 		list_remove();
 
-		request = &_request;
-		data = (xe_http_data*)_request.data;
+		request = &request_;
+		data = (xe_http_data*)request_.data;
 		data -> connection = this;
 
 		pause(false);
 
-		if(!data -> method.data())
-			data -> method = "GET";
-		if(!data -> headers.emplace("Host", data -> url.host()))
-			return XE_ENOMEM;
-		if(!data -> headers.emplace("Accept", "*/*"))
-			return XE_ENOMEM;
-		if(!data -> headers.emplace("Connection", "keep-alive"))
-			return XE_ENOMEM;
 		if(!generate_headers())
 			return XE_ENOMEM;
 		ssize_t sent = connection -> send(send_headers.data(), send_headers.size());
@@ -768,7 +896,7 @@ public:
 				return sent;
 		}
 
-		flags = FLAG_REQUEST_ACTIVE | FLAG_TRANSFER_ACTIVE;
+		flags = FLAG_REQUEST_ACTIVE | FLAG_TRANSFER_ACTIVE | FLAG_CONNECTION_CLOSE;
 		read_state = READ_HEADER_STATUS;
 		header_offset = 0;
 		header_total = 0;
@@ -776,9 +904,11 @@ public:
 		transfer_mode = 0;
 		transfer_encoding = 0;
 		content_length = 0;
+		follow = false;
+		location.free();
 
 		if(data -> method == "HEAD")
-			flags |= FLAG_HEAD;
+			flags |= FLAG_BODYLESS;
 		request -> set_state(XE_REQUEST_STATE_ACTIVE);
 
 #ifdef XE_DEBUG
@@ -786,20 +916,26 @@ public:
 
 		if(!path.size())
 			path = "/";
-		xe_log_trace("xe_http", this, "%.*s %.*s HTTP/1.1", data -> method.length(), data -> method.c_str(), path.length(), path.c_str());
+		xe_log_debug("xe_http", this, "%.*s %.*s HTTP/1.1", data -> method.length(), data -> method.c_str(), path.length(), path.c_str());
 
 		for(auto t = data -> headers.begin(); t != data -> headers.end(); t++)
-			xe_log_trace("xe_http", this, "%.*s: %.*s", t -> first.length(), t -> first.c_str(), xe_min((size_t)100, t -> second.length()), t -> second.c_str());
+			xe_log_debug("xe_http", this, "%.*s: %.*s", t -> first.length(), t -> first.c_str(), xe_min((size_t)100, t -> second.length()), t -> second.c_str());
 #endif
 		return 0;
 	}
 
 	void pause(bool pause){
-		connection -> pause(pause);
+		connection -> pause(pause); // TODO handle errors
+	}
+
+	void keepalive(){
+		connection -> keepalive();
 	}
 
 	void end(xe_request& request){
 		if(flags & FLAG_REQUEST_ACTIVE){
+			flags |= FLAG_CONNECTION_CLOSE;
+
 			finished(XE_ABORTED);
 
 			connection -> close();
@@ -842,20 +978,23 @@ void xe_http_connection_list::remove(xe_http_connection& conn){
 }
 
 xe_http::xe_http(xe_net_ctx& net): xe_protocol(net, XE_PROTOCOL_HTTP){
-
+	connections.init();
 }
 
 int xe_http::start(xe_request& request){
 	xe_http_data& data = *(xe_http_data*)request.data;
 
+	uint port = data.port;
 	int err;
-	int port = data.url.port();
+
 	bool secure = data.url.scheme().length() == 5;
 
-	if(port == -1){
+	if(!port)
+		port = data.url.port();
+	if(!port){
 		port = secure ? 443 : 80;
 
-		xe_log_trace("xe_http", this, "using default port %d", port);
+		xe_log_debug("xe_http", this, "using default port %u", port);
 	}
 
 	xe_http_host host;
@@ -901,7 +1040,7 @@ int xe_http::start(xe_request& request){
 
 	if(!conn_data)
 		return XE_ENOMEM;
-	xe_connection* connection = xe_connection::alloc(net, *conn_data);
+	xe_connection* connection = xe_zalloc<xe_connection>();
 
 	if(!connection){
 		xe_delete(conn_data);
@@ -909,8 +1048,14 @@ int xe_http::start(xe_request& request){
 		return XE_ENOMEM;
 	}
 
+	connection -> init(net, *conn_data);
 	conn_data -> connection = connection;
 	err = 0;
+
+	connection -> set_ssl_verify(data.ssl_verify);
+	connection -> set_connect_timeout(data.connect_timeout);
+	connection -> set_ip_mode(data.ip_mode);
+	connection -> set_recvbuf_size(data.recvbuf_size);
 
 	if(secure)
 		err = connection -> init_ssl(net.get_ssl_ctx());
@@ -927,7 +1072,7 @@ int xe_http::start(xe_request& request){
 void xe_http::pause(xe_request& request, bool paused){
 	xe_http_data& data = *(xe_http_data*)request.data;
 
-	data.connection -> pause(true);
+	data.connection -> pause(paused);
 }
 
 void xe_http::end(xe_request& request){
@@ -956,7 +1101,7 @@ int xe_http::open(xe_request& request, xe_url url){
 		return err;
 	}
 
-	xe_log_trace("xe_http", this, "opened http request for: %s", url.string().c_str());
+	xe_log_verbose("xe_http", this, "opened http request for: %s", url.string().c_str());
 
 	request.data = data;
 
@@ -965,6 +1110,25 @@ int xe_http::open(xe_request& request, xe_url url){
 
 bool xe_http::matches(const xe_string& scheme) const{
 	return scheme == "http" || scheme == "https";
+}
+
+int xe_http::redirect(xe_request& request, xe_string url_){
+	xe_http_data& data = *(xe_http_data*)request.data;
+	xe_url parser(url_);
+
+	int err;
+
+	if((err = parser.parse()))
+		return err;
+	if(!matches(parser.scheme())){
+		xe_log_error("xe_http", this, "unsupported redirect to another protocol");
+
+		return XE_BAD_REDIRECT;
+	}
+
+	if((err = data.open(parser, true)))
+		return err;
+	return start(request);
 }
 
 xe_http::~xe_http(){
@@ -1038,13 +1202,30 @@ void xe_http_data::free(){
 
 xe_http_data::xe_http_data(): xe_protocol_data(XE_PROTOCOL_HTTP){
 	xe_zero(&callbacks);
+
+	max_redirects = 5;
+	connect_timeout = 0;
+	port = 0;
+	ssl_verify = 1;
+	follow_location = 0;
+	redirects = 0;
+	ip_mode = XE_IP_ANY;
+	recvbuf_size = 0;
+	headers.init();
 }
 
-int xe_http_data::open(xe_url _url){
-	free();
+int xe_http_data::open(xe_url url_, bool redir){
+	if(redir)
+		url.free();
+	else
+		free();
+	url = url_;
+	method = "GET";
 
-	url = _url;
+	xe_string key("Host"), host = url.host();
 
+	if(set_header(key, host, 0))
+		return XE_ENOMEM;
 	return 0;
 }
 
@@ -1056,6 +1237,34 @@ int xe_http_data::set(int option, xe_ptr value, int flags){
 			return set_callback(&callbacks.response, value, flags);
 		case XE_HTTP_CALLBACK_HEADER:
 			return set_callback(&callbacks.header, value, flags);
+		case XE_NET_MAX_REDIRECT:
+			max_redirects = (ulong)value;
+
+			return 0;
+		case XE_NET_CONNECT_TIMEOUT:
+			connect_timeout = (ulong)value;
+
+			return 0;
+		case XE_NET_PORT:
+			port = (ulong)value;
+
+			return 0;
+		case XE_NET_SSL_VERIFY:
+			ssl_verify = (bool)value;
+
+			return 0;
+		case XE_NET_FOLLOW_LOCATION:
+			follow_location = (bool)value;
+
+			return 0;
+		case XE_NET_IP_MODE:
+			ip_mode = (xe_ip_mode)(ulong)value;
+
+			return 0;
+		case XE_NET_RECVBUF_SIZE:
+			recvbuf_size = (ulong)value;
+
+			return 0;
 	}
 
 	return XE_EOPNOTSUPP;

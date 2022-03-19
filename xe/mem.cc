@@ -4,23 +4,20 @@
 #include "common.h"
 #include "arch.h"
 
-#define sizemul(a, b)							\
-	size_t total;								\
-												\
-	if(__builtin_mul_overflow(a, b, &total))	\
+xe_ptr xe_malloc(size_t elem_size, size_t elem_count){
+	ptrdiff_t total;
+
+	if(xe_overflow_mul(total, elem_count, elem_size))
 		return null;
-
-xe_ptr xe_malloc(size_t elem_size, size_t bytes){
-	sizemul(elem_size, bytes)
-
 	return malloc(total);
 }
 
-xe_ptr xe_malloc_aligned(size_t alignment, size_t elem_size, size_t bytes){
+xe_ptr xe_malloc_aligned(size_t alignment, size_t elem_size, size_t elem_count){
 	xe_ptr ptr;
+	ptrdiff_t total;
 
-	sizemul(elem_size, bytes)
-
+	if(xe_overflow_mul(total, elem_count, elem_size))
+		return null;
 	if(!alignment)
 		alignment = XE_PAGESIZE;
 	if(posix_memalign(&ptr, alignment, total))
@@ -28,15 +25,15 @@ xe_ptr xe_malloc_aligned(size_t alignment, size_t elem_size, size_t bytes){
 	return ptr;
 }
 
-xe_ptr xe_calloc(size_t elem_size, size_t bytes){
-	sizemul(elem_size, bytes)
-
-	return calloc(1, total);
+xe_ptr xe_calloc(size_t elem_size, size_t elem_count){
+	return calloc(elem_size, elem_count);
 }
 
-xe_ptr xe_realloc(xe_ptr ptr, size_t elem_size, size_t bytes){
-	sizemul(elem_size, bytes)
+xe_ptr xe_realloc(xe_ptr ptr, size_t elem_size, size_t elem_count){
+	ptrdiff_t total;
 
+	if(xe_overflow_mul(total, elem_count, elem_size))
+		return null;
 	return realloc(ptr, total);
 }
 

@@ -17,33 +17,32 @@ namespace std{
 #endif
 
 #include "types.h"
-#include "common.h"
 
 struct xe_loop;
 
-enum xe_handle_type : byte{
-	XE_HANDLE_NONE = 0,
-	XE_HANDLE_DISCARD, /* any result on this handle type will be ignored */
-	XE_HANDLE_TIMER,
-	XE_HANDLE_SOCKET,
-	XE_HANDLE_FILE,
-	XE_HANDLE_PROMISE,
-	XE_HANDLE_USER,
+enum xe_loop_handle_type : byte{
+	XE_LOOP_HANDLE_NONE = 0,
+	XE_LOOP_HANDLE_DISCARD, /* any result on this handle type will be ignored */
+	XE_LOOP_HANDLE_TIMER,
+	XE_LOOP_HANDLE_SOCKET,
+	XE_LOOP_HANDLE_FILE,
+	XE_LOOP_HANDLE_PROMISE,
+	XE_LOOP_HANDLE_USER,
 
 	XE_NET_CONNECTION,
 	XE_NET_RESOLVER,
 
-	XE_HANDLE_LAST
+	XE_LOOP_HANDLE_LAST
 };
 
-struct xe_handle{
+struct xe_loop_handle{
 	typedef void (*xe_callback)(xe_loop& loop, xe_ptr data, ulong u1, ulong u2, int io_result);
 
 	ulong u1;
 	ulong u2;
 
 	xe_ptr user_data;
-	xe_callback callback; /* callback for {XE_HANDLE_USER} */
+	xe_callback callback; /* callback for {XE_LOOP_HANDLE_USER} */
 };
 
 struct xe_timer{
@@ -51,12 +50,13 @@ struct xe_timer{
 	typedef void (*xe_callback)(xe_loop& loop, xe_timer& timer);
 
 	xe_timespec expire;
+	xe_callback callback;
 	ulong start;
 	ulong delay;
 	uint flags;
 	int cancel;
 
-	xe_callback callback;
+	xe_timer();
 };
 
 struct xe_loop_options{
@@ -72,6 +72,8 @@ struct xe_loop_options{
 	uint flags;
 	uint sq_thread_cpu;
 	uint pad;
+
+	xe_loop_options();
 };
 
 class xe_promise{
@@ -79,19 +81,15 @@ private:
 	std::coroutine_handle<> waiter;
 
 	int result;
-	int ready;
 	int handle;
+	int ready;
 	int pad;
 
-	void resolve(int res);
+	void resolve(int);
 
 	friend class xe_loop;
 public:
-	xe_promise(){
-		waiter = null;
-		ready = false;
-		handle = -1;
-	}
+	xe_promise();
 
 	bool await_ready(){
 		return ready;
@@ -125,7 +123,9 @@ struct xe_loop{
 
 	xe_buf io_buf; /* shared buffer for sync I/O */
 
-	xe_handle* handles;
+	xe_loop_handle* handles;
+
+	xe_loop();
 
 	int init();
 	int init_options(xe_loop_options& options);
@@ -138,7 +138,7 @@ struct xe_loop{
 	bool reserve(uint count);
 	void release(uint count);
 
-#define XE_IO_ARGS xe_ptr user_data, xe_handle::xe_callback callback, ulong u1 = 0, ulong u2 = 0, xe_handle_type handle_type = XE_HANDLE_USER
+#define XE_IO_ARGS xe_ptr user_data, xe_loop_handle::xe_callback callback, ulong u1 = 0, ulong u2 = 0, xe_loop_handle_type handle_type = XE_LOOP_HANDLE_USER
 	int nop				(																			XE_IO_ARGS);
 
 	int openat			(int fd, xe_cstr path, uint flags, mode_t mode, 							XE_IO_ARGS);
@@ -182,7 +182,7 @@ struct xe_loop{
 
 	int files_update	(int* fds, uint len, uint offset, 		 									XE_IO_ARGS);
 
-	int modify_handle	(int handle, xe_ptr user_data, xe_handle::xe_callback callback, ulong u1 = 0, ulong u2 = 0);
+	int modify_handle	(int handle, xe_ptr user_data, xe_loop_handle::xe_callback callback, ulong u1 = 0, ulong u2 = 0);
 #undef XE_IO_ARGS
 	xe_promise nop				();
 

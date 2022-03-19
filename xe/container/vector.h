@@ -1,161 +1,301 @@
 #pragma once
-#include <vector>
+#include "../assert.h"
 #include "../log.h"
 #include "../common.h"
 #include "../error.h"
 #include "../mem.h"
 
-template<typename T>
-class xe_array{
-protected:
-	T* _data;
+template<class T>
+struct xe_iterator{
+	T* ptr;
 
-	size_t _size;
-
-	bool allocate(size_t size){
-		T* ptr = xe_alloc<T>(size);
-
-		if(!ptr)
-			return false;
-		free();
-
-		_data = ptr;
-		_size = size;
-
-		return true;
-	}
-public:
-	struct iterator{
-		T* ptr;
-
-		iterator(T* _ptr){
-			ptr = _ptr;
-		}
-
-		iterator(const iterator& other){
-			ptr = other.ptr;
-		}
-
-		iterator& operator=(const iterator& other){
-			ptr = other.ptr;
-
-			return *this;
-		}
-
-		iterator& operator++(){
-			ptr++;
-
-			return *this;
-		}
-
-		iterator& operator--(){
-			ptr--;
-
-			return *this;
-		}
-
-		iterator operator++(int){
-			return iterator(ptr++);
-		}
-
-		iterator operator--(int){
-			return iterator(ptr--);
-		}
-
-		iterator& operator+=(size_t n){
-			ptr += n;
-
-			return *this;
-		}
-
-		iterator& operator-=(size_t n){
-			ptr -= n;
-
-			return *this;
-		}
-
-		iterator operator+(size_t n){
-			return iterator(ptr + n);
-		}
-
-		iterator operator-(size_t n){
-			return iterator(ptr - n);
-		}
-
-		T& operator*(){
-			return *ptr;
-		}
-
-		const T& operator*() const{
-			return *ptr;
-		}
-
-		T* operator->(){
-			return ptr;
-		}
-
-		const T* operator->() const{
-			return ptr;
-		}
-
-		bool operator==(const iterator& other) const{
-			return ptr == other.ptr;
-		}
-
-		bool operator!=(const iterator& other) const{
-			return ptr != other.ptr;
-		}
-	};
-
-	xe_array(){
-		_data = null;
-		_size = 0;
+	xe_iterator(T* ptr_){
+		ptr = ptr_;
 	}
 
-	xe_array(T* data, size_t size){
-		_data = data;
-		_size = size;
+	xe_iterator(const xe_iterator& other){
+		ptr = other.ptr;
 	}
 
-	xe_array(xe_array&& other){
-		_data = other._data;
-		_size = other._size;
-		other._data = null;
-		other._size = 0;
-	}
-
-	xe_array& operator=(xe_array&& other){
-		_data = other._data;
-		_size = other._size;
-		other._data = null;
-		other._size = 0;
+	xe_iterator& operator=(const xe_iterator& other){
+		ptr = other.ptr;
 
 		return *this;
 	}
 
-	xe_array(const xe_array& other){
+	xe_iterator& operator++(){
+		ptr++;
+
+		return *this;
+	}
+
+	xe_iterator& operator--(){
+		ptr--;
+
+		return *this;
+	}
+
+	xe_iterator operator++(int){
+		return xe_iterator(ptr++);
+	}
+
+	xe_iterator operator--(int){
+		return xe_iterator(ptr--);
+	}
+
+	xe_iterator& operator+=(size_t n){
+		ptr += n;
+
+		return *this;
+	}
+
+	xe_iterator& operator-=(size_t n){
+		ptr -= n;
+
+		return *this;
+	}
+
+	xe_iterator operator+(size_t n){
+		return xe_iterator(ptr + n);
+	}
+
+	xe_iterator operator-(size_t n){
+		return xe_iterator(ptr - n);
+	}
+
+	T& operator[](size_t n){
+		return ptr[n];
+	}
+
+	T& operator*(){
+		return *ptr;
+	}
+
+	const T& operator*() const{
+		return *ptr;
+	}
+
+	T* operator->(){
+		return ptr;
+	}
+
+	const T* operator->() const{
+		return ptr;
+	}
+
+	bool operator==(const xe_iterator& other) const{
+		return ptr == other.ptr;
+	}
+
+	bool operator!=(const xe_iterator& other) const{
+		return ptr != other.ptr;
+	}
+};
+
+template<typename T>
+class xe_array{
+protected:
+	T* data_;
+	size_t size_;
+public:
+	using iterator = xe_iterator<T>;
+	using const_iterator = xe_iterator<const T>;
+
+	constexpr xe_array(){
+		data_ = null;
+		size_ = 0;
+	}
+
+	constexpr xe_array(T* data, size_t size){
+		data_ = data;
+		size_ = size;
+	}
+
+	xe_array(xe_array<T>&& other){
+		operator=(std::forward<xe_array<T>>(other));
+	}
+
+	xe_array(const xe_array<T>& other){
 		operator=(other);
 	}
 
-	xe_array& operator=(const xe_array& other){
-		_data = other._data;
-		_size = other._size;
+	xe_array<T>& operator=(xe_array<T>&& other){
+		data_ = other.data_;
+		size_ = other.size_;
+		other.data_ = null;
+		other.size_ = 0;
+
+		return *this;
+	}
+
+	xe_array<T>& operator=(const xe_array<T>& other){
+		data_ = other.data_;
+		size_ = other.size_;
 
 		return *this;
 	}
 
 	T& at(size_t i){
-		xe_assert(data() != null);
-		xe_assert(i < size());
+		xe_assert(data_ != null);
+		xe_assert(i < size_);
 
-		return data()[i];
+		return data_[i];
 	}
 
 	const T& at(size_t i) const{
-		xe_assert(data() != null);
-		xe_assert(i < size());
+		xe_assert(data_ != null);
+		xe_assert(i < size_);
 
-		return data()[i];
+		return data_[i];
+	}
+
+	T& operator[](size_t i){
+		return at(i);
+	}
+
+	const T& operator[](size_t i) const{
+		return at(i);
+	}
+
+	constexpr T* data(){
+		return data_;
+	}
+
+	constexpr const T* data() const{
+		return data_;
+	}
+
+	constexpr size_t size() const{
+		return size_;
+	}
+
+	iterator begin(){
+		return iterator(data());
+	}
+
+	iterator end(){
+		return iterator(data() + size());
+	}
+
+	const iterator cbegin() const{
+		return iterator(data());
+	}
+
+	const iterator cend() const{
+		return iterator(data() + size());
+	}
+
+	bool resize(size_t size){
+		if(size > max_size())
+			return false;
+		T* data = xe_trealloc(data_, size);
+
+		if(!data)
+			return false;
+		size_ = size;
+		data_ = data;
+
+		return true;
+	}
+
+	bool copy(const T* src_data, size_t src_size){
+		if(src_size > max_size())
+			return false;
+		T* data = xe_alloc<T>(src_size);
+
+		if(!data)
+			return false;
+		data_ = data;
+		size_ = src_size;
+
+		xe_tmemcpy(data_, src_data, src_size);
+
+		return true;
+	}
+
+	bool copy(const xe_array<T>& src){
+		return copy(src.data_, src.size_);
+	}
+
+	void clear(){
+		data_ = null;
+		size_ = 0;
+	}
+
+	void free(){
+		xe_dealloc(data_);
+		clear();
+	}
+
+	static size_t max_size(){
+		return xe_maxarraysize<T>();
+	}
+};
+
+
+template<typename T>
+class xe_vector{
+protected:
+	T* data_;
+	size_t size_;
+	size_t capacity_;
+public:
+	using iterator = xe_iterator<T>;
+	using const_iterator = xe_iterator<const T>;
+
+	constexpr xe_vector(){
+		data_ = null;
+		size_ = 0;
+		capacity_ = 0;
+	}
+
+	xe_vector(xe_vector<T>&& other){
+		operator=(std::forward<xe_vector<T>>(other));
+	}
+
+	xe_vector(const xe_vector<T>& other){
+		operator=(other);
+	}
+
+	xe_vector<T>& operator=(xe_vector<T>&& other){
+		data_ = other.data_;
+		capacity_ = other.capacity_;
+		size_ = other._length;
+		other.data_ = null;
+		other.capacity_ = 0;
+		other.size_ = 0;
+
+		return *this;
+	}
+
+	xe_vector<T>& operator=(const xe_vector<T>& other){
+		data_ = other.data_;
+		capacity_ = other.capacity_;
+		size_ = other.size_;
+
+		return *this;
+	}
+
+	constexpr size_t size() const{
+		return size_;
+	}
+
+	constexpr size_t capacity() const{
+		return capacity_;
+	}
+
+	T& at(size_t i){
+		xe_assert(data_ != null);
+		xe_assert(i < size_);
+
+		return data_[i];
+	}
+
+	const T& at(size_t i) const{
+		xe_assert(data_ != null);
+		xe_assert(i < size_);
+
+		return data_[i];
 	}
 
 	T& operator[](size_t i){
@@ -174,149 +314,75 @@ public:
 		return iterator(data() + size());
 	}
 
-	T* data(){
-		return _data;
+	const iterator cbegin() const{
+		return iterator(data());
 	}
 
-	const T* data() const{
-		return _data;
+	const iterator cend() const{
+		return iterator(data() + size());
 	}
 
-	size_t size() const{
-		return _size;
+	constexpr T* data(){
+		return data_;
 	}
 
-	bool resize(size_t size){
-		if(size > max_size())
+	constexpr const T* data() const{
+		return data_;
+	}
+
+	bool copy(const T* src_data, size_t src_size){
+		if(src_size > max_size())
 			return false;
-		T* ptr = xe_trealloc(_data, size);
+		if(src_size > capacity_){
+			T* data = xe_alloc<T>(src_size);
 
-		if(ptr){
-			_size = size;
-			_data = ptr;
+			if(!data)
+				return false;
+			free();
 
-			return true;
+			data_ = data;
+			capacity_ = src_size;
 		}
 
-		return false;
-	}
+		xe_tmemcpy(data_, src_data, src_size);
 
-	bool copy(const T* src_data, size_t src_size){
-		if(!allocate(src_size))
-			return false;
-		xe_tmemcpy(data(), src_data, src_size);
-
-		return true;
-	}
-
-	bool copy(const xe_array<T>& src){
-		return copy(src.data(), src.size());
-	}
-
-	void clear(){
-		_data = null;
-		_size = 0;
-	}
-
-	void free(){
-		xe_dealloc(_data);
-		clear();
-	}
-
-	static size_t max_size(){
-		return xe_maxarraysize<T>();
-	}
-};
-
-
-template<typename T>
-class xe_vector : public xe_array<T>{
-protected:
-	using xe_array<T>::_data;
-	using xe_array<T>::_size;
-	using xe_array<T>::allocate;
-
-	size_t _length;
-public:
-	using xe_array<T>::data;
-	using xe_array<T>::max_size;
-	using xe_array<T>::at;
-	using xe_array<T>::free;
-
-	xe_vector(){
-		_length = 0;
-	}
-
-	xe_vector(xe_vector&& other){
-		operator=(std::forward(other));
-	}
-
-	xe_vector& operator=(xe_vector&& other){
-		_data = other.data;
-		_size = other._size;
-		_length = other._length;
-		other._data = null;
-		other._size = 0;
-		other._length = 0;
-
-		return *this;
-	}
-
-	xe_vector(const xe_vector& other){
-		operator=(other);
-	}
-
-	xe_vector& operator=(const xe_vector& other){
-		_data = other._data;
-		_size = other._size;
-		_length = other._length;
-
-		return *this;
-	}
-
-	size_t size() const{
-		return _length;
-	}
-
-	size_t capacity() const{
-		return _size;
-	}
-
-	bool copy(const T* src_data, size_t src_size){
-		if(src_size > capacity() && !allocate(src_size))
-			return false;
-		_length = src_size;
-
-		xe_tmemcpy(data(), src_data, _length);
+		size_ = src_size;
 
 		return true;
 	}
 
 	bool copy(const xe_vector<T>& src){
-		return copy(src.data(), src.size());
+		return copy(src.data_, src.size_);
 	}
 
 	bool push_back(T& el){
-		xe_assert(size() <= capacity());
-		xe_assert(capacity() <= max_size());
+		xe_assert(size_ <= capacity_);
+		xe_assert(capacity_ <= max_size());
 
-		if(size() == max_size() || !grow(size() + 1))
+		if(size_ >= max_size() || (size_ >= capacity_ && !grow(size_ + 1)))
 			return false;
-		at(_length++) = el;
+		at(size_++) = el;
 
 		return true;
 	}
 
 	bool push_back(T&& el){
-		return push_back(el);
+		xe_assert(size_ <= capacity_);
+		xe_assert(capacity_ <= max_size());
+
+		if(size_ >= max_size() || (size_ >= capacity_ && !grow(size_ + 1)))
+			return false;
+		at(size_++) = std::move(el);
+
+		return true;
 	}
 
 	bool append(const T* src_data, size_t src_size){
-		if(size() + src_size > capacity() && !grow(size() + src_size))
+		if(src_size > capacity_ - size_ && (src_size > max_size() - size_ || !grow(size_ + src_size)))
 			return false;
-		xe_tmemcpy(data() + size(), src_data, src_size);
+		xe_tmemcpy(data_ + size_, src_data, src_size);
 
-		_length += src_size;
+		size_ += src_size;
 
 		return true;
 	}
@@ -326,19 +392,38 @@ public:
 	}
 
 	bool append(const xe_vector<T>& arr){
-		return append(arr.data(), arr.size());
+		return append(arr.data_, arr.size_);
 	}
 
 	T& pop_back(){
-		xe_assert(size() > 0);
+		xe_assert(size_ > 0);
 
-		return at(--_length);
+		T& rval = at(size_ - 1);
+
+		size_--;
+
+		return rval;
 	}
 
 	bool resize(size_t size){
-		if(size > capacity() && !xe_array<T>::resize(size))
+		if(size > capacity_ && !reserve(size))
 			return false;
-		_length = size;
+		size_ = size;
+
+		return true;
+	}
+
+	bool reserve(size_t capacity){
+		xe_assert(capacity >= size_);
+
+		if(capacity > max_size())
+			return false;
+		T* data = xe_trealloc(data_, capacity);
+
+		if(!data)
+			return false;
+		capacity_ = capacity;
+		data_ = data;
 
 		return true;
 	}
@@ -346,38 +431,43 @@ public:
 	bool grow(size_t size){
 		if(size > max_size())
 			return false;
-		size_t cap = capacity(), new_size = size;
+		if(capacity_ >= size)
+			return true;
+		size_t capacity = capacity_, new_size = size;
 
-		if(max_size() >> 1 < cap)
+		if(max_size() >> 1 < capacity)
 			new_size = max_size();
 		else{
-			cap = cap << 1;
+			capacity = capacity << 1;
 
-			if(cap > size)
-				new_size = cap;
+			if(capacity > size)
+				new_size = capacity;
 		}
 
-		if(!xe_array<T>::resize(new_size))
-			return false;
-		return true;
+		return reserve(new_size);
 	}
 
 	void trim(){
-		if(capacity() <= size())
+		if(capacity_ <= size_)
 			return;
-		if(size())
-			xe_array<T>::resize(size());
+		if(size_)
+			reserve(size_);
 		else
 			free();
 	}
 
-	void clear(){
-		_data = null;
-		_length = 0;
-		_size = 0;
+	void free(){
+		xe_dealloc(data_);
+		clear();
 	}
 
-	static size_t max_capacity(){
-		return max_size();
+	void clear(){
+		data_ = null;
+		size_ = 0;
+		capacity_ = 0;
+	}
+
+	static size_t max_size(){
+		return xe_maxarraysize<T>();
 	}
 };

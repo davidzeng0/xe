@@ -1,5 +1,4 @@
 #pragma once
-#include <netdb.h>
 #include "../loop.h"
 
 class xe_socket{
@@ -12,7 +11,7 @@ private:
 	uint handle;
 	uint pad;
 
-	static void io(xe_handle& handle, int);
+	static void io(xe_loop_handle& handle, int);
 
 	friend class xe_loop;
 public:

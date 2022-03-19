@@ -2,8 +2,7 @@
 #include "arch.h"
 #include "mem.h"
 #include "common.h"
-#include "log.h"
-#include "error.h"
+#include "container/map.h"
 
 static const byte lowercase[] = {
 	0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f,
@@ -52,27 +51,23 @@ int xe_string_comparez(xe_cstr s1, xe_cstr s2, size_t n){
 	return xe_arch_strncmpz(s1, s2, n);
 }
 
-xe_string::xe_string(){
-
-}
-
 xe_string::xe_string(xe_string&& src){
-	_data = src._data;
-	_size = src._size;
-	src._data = null;
-	src._size = 0;
+	data_ = src.data_;
+	size_ = src.size_;
+	src.data_ = null;
+	src.size_ = 0;
 }
 
 xe_string::xe_string(xe_vector<char>&& src){
-	_data = src.data();
-	_size = src.size();
+	data_ = src.data();
+	size_ = src.size();
 
 	src.clear();
 }
 
 xe_string& xe_string::operator=(xe_string&& src){
-	_data = src.data();
-	_size = src.size();
+	data_ = src.data_;
+	size_ = src.size_;
 
 	src.clear();
 
@@ -84,12 +79,12 @@ xe_string::xe_string(xe_cptr string){
 }
 
 xe_string::xe_string(xe_cptr string, size_t len){
-	_data = (xe_pchar)string;
-	_size = len;
+	data_ = (xe_pchar)string;
+	size_ = len;
 }
 
 size_t xe_string::indexOf(char c, size_t off) const{
-	xe_cstr ptr = xe_string_find(data() + off, c, _size - off);
+	xe_cstr ptr = xe_string_find(data() + off, c, size_ - off);
 
 	if(ptr)
 		return ptr - data();
@@ -101,13 +96,17 @@ size_t xe_string::indexOf(char c) const{
 }
 
 void xe_string::clear(){
-	_data = null;
-	_size = 0;
+	data_ = null;
+	size_ = 0;
+}
+
+size_t xe_string::hash() const{
+	return xe_hash::hash_bytes(c_str(), length());
 }
 
 xe_string& xe_string::operator=(xe_cptr string){
-	_data = (xe_pchar)string;
-	_size = length(string);
+	data_ = (xe_pchar)string;
+	size_ = length(string);
 
 	return *this;
 }
@@ -143,24 +142,24 @@ size_t xe_string::length(xe_cptr str){
 bool xe_string::equal(const xe_string& a, const xe_string& b){
 	if(a.length() != b.length())
 		return false;
-	return a.data() == b.data() || !xe_string_compare(a.data(), b.data(), a.length());
+	return a.data_ == b.data_ || !xe_string_compare(a.data_, b.data_, a.length());
 }
 
 bool xe_string::equalCase(const xe_string& a, const xe_string& b){
 	if(a.length() != b.length())
 		return false;
-	return a.data() == b.data() || !xe_string_compareCase(a.data(), b.data(), a.length());
+	return a.data_ == b.data_ || !xe_string_compareCase(a.data_, b.data_, a.length());
 }
 
 bool xe_string::copy(xe_cptr src, size_t n){
-	_data = xe_alloc<char>(n + 1);
+	data_ = xe_alloc<char>(n + 1);
 
 	if(!data())
 		return false;
 	xe_tmemcpy<char>(data(), src, n);
 
-	_data[n] = 0;
-	_size = n;
+	data_[n] = 0;
+	size_ = n;
 
 	return true;
 }
@@ -170,7 +169,7 @@ bool xe_string::copy(xe_cptr src){
 }
 
 bool xe_string::copy(const xe_string& src){
-	return copy(src.data(), src.length());
+	return copy(src.data_, src.length());
 }
 
 xe_string xe_string::substring(size_t start){

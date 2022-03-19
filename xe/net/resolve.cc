@@ -31,14 +31,10 @@ struct xe_resolve_ctx::data{
 struct xe_resolve_query{
 	xe_string host;
 	xe_endpoint endpoint;
-
-	xe_net_ctx* net;
-
+	xe_resolve* resolve;
 #ifdef XE_DEBUG
 	ulong start;
-	xe_resolve* resolve;
 #endif
-
 	int error;
 	bool done;
 	bool returned;
@@ -65,6 +61,7 @@ int xe_resolve_ctx::init(){
 	data -> options.tries = 3;
 	data -> options.lookups = (xe_pchar)"b";
 
+	/* preload /etc/resolv.conf */
 	ret = ares_init_options(&channel, &data -> options, ARES_OPT_TIMEOUTMS | ARES_OPT_LOOKUPS | ARES_OPT_TRIES);
 
 	if(ret != ARES_SUCCESS){
@@ -100,8 +97,8 @@ void xe_resolve_ctx::close(){
 static void xe_resolve_poll(xe_resolve& resolve){
 	if(resolve.handle != -1 || !(resolve.flags & FLAG_ACTIVE))
 		return;
-	resolve.loop.release(1);
-	resolve.handle = resolve.loop.poll(resolve.pollfd, EPOLLIN, &resolve, null, 0, 0, XE_NET_RESOLVER);
+	resolve.loop -> release(1);
+	resolve.handle = resolve.loop -> poll(resolve.pollfd, EPOLLIN, &resolve, null, 0, 0, XE_NET_RESOLVER);
 
 	xe_assert(resolve.handle >= 0);
 }
@@ -118,7 +115,7 @@ static void xe_resolve_sockstate(xe_ptr data, int fd, int read, int write){
 		return;
 	}
 
-	event.events = 0;
+	event.events = EPOLLRDHUP;
 	event.data.fd = fd;
 
 	if(read)
@@ -126,6 +123,7 @@ static void xe_resolve_sockstate(xe_ptr data, int fd, int read, int write){
 	if(write)
 		event.events |= EPOLLOUT;
 	if(epoll_ctl(resolve.pollfd, EPOLL_CTL_MOD, fd, &event))
+		/* force error on socket, should never happen (in theory) */
 		shutdown(fd, SHUT_RDWR);
 }
 
@@ -139,10 +137,8 @@ static int xe_resolve_sockcreate(int fd, int type, xe_ptr data){
 	int err = epoll_ctl(resolve.pollfd, EPOLL_CTL_ADD, fd, &event);
 
 	if(err)
-		return err;
-	if(!resolve.count)
-		xe_resolve_poll(resolve);
-	xe_assert(resolve.count < UINT_MAX);
+		return -1;
+	xe_assert(resolve.count < ULONG_MAX);
 
 	resolve.count++;
 
@@ -152,51 +148,31 @@ static int xe_resolve_sockcreate(int fd, int type, xe_ptr data){
 static int xe_ares_error(int status){
 	switch(status){
 		case ARES_SUCCESS:
-			return XE_NONE;
-
-			break;
+			return XE_OK;
 		case ARES_EBADNAME:
 			return XE_RESOLVER_BADNAME;
-
-			break;
 		case ARES_ENODATA:
 		case ARES_ENOTFOUND:
 			return XE_RESOLVER_UNKNOWN_HOST;
-
-			break;
 		case ARES_ENOMEM:
 			return XE_ENOMEM;
-
-			break;
 		case ARES_ECANCELLED:
 		case ARES_EDESTRUCTION:
 			return XE_ECANCELED;
-
-			break;
 		case ARES_ETIMEOUT:
 			return XE_RESOLVER_TIMEOUT;
-
-			break;
 		case ARES_EFORMERR:
 			return XE_RESOLVER_CLIENT_FAIL;
-
-			break;
 		case ARES_ESERVFAIL:
 		case ARES_EREFUSED:
 		case ARES_EBADRESP:
 			return XE_RESOLVER_SERVER_FAIL;
-
-			break;
 		case ARES_ECONNREFUSED:
 			return XE_RESOLVER_CONNREFUSED;
-
-			break;
 		case ARES_ENOTIMP:
 			return XE_ENOSYS;
 		default:
 			return XE_ERESOLVER;
-
-			break;
 	}
 }
 
@@ -212,7 +188,7 @@ static int xe_resolve_to_addresslist(xe_endpoint& list, ares_addrinfo* result){
 		else if(node -> ai_family == AF_INET6)
 			inet6_len++;
 		else
-			xe_notreached;
+			xe_notreached();
 		node = node -> ai_next;
 	}
 
@@ -234,7 +210,7 @@ static int xe_resolve_to_addresslist(xe_endpoint& list, ares_addrinfo* result){
 		else if(node -> ai_family == AF_INET6)
 			xe_tmemcpy(&list.inet6[inet6_len++], &((sockaddr_in6*)node -> ai_addr) -> sin6_addr);
 		else
-			xe_notreached;
+			xe_notreached();
 		node = node -> ai_next;
 	}
 
@@ -254,27 +230,28 @@ static void xe_resolve_callback(xe_ptr data, int status, int timeouts, ares_addr
 #ifdef XE_DEBUG
 	if(status == XE_ECANCELED)
 		goto end;
-	xe_log_debug("xe_resolve", query.resolve, "resolved %s in %f ms, status: %s", query.host.c_str(), (xe_time_ns() - query.start) / 1e6, xe_strerror(status));
+	xe_log_verbose("xe_resolve", query.resolve, "resolved %s in %f ms, status: %s", query.host.c_str(), (xe_time_ns() - query.start) / 1e6, xe_strerror(status));
 
 	char ip[INET6_ADDRSTRLEN];
 
 	for(auto& addr : query.endpoint.inet){
 		inet_ntop(AF_INET, &addr, ip, sizeof(ip));
-		xe_log_trace("xe_resolve", query.resolve, "    %s", ip);
+		xe_log_debug("xe_resolve", query.resolve, "    %s", ip);
 	}
 
 	for(auto& addr : query.endpoint.inet6){
 		inet_ntop(AF_INET6, &addr, ip, sizeof(ip));
-		xe_log_trace("xe_resolve", query.resolve, "    %s", ip);
+		xe_log_debug("xe_resolve", query.resolve, "    %s", ip);
 	}
 
 	end:
 #endif
+	/* check for ares sync callback */
 	if(!query.returned){
 		query.done = true;
 		query.error = status;
 	}else{
-		query.net -> resolved(query.host, query.endpoint, status);
+		query.resolve -> net -> resolved(query.host, query.endpoint, status);
 
 		xe_dealloc(&query);
 	}
@@ -314,16 +291,13 @@ static int xe_resolve_ip(xe_string& host, xe_endpoint& endpoint){
 	}
 }
 
-xe_resolve::xe_resolve(xe_loop& loop): loop(loop){
+xe_resolve::xe_resolve(){
 	resolver = null;
-	pollfd = -1;
-	tfd = -1;
 	count = 0;
 	flags = 0;
-	handle = -1;
 }
 
-int xe_resolve::init(xe_resolve_ctx& ctx){
+int xe_resolve::init(xe_net_ctx& net_, xe_loop& loop_, xe_resolve_ctx& ctx){
 	ares_channel channel;
 	ares_options options;
 	itimerspec it;
@@ -332,8 +306,11 @@ int xe_resolve::init(xe_resolve_ctx& ctx){
 	int pollfd, tfd;
 	int ret;
 
+	net = &net_;
+	loop = &loop_;
 	pollfd = -1;
 	tfd = -1;
+	handle = -1;
 	channel = null;
 
 	xe_tmemcpy(&options, &ctx.priv -> options);
@@ -353,6 +330,7 @@ int xe_resolve::init(xe_resolve_ctx& ctx){
 
 	if(pollfd < 0)
 		goto err;
+	/* timeout resolves */
 	tfd = timerfd_create(CLOCK_MONOTONIC, 0);
 
 	if(tfd < 0)
@@ -385,7 +363,7 @@ int xe_resolve::init(xe_resolve_ctx& ctx){
 		::close(pollfd);
 	if(channel)
 		ares_destroy(channel);
-	return xe_syserror(errno);
+	return xe_errno();
 }
 
 void xe_resolve::close(){
@@ -394,7 +372,7 @@ void xe_resolve::close(){
 	if(resolver)
 		ares_destroy((ares_channel)resolver);
 	if(handle != -1){
-		loop.modify_handle(handle, null, null, tfd, pollfd);
+		loop -> modify_handle(handle, null, null, tfd, pollfd);
 		handle = -1;
 
 		return;
@@ -411,9 +389,9 @@ int xe_resolve::start(){
 		return XE_EALREADY;
 	if(handle != -1)
 		return XE_EINVAL;
-	if(loop.remain() < 2)
+	if(loop -> remain() < 2)
 		return XE_ETOOMANYHANDLES;
-	xe_assert(loop.reserve(2));
+	xe_assert(loop -> reserve(2));
 
 	flags |= FLAG_ACTIVE;
 
@@ -426,26 +404,26 @@ void xe_resolve::stop(){
 	flags &= ~FLAG_ACTIVE;
 
 	if(handle == -1){
-		loop.release(2);
+		loop -> release(2);
 
 		return;
 	}
 
 	int ret;
 
-	loop.release(1);
-	ret = loop.poll_cancel(handle, null, null, 0, 0, XE_HANDLE_DISCARD);
+	loop -> release(1);
+	ret = loop -> poll_cancel(handle, null, null, 0, 0, XE_LOOP_HANDLE_DISCARD);
 
 	xe_assert(ret >= 0);
 }
 
-int xe_resolve::resolve(xe_net_ctx& net, xe_string host, xe_endpoint& endpoint){
+int xe_resolve::resolve(xe_string host, xe_endpoint& endpoint){
 	xe_assertm(host.c_str()[host.length()] == 0, "host is not null terminated");
 
 	int err = xe_resolve_ip(host, endpoint);
 
 	if(err != XE_RESOLVER_UNKNOWN_HOST){
-		xe_log_trace("xe_resolve", this, "ipresolve %s, status: %s", host.c_str(), xe_strerror(err));
+		xe_log_debug("xe_resolve", this, "ipresolve %s, status: %s", host.c_str(), xe_strerror(err));
 
 		return err;
 	}
@@ -454,17 +432,18 @@ int xe_resolve::resolve(xe_net_ctx& net, xe_string host, xe_endpoint& endpoint){
 
 	if(!query)
 		return XE_ENOMEM;
-	xe_log_trace("xe_resolve", this, "resolving %s", host.c_str());
+	xe_log_debug("xe_resolve", this, "resolving %s", host.c_str());
 
 	query -> host = host;
-	query -> net = &net;
+	query -> resolve = this;
+
 #ifdef XE_DEBUG
 	query -> start = xe_time_ns();
-	query -> resolve = this;
 #endif
 	ares_getaddrinfo((ares_channel)resolver, query -> host.c_str(), null, &hints, xe_resolve_callback, query);
 
 	if(query -> done){
+		/* finished synchronously */
 		err = query -> error;
 
 		if(!err)
@@ -476,11 +455,14 @@ int xe_resolve::resolve(xe_net_ctx& net, xe_string host, xe_endpoint& endpoint){
 
 	query -> returned = true;
 
+	if(count)
+		xe_resolve_poll(*this);
 	return XE_EINPROGRESS;
 }
 
-void xe_resolve::io(xe_handle& handle, int result){
+void xe_resolve::io(xe_loop_handle& handle, int result){
 	if(!handle.user_data){
+		/* close called before stop request finished */
 		::close(handle.u1);
 		::close(handle.u2);
 
@@ -493,7 +475,7 @@ void xe_resolve::io(xe_handle& handle, int result){
 
 	if(!(resolve.flags & FLAG_ACTIVE))
 		return;
-	xe_assert(resolve.loop.reserve(1));
+	xe_assert(resolve.loop -> reserve(1));
 
 	epoll_event events[MAX_EVENTS];
 	ulong buf;
@@ -501,13 +483,16 @@ void xe_resolve::io(xe_handle& handle, int result){
 	int n;
 	int rfd, wfd;
 
+	/* process events */
 	n = epoll_wait(resolve.pollfd, events, MAX_EVENTS, 0);
 
 	if(n < 0){
-		xe_assert(errno == EINTR);
+		xe_assert(xe_errno() == XE_EINTR);
 
 		return;
 	}
+
+	xe_log_trace("xe_resolve", &resolve, "processing %i events", n);
 
 	for(int i = 0; i < n; i++){
 		if(events[i].data.fd == resolve.tfd){

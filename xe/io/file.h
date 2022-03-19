@@ -11,7 +11,7 @@ private:
 	uint handle;
 	uint pad;
 
-	static void io(xe_handle&, int);
+	static void io(xe_loop_handle&, int);
 
 	friend class xe_loop;
 public:
