@@ -5,6 +5,7 @@
 #include "xe/common.h"
 #include "xe/loop.h"
 #include "xe/io/socket.h"
+#include "xe/clock.h"
 
 static ulong t, reqs = 0, sends = 0, clients = 0;
 
@@ -56,7 +57,7 @@ void accept_callback(xe_socket& socket, ulong unused, int result){
 		xe_print("accepted a client. %lu clients open", clients);
 
 		/* create a client socket */
-		client* cl = xe_znew<client>(socket.get_loop());
+		client* cl = xe_znew<client>(socket.loop());
 
 		cl -> len = 16384;
 		cl -> buf = xe_alloc<byte>(cl -> len);
@@ -116,7 +117,7 @@ int main(){
 
 	int yes = 1;
 
-	setsockopt(socket.get_fd(), SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes));
+	setsockopt(socket.fd(), SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes));
 
 	ret = socket.bind((sockaddr*)&addr, sizeof(addr));
 	ret = socket.listen(SOMAXCONN);

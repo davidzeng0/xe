@@ -3,11 +3,13 @@
 
 class xe_file{
 private:
-	xe_loop& loop;
+	xe_loop& loop_;
 
-	int fd;
+	int fd_;
 
-	uint flags;
+	uint opening: 1;
+	uint closing: 1;
+	uint flags: 30;
 	uint handle;
 	uint pad;
 
@@ -26,9 +28,9 @@ public:
 
 	xe_file(xe_loop& loop);
 
-	int get_fd();
+	int fd();
 
-	xe_loop& get_loop();
+	xe_loop& loop();
 
 	int open(xe_cstr path, uint flags);
 

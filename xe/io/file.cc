@@ -6,39 +6,35 @@
 #include "../common.h"
 #include "../assert.h"
 
-enum xe_file_flags{
-	XE_FILE_NONE    = 0x0,
-	XE_FILE_OPENING = 0x1,
-	XE_FILE_CLOSING = 0x2
-};
-
 enum xe_file_iotype{
 	XE_FILE_OPEN = 0,
 	XE_FILE_READ,
 	XE_FILE_WRITE
 };
 
-xe_file::xe_file(xe_loop& loop): loop(loop){
-	fd = -1;
+xe_file::xe_file(xe_loop& loop): loop_(loop){
+	fd_ = -1;
 	handle = -1;
+	opening = 0;
+	closing = 0;
 	flags = 0;
 }
 
-int xe_file::get_fd(){
-	return fd;
+int xe_file::fd(){
+	return fd_;
 }
 
-xe_loop& xe_file::get_loop(){
-	return loop;
+xe_loop& xe_file::loop(){
+	return loop_;
 }
 
 int xe_file::open(xe_cstr path, uint flags){
-	if(flags & XE_FILE_OPENING || fd >= 0)
+	if(opening || fd_ >= 0)
 		return XE_EINVAL;
-	int ret = loop.openat(AT_FDCWD, path, flags, 0, this, null, XE_FILE_OPEN, 0, XE_LOOP_HANDLE_FILE);
+	int ret = loop_.openat(AT_FDCWD, path, flags, 0, this, null, XE_FILE_OPEN, 0, XE_LOOP_HANDLE_FILE);
 
 	if(ret >= 0){
-		flags |= XE_FILE_OPENING;
+		opening = true;
 		handle = ret;
 	}
 
@@ -46,24 +42,24 @@ int xe_file::open(xe_cstr path, uint flags){
 }
 
 int xe_file::read(xe_buf buf, uint len, ulong offset, ulong key){
-	if(flags & XE_FILE_OPENING || fd < 0)
+	if(opening || fd_ < 0)
 		return XE_EINVAL;
-	return loop.read(fd, buf, len, offset, this, null, XE_FILE_READ, key, XE_LOOP_HANDLE_FILE);
+	return loop_.read(fd_, buf, len, offset, this, null, XE_FILE_READ, key, XE_LOOP_HANDLE_FILE);
 }
 
 int xe_file::write(xe_buf buf, uint len, ulong offset, ulong key){
-	if(flags & XE_FILE_OPENING || fd < 0)
+	if(opening || fd_ < 0)
 		return XE_EINVAL;
-	return loop.write(fd, buf, len, offset, this, null, XE_FILE_WRITE, key, XE_LOOP_HANDLE_FILE);
+	return loop_.write(fd_, buf, len, offset, this, null, XE_FILE_WRITE, key, XE_LOOP_HANDLE_FILE);
 }
 
 int xe_file::cancelopen(){
-	if(!(flags & XE_FILE_OPENING) || (flags & XE_FILE_CLOSING))
+	if(!opening || closing)
 		return XE_EINVAL;
-	int ret = loop.cancel(handle, 0, null, null, 0, 0, XE_LOOP_HANDLE_DISCARD);
+	int ret = loop_.cancel(handle, 0, null, null, 0, 0, XE_LOOP_HANDLE_DISCARD);
 
 	if(ret >= 0){
-		flags |= XE_FILE_CLOSING;
+		closing = true;
 
 		return 0;
 	}
@@ -72,10 +68,10 @@ int xe_file::cancelopen(){
 }
 
 void xe_file::close(){
-	if(fd >= 0){
-		::close(fd);
+	if(fd_ >= 0){
+		::close(fd_);
 
-		fd = -1;
+		fd_ = -1;
 	}
 }
 
@@ -85,14 +81,15 @@ void xe_file::io(xe_loop_handle& handle, int result){
 	switch(handle.u1){
 		case XE_FILE_OPEN:
 			if(result >= 0){
-				if(file.flags & XE_FILE_CLOSING)
+				if(file.closing)
 					::close(result);
 				else
-					file.fd = result;
+					file.fd_ = result;
 				result = 0;
 			}
 
-			file.flags &= ~(XE_FILE_OPENING | XE_FILE_CLOSING);
+			file.opening = false;
+			file.closing = false;
 			file.open_callback(file, 0, result);
 
 			break;

@@ -38,7 +38,8 @@ enum xe_error{
 	XE_HEADERS_TOO_LONG,
 	XE_INVALID_RESPONSE,
 	XE_TOO_MANY_REDIRECTS,
-	XE_BAD_REDIRECT,
+	XE_EXTERNAL_REDIRECT,
+	XE_WEBSOCKET_CONNECTION_REFUSED,
 
 	XE_LAST,
 
@@ -218,7 +219,7 @@ static xe_cstr xe_strerror(int err){
 		case XE_PARTIAL_FILE:
 			return "Partial file";
 		case XE_SEND_ERROR:
-			return "Socket peer not accepting data";
+			return "Socket peer read end closed";
 		case XE_ABORTED:
 			return "Aborted";
 		case XE_HEADERS_TOO_LONG:
@@ -227,8 +228,10 @@ static xe_cstr xe_strerror(int err){
 			return "Invalid response";
 		case XE_TOO_MANY_REDIRECTS:
 			return "Too many redirects";
-		case XE_BAD_REDIRECT:
-			return "Invalid redirect url protocol";
+		case XE_EXTERNAL_REDIRECT:
+			return "External redirect (switching protocols)";
+		case XE_WEBSOCKET_CONNECTION_REFUSED:
+			return "WebSocket connection rejected";
 
 		case XE_EHWPOISON:
 			return "Memory page has hardware error";
@@ -492,7 +495,6 @@ static xe_cstr xe_strerror(int err){
 			return "No such file or directory";
 		case XE_EPERM:
 			return "Operation not permitted";
-
 		default:
 			if(err > XE_LAST)
 				return xe_sysstrerror(err);

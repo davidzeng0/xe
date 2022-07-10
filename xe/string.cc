@@ -35,11 +35,11 @@ xe_cstr xe_string_find(xe_cstr ptr, char c, size_t n){
 	return (xe_cstr)xe_arch_memchr(ptr, c, n);
 }
 
-int xe_string_compareCase(xe_cstr s1, xe_cstr s2, size_t n){
+int xe_string_compare_case(xe_cstr s1, xe_cstr s2, size_t n){
 	return xe_arch_strncasecmp(s1, s2, n);
 }
 
-int xe_string_compareCasez(xe_cstr s1, xe_cstr s2, size_t n){
+int xe_string_compare_case_z(xe_cstr s1, xe_cstr s2, size_t n){
 	return xe_arch_strncasecmpz(s1, s2, n);
 }
 
@@ -83,7 +83,7 @@ xe_string::xe_string(xe_cptr string, size_t len){
 	size_ = len;
 }
 
-size_t xe_string::indexOf(char c, size_t off) const{
+size_t xe_string::index_of(char c, size_t off) const{
 	xe_cstr ptr = xe_string_find(data() + off, c, size_ - off);
 
 	if(ptr)
@@ -91,8 +91,8 @@ size_t xe_string::indexOf(char c, size_t off) const{
 	return -1;
 }
 
-size_t xe_string::indexOf(char c) const{
-	return indexOf(c, 0);
+size_t xe_string::index_of(char c) const{
+	return index_of(c, 0);
 }
 
 void xe_string::clear(){
@@ -101,7 +101,7 @@ void xe_string::clear(){
 }
 
 size_t xe_string::hash() const{
-	return xe_hash::hash_bytes(c_str(), length());
+	return xe_hash::xe_hash_bytes(c_str(), length());
 }
 
 xe_string& xe_string::operator=(xe_cptr string){
@@ -123,16 +123,16 @@ bool xe_string::equal(const xe_string& o) const{
 	return equal(*this, o);
 }
 
-bool xe_string::equalCase(const xe_string& o) const{
-	return equalCase(*this, o);
+bool xe_string::equal_case(const xe_string& o) const{
+	return equal_case(*this, o);
 }
 
 bool xe_string::equal(xe_cptr o) const{
 	return equal(*this, xe_string(o));
 }
 
-bool xe_string::equalCase(xe_cptr o) const{
-	return equalCase(*this, xe_string(o));
+bool xe_string::equal_case(xe_cptr o) const{
+	return equal_case(*this, xe_string(o));
 }
 
 size_t xe_string::length(xe_cptr str){
@@ -145,10 +145,10 @@ bool xe_string::equal(const xe_string& a, const xe_string& b){
 	return a.data_ == b.data_ || !xe_string_compare(a.data_, b.data_, a.length());
 }
 
-bool xe_string::equalCase(const xe_string& a, const xe_string& b){
+bool xe_string::equal_case(const xe_string& a, const xe_string& b){
 	if(a.length() != b.length())
 		return false;
-	return a.data_ == b.data_ || !xe_string_compareCase(a.data_, b.data_, a.length());
+	return a.data_ == b.data_ || !xe_string_compare_case(a.data_, b.data_, a.length());
 }
 
 bool xe_string::copy(xe_cptr src, size_t n){

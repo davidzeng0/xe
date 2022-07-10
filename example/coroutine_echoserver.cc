@@ -7,6 +7,7 @@
 #include "xe/mem.h"
 #include "xe/error.h"
 #include "xe/loop.h"
+#include "xe/clock.h"
 
 /* coroutine task structure */
 struct task{

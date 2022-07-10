@@ -24,4 +24,4 @@ void xe__stop		(xe_cstr file, uint line, xe_cstr message);
 #endif
 
 #define xe_stop(str) 				xe__stop(XE_SOURCE, str)
-#define xe_notreached() 				xe_stop("Not reached")
+#define xe_notreached() 			xe_stop("Not reached")

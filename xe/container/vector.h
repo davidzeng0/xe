@@ -55,11 +55,11 @@ struct xe_iterator{
 		return *this;
 	}
 
-	xe_iterator operator+(size_t n){
+	xe_iterator operator+(size_t n) const{
 		return xe_iterator(ptr + n);
 	}
 
-	xe_iterator operator-(size_t n){
+	xe_iterator operator-(size_t n) const{
 		return xe_iterator(ptr - n);
 	}
 
@@ -177,12 +177,20 @@ public:
 		return iterator(data() + size());
 	}
 
-	const iterator cbegin() const{
-		return iterator(data());
+	const_iterator begin() const{
+		return const_iterator(data());
 	}
 
-	const iterator cend() const{
-		return iterator(data() + size());
+	const_iterator end() const{
+		return const_iterator(data() + size());
+	}
+
+	const_iterator cbegin() const{
+		return const_iterator(data());
+	}
+
+	const_iterator cend() const{
+		return const_iterator(data() + size());
 	}
 
 	bool resize(size_t size){
@@ -314,11 +322,19 @@ public:
 		return iterator(data() + size());
 	}
 
-	const iterator cbegin() const{
+	const_iterator begin() const{
+		return const_iterator(data());
+	}
+
+	const_iterator end() const{
+		return const_iterator(data() + size());
+	}
+
+	const_iterator cbegin() const{
 		return iterator(data());
 	}
 
-	const iterator cend() const{
+	const_iterator cend() const{
 		return iterator(data() + size());
 	}
 

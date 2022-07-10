@@ -35,3 +35,10 @@ void xe_swap(T& a, T& b){
 	a = std::move(b);
 	b = std::move(tmp);
 }
+
+#define xe_return_error(exp) 	\
+	{							\
+		auto err_ = exp; 		\
+								\
+		if(err_) return err_; 	\
+	}

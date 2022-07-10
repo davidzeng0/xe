@@ -5,7 +5,7 @@
 
 namespace xe_hash{
 
-static inline size_t hash_bytes(xe_cptr data, size_t len){
+static inline size_t xe_hash_bytes(xe_cptr data, size_t len){
 	size_t n = sizeof(ulong) - 1;
 
 	ulong seed = 0xe17a1465,
@@ -47,7 +47,7 @@ static inline size_t hash_bytes(xe_cptr data, size_t len){
 	return h;
 }
 
-static inline size_t hash_int(ulong x){
+static inline size_t xe_hash_int(ulong x){
 	x ^= x >> 33;
 	x *= 0xff51afd7ed558ccd;
 	x ^= x >> 33;
@@ -55,14 +55,14 @@ static inline size_t hash_int(ulong x){
 	return x;
 }
 
-static inline size_t hash_combine(size_t h1, size_t h2){
+static inline size_t xe_hash_combine(size_t h1, size_t h2){
 	h1 ^= h2 + 0x9e3779b9 + (h1 << 6) + (h1 >> 2);
 
 	return h1;
 }
 
 template<class T>
-struct hash{
+struct xe_hasher{
 	size_t operator()(const T& key) const{
 		return key.hash();
 	}
@@ -70,7 +70,7 @@ struct hash{
 
 }
 
-template<typename key_t, typename value_t, class hash = xe_hash::hash<key_t>, class equal = std::equal_to<key_t>>
+template<typename key_t, typename value_t, class hash = xe_hash::xe_hasher<key_t>, class equal = std::equal_to<key_t>>
 class xe_map{
 private:
 	typedef robin_hood::unordered_flat_map<key_t, value_t, hash, equal> hashmap;

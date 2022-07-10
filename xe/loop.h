@@ -18,6 +18,11 @@ namespace std{
 
 #include "types.h"
 
+enum{
+	XE_LOOP_IOBUF_SIZE = 16 * 1024,
+	XE_LOOP_IOBUF_SIZE_LARGE = 256 * 1024
+};
+
 struct xe_loop;
 
 enum xe_loop_handle_type : byte{
@@ -29,8 +34,8 @@ enum xe_loop_handle_type : byte{
 	XE_LOOP_HANDLE_PROMISE,
 	XE_LOOP_HANDLE_USER,
 
-	XE_NET_CONNECTION,
-	XE_NET_RESOLVER,
+	XURL_CONNECTION,
+	XURL_RESOLVER,
 
 	XE_LOOP_HANDLE_LAST
 };
@@ -59,15 +64,15 @@ struct xe_timer{
 	xe_timer();
 };
 
-struct xe_loop_options{
-	enum xe_flags{
-		XE_FLAGS_NONE   = 0x0,
-		XE_FLAGS_SQPOLL = 0x1,
-		XE_FLAGS_IOPOLL = 0x2,
-		XE_FLAGS_SQAFF  = 0x4,
-		XE_FLAGS_IOBUF  = 0x8 /* loop allocates a buffer for sync I/O */
-	};
+enum xe_loop_flags{
+	XE_LOOP_FLAGS_NONE   = 0x0,
+	XE_LOOP_FLAGS_SQPOLL = 0x1,
+	XE_LOOP_FLAGS_IOPOLL = 0x2,
+	XE_LOOP_FLAGS_SQAFF  = 0x4,
+	XE_LOOP_FLAGS_IOBUF  = 0x8 /* loop allocates a buffer for sync I/O */
+};
 
+struct xe_loop_options{
 	uint capacity; /* number of simultaneous (unfinished) io requests */
 	uint flags;
 	uint sq_thread_cpu;
@@ -80,40 +85,22 @@ class xe_promise{
 private:
 	std::coroutine_handle<> waiter;
 
-	int result;
-	int handle;
-	int ready;
-	int pad;
+	int result_;
+	int handle_;
 
-	void resolve(int);
+	xe_promise();
 
 	friend class xe_loop;
 public:
-	xe_promise();
+	bool await_ready();
+	void await_suspend(std::coroutine_handle<> handle);
+	int await_resume();
 
-	bool await_ready(){
-		return ready;
-	}
-
-	void await_suspend(std::coroutine_handle<> handle){
-		waiter = handle;
-	}
-
-	int await_resume(){
-		return result;
-	}
-
-	int get_handle(){
-		return handle;
-	}
+	int handle();
 };
 
-struct xe_loop{
-	enum{
-		IOBUF_SIZE = 16 * 1024,
-		IOBUF_SIZE_LARGE = 256 * 1024
-	};
-
+class xe_loop{
+private:
 	io_uring ring;
 
 	uint num_handles;
@@ -125,6 +112,17 @@ struct xe_loop{
 
 	xe_loop_handle* handles;
 
+	bool handle_invalid(int);
+	int enter(uint, uint, uint);
+	int submit(uint);
+	int waitsingle();
+	void run_timer(xe_timer&);
+	int queue_timer(xe_timer&);
+	int queue_timer_internal(xe_timer&);
+
+	template<typename F>
+	int queue_io(int op, xe_ptr, xe_loop_handle::xe_callback, ulong, ulong, xe_loop_handle_type, F);
+public:
 	xe_loop();
 
 	int init();
@@ -138,52 +136,52 @@ struct xe_loop{
 	bool reserve(uint count);
 	void release(uint count);
 
-#define XE_IO_ARGS xe_ptr user_data, xe_loop_handle::xe_callback callback, ulong u1 = 0, ulong u2 = 0, xe_loop_handle_type handle_type = XE_LOOP_HANDLE_USER
-	int nop				(																			XE_IO_ARGS);
+#define XE_LOOP_IO_ARGS xe_ptr user_data, xe_loop_handle::xe_callback callback, ulong u1 = 0, ulong u2 = 0, xe_loop_handle_type handle_type = XE_LOOP_HANDLE_USER
+	int nop				(																			XE_LOOP_IO_ARGS);
 
-	int openat			(int fd, xe_cstr path, uint flags, mode_t mode, 							XE_IO_ARGS);
-	int openat2			(int fd, xe_cstr path, struct open_how* how, 								XE_IO_ARGS);
+	int openat			(int fd, xe_cstr path, uint flags, mode_t mode, 							XE_LOOP_IO_ARGS);
+	int openat2			(int fd, xe_cstr path, struct open_how* how, 								XE_LOOP_IO_ARGS);
 
-	int read			(int fd, xe_buf buf, uint len, ulong offset, 								XE_IO_ARGS);
-	int write			(int fd, xe_buf buf, uint len, ulong offset, 								XE_IO_ARGS);
-	int readv			(int fd, iovec* iovecs, uint vlen, ulong offset, 							XE_IO_ARGS);
-	int writev			(int fd, iovec* iovecs, uint vlen, ulong offset, 							XE_IO_ARGS);
-	int read_fixed		(int fd, xe_buf buf, uint len, ulong offset, uint buf_index,				XE_IO_ARGS);
-	int write_fixed		(int fd, xe_buf buf, uint len, ulong offset, uint buf_index,				XE_IO_ARGS);
+	int read			(int fd, xe_buf buf, uint len, ulong offset, 								XE_LOOP_IO_ARGS);
+	int write			(int fd, xe_buf buf, uint len, ulong offset, 								XE_LOOP_IO_ARGS);
+	int readv			(int fd, iovec* iovecs, uint vlen, ulong offset, 							XE_LOOP_IO_ARGS);
+	int writev			(int fd, iovec* iovecs, uint vlen, ulong offset, 							XE_LOOP_IO_ARGS);
+	int read_fixed		(int fd, xe_buf buf, uint len, ulong offset, uint buf_index,				XE_LOOP_IO_ARGS);
+	int write_fixed		(int fd, xe_buf buf, uint len, ulong offset, uint buf_index,				XE_LOOP_IO_ARGS);
 
-	int fsync			(int fd, uint flags,						 								XE_IO_ARGS);
-	int fallocate		(int fd, int mode, ulong offset, ulong len, 								XE_IO_ARGS);
-	int fadvise			(int fd, ulong offset, ulong len, uint advice, 								XE_IO_ARGS);
+	int fsync			(int fd, uint flags,						 								XE_LOOP_IO_ARGS);
+	int fallocate		(int fd, int mode, ulong offset, ulong len, 								XE_LOOP_IO_ARGS);
+	int fadvise			(int fd, ulong offset, ulong len, uint advice, 								XE_LOOP_IO_ARGS);
 
-	int madvise			(xe_ptr addr, ulong len, uint advice, 										XE_IO_ARGS);
+	int madvise			(xe_ptr addr, ulong len, uint advice, 										XE_LOOP_IO_ARGS);
 
-	int sync_file_range	(int fd, uint len, ulong offset, uint flags,								XE_IO_ARGS);
+	int sync_file_range	(int fd, uint len, ulong offset, uint flags,								XE_LOOP_IO_ARGS);
 
-	int statx			(int fd, xe_cstr path, uint flags, uint mask, struct statx* statx,			XE_IO_ARGS);
+	int statx			(int fd, xe_cstr path, uint flags, uint mask, struct statx* statx,			XE_LOOP_IO_ARGS);
 
-	int renameat		(int old_fd, xe_cstr old_path, int new_fd, xe_cstr new_path, uint flags, 	XE_IO_ARGS);
-	int unlinkat		(int fd, xe_cstr path, uint flags, 											XE_IO_ARGS);
+	int renameat		(int old_fd, xe_cstr old_path, int new_fd, xe_cstr new_path, uint flags, 	XE_LOOP_IO_ARGS);
+	int unlinkat		(int fd, xe_cstr path, uint flags, 											XE_LOOP_IO_ARGS);
 
-	int splice			(int fd_in, ulong off_in, int fd_out, ulong off_out, uint len, uint flags, 	XE_IO_ARGS);
-	int tee				(int fd_in, int fd_out, uint len, uint flags, 								XE_IO_ARGS);
+	int splice			(int fd_in, ulong off_in, int fd_out, ulong off_out, uint len, uint flags, 	XE_LOOP_IO_ARGS);
+	int tee				(int fd_in, int fd_out, uint len, uint flags, 								XE_LOOP_IO_ARGS);
 
-	int connect			(int fd, sockaddr* addr, socklen_t addrlen, 								XE_IO_ARGS);
-	int accept			(int fd, sockaddr* addr, socklen_t* addrlen, uint flags, 					XE_IO_ARGS);
-	int recv			(int fd, xe_buf buf, uint len, uint flags, 									XE_IO_ARGS);
-	int send			(int fd, xe_buf buf, uint len, uint flags, 									XE_IO_ARGS);
+	int connect			(int fd, sockaddr* addr, socklen_t addrlen, 								XE_LOOP_IO_ARGS);
+	int accept			(int fd, sockaddr* addr, socklen_t* addrlen, uint flags, 					XE_LOOP_IO_ARGS);
+	int recv			(int fd, xe_buf buf, uint len, uint flags, 									XE_LOOP_IO_ARGS);
+	int send			(int fd, xe_buf buf, uint len, uint flags, 									XE_LOOP_IO_ARGS);
 
-	int recvmsg			(int fd, struct msghdr* msg, uint flags, 									XE_IO_ARGS);
-	int sendmsg			(int fd, struct msghdr* msg, uint flags, 									XE_IO_ARGS);
+	int recvmsg			(int fd, struct msghdr* msg, uint flags, 									XE_LOOP_IO_ARGS);
+	int sendmsg			(int fd, struct msghdr* msg, uint flags, 									XE_LOOP_IO_ARGS);
 
-	int poll			(int fd, uint mask, 														XE_IO_ARGS);
-	int poll_cancel		(int handle, 																XE_IO_ARGS);
+	int poll			(int fd, uint mask, 														XE_LOOP_IO_ARGS);
+	int poll_cancel		(int handle, 																XE_LOOP_IO_ARGS);
 
-	int cancel			(int handle, uint flags, 													XE_IO_ARGS);
+	int cancel			(int handle, uint flags, 													XE_LOOP_IO_ARGS);
 
-	int files_update	(int* fds, uint len, uint offset, 		 									XE_IO_ARGS);
+	int files_update	(int* fds, uint len, uint offset, 		 									XE_LOOP_IO_ARGS);
 
 	int modify_handle	(int handle, xe_ptr user_data, xe_loop_handle::xe_callback callback, ulong u1 = 0, ulong u2 = 0);
-#undef XE_IO_ARGS
+#undef XE_LOOP_IO_ARGS
 	xe_promise nop				();
 
 	xe_promise openat			(int fd, xe_cstr path, uint flags, mode_t mode);
@@ -235,7 +233,6 @@ struct xe_loop{
 	xe_buf iobuf_large() const;
 
 	void destroy();
-};
 
-ulong xe_time_ns(); /* system time in nanoseconds */
-ulong xe_time_ms(); /* system time in milliseconds */
+	static xe_cstr class_name();
+};

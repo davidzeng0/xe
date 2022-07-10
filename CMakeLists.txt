@@ -1,5 +1,8 @@
-cmake_minimum_required(VERSION 3.0.0)
+cmake_minimum_required(VERSION 3.16)
 project(xe CXX)
+cmake_policy(SET CMP0069 NEW)
+include(CheckIPOSupported)
+check_ipo_supported()
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 include(simd)
@@ -7,25 +10,21 @@ include(cpu)
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++20")
 
-set(XE_LINKER_FLAGS "")
-
 if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
 	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fcoroutines -fno-pie -no-pie")
 elseif(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
 	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fcoroutines-ts -stdlib=libc++")
-	set(XE_LINKER_FLAGS "-fuse-ld=lld")
 else()
 	message(SEND_ERROR "Unsupported Compiler")
 endif()
 
 set(XE_FLTO TRUE)
 if(${CMAKE_BUILD_TYPE} STREQUAL "Debug")
-set(XE_DEBUG TRUE)
+	set(XE_DEBUG TRUE)
 elseif(${CMAKE_BUILD_TYPE} STREQUAL "Release")
 	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -march=native -mtune=native")
 	if(XE_FLTO)
-		set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -flto")
-		set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${XE_LINKER_FLAGS}")
+		set(CMAKE_INTERPROCEDURAL_OPTIMIZATION ON)
 	endif()
 endif()
 
@@ -39,8 +38,8 @@ set(SOURCES "")
 file(GLOB SOURCES
 	"xe/*.cc"
 	"xe/io/*.cc"
-	"xe/net/*.cc"
-	"xe/net/proto/*.cc"
+	"xurl/*.cc"
+	"xurl/proto/*.cc"
 )
 
 set(ARCH "")

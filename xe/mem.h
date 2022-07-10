@@ -75,7 +75,7 @@ static inline void xe_zero(T* ptr, size_t elements){
 }
 
 template<typename... Args>
-static inline void xe_zeroall(Args... args){
+static inline void xe_zeroall(Args&& ...args){
 	(xe_zero(args), ...);
 }
 

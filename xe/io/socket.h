@@ -3,11 +3,14 @@
 
 class xe_socket{
 private:
-	xe_loop& loop;
+	xe_loop& loop_;
 
-	int fd;
+	int fd_;
 
-	uint flags;
+	uint accepting: 1;
+	uint connecting: 1;
+	uint connected: 1;
+	uint flags: 29;
 	uint handle;
 	uint pad;
 
@@ -29,9 +32,9 @@ public:
 
 	int init(int af, int type, int proto);
 	void init_fd(int fd);
-	int get_fd();
+	int fd();
 
-	xe_loop& get_loop();
+	xe_loop& loop();
 
 	int connect(sockaddr* addr, socklen_t addrlen, ulong key = 0);
 
