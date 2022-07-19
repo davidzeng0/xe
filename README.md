@@ -1,18 +1,29 @@
-# xe
-io_uring event loop with c++20 coroutines
+# libraries
+This project is a WIP.
 
-## building
+## xe
+linux uring event loop with support for c++20 coroutines
 
-### prerequisites
-1. [liburing](https://github.com/axboe/liburing)
-2. cmake <code>sudo apt install cmake</code>
-3. g++/clang++ with coroutine support
+## xurl
+url client library
+<br>
+protocols:
+- file
+- http
+- websocket
 
-### build
+# compiling
+
+## prerequisites
+1. liburing ([github](https://github.com/axboe/liburing))
+2. c-ares ([github](https://github.com/c-ares/c-ares))
+3. wolfSSL ([github](https://github.com/wolfSSL/wolfssl))
+4. cmake <code>apt install cmake</code>
+5. g++/clang++ with coroutine support <code>apt install g++-11/clang++-12</code>
+
+## build
 ```bash
-1. mkdir build; cd build
-2. cmake -DCMAKE_BUILD_TYPE="Release" -DCMAKE_CXX_COMPILER="/usr/bin/g++-11" ..
-   OR
-   cmake -DCMAKE_BUILD_TYPE="Release" -DCMAKE_CXX_COMPILER="/usr/bin/clang++-12" ..
-3. cmake --build .
+mkdir build; cd build
+cmake -DCMAKE_BUILD_TYPE="Release" -DCMAKE_CXX_COMPILER="/your/cxx/compiler" ..
+cmake --build .
 ```
