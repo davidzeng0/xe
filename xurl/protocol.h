@@ -1,5 +1,5 @@
 #pragma once
-#include "xe/types.h"
+#include "xutil/types.h"
 #include "xurl.h"
 #include "url.h"
 
@@ -43,12 +43,12 @@ public:
 		return id_;
 	}
 
-	virtual int start(xe_request& request) = 0;
-	virtual int transferctl(xe_request& request, uint flags) = 0;
-	virtual void end(xe_request& request) = 0;
+	virtual int start(xe_request_internal& request) = 0;
+	virtual int transferctl(xe_request_internal& request, uint flags) = 0;
+	virtual void end(xe_request_internal& request) = 0;
 
-	virtual bool matches(const xe_string& scheme) const = 0;
-	virtual int open(xe_request& request, xe_url url) = 0;
+	virtual bool matches(const xe_string_view& scheme) const = 0;
+	virtual int open(xe_request_internal& request, xe_url&& url) = 0;
 
 	virtual ~xe_protocol(){}
 };

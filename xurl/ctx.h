@@ -1,7 +1,7 @@
 #pragma once
-#include "xe/types.h"
+#include "xutil/types.h"
 #include "xe/loop.h"
-#include "xe/container/map.h"
+#include "xutil/container/map.h"
 #include "resolve.h"
 #include "protocol.h"
 #include "xurl.h"
@@ -49,7 +49,7 @@ private:
 
 	xe_map<xe_string, resolve_endpoint> endpoints;
 
-	int resolve(xe_connection&, xe_string&, xe_endpoint*&);
+	int resolve(xe_connection&, const xe_string_view&, xe_endpoint*&);
 
 	int poll(xe_connection&, int, int, int);
 
@@ -58,7 +58,7 @@ private:
 	void add(xe_connection&);
 	void remove(xe_connection&);
 
-	void resolved(xe_string, xe_endpoint&, int);
+	void resolved(const xe_string_view&, xe_endpoint&&, int);
 	void poll();
 
 	static void io(xe_loop_handle&, int);
@@ -75,7 +75,7 @@ public:
 	int start();
 	void stop();
 
-	int open(xe_request& request, xe_string url);
+	int open(xe_request& request, const xe_string_view& url);
 	int start(xe_request& request);
 	int transferctl(xe_request& request, uint flags);
 	int end(xe_request& request);

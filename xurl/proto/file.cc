@@ -4,6 +4,7 @@
 #include "xe/io/file.h"
 #include "../request.h"
 #include "../ctx.h"
+#include "../request_internal.h"
 
 namespace xurl{
 
@@ -15,7 +16,7 @@ private:
 public:
 	xe_file_data();
 
-	int open(xe_url url);
+	int open(xe_url&& url);
 
 	~xe_file_data();
 };
@@ -23,7 +24,7 @@ public:
 class xe_file_reader{
 	::xe_file file;
 	xe_file_data* data;
-	xe_request* request;
+	xe_request_internal* request;
 	xe_ptr buf;
 	size_t len;
 
@@ -50,7 +51,7 @@ class xe_file_reader{
 			return;
 		}
 
-		reader.request -> callbacks.write(*reader.request, reader.buf, result);
+		reader.request -> write(reader.buf, result);
 		file.offset += result;
 
 		int handle = file.read(reader.buf, reader.len, file.offset);
@@ -58,7 +59,7 @@ class xe_file_reader{
 		xe_assert(handle >= 0);
 	}
 public:
-	xe_file_reader(xe_loop& loop, xe_request* request_) : file(loop){
+	xe_file_reader(xe_loop& loop, xe_request_internal* request_) : file(loop){
 		request = request_;
 		data = (xe_file_data*)request -> data;
 		file.open_callback = open_callback;
@@ -69,11 +70,12 @@ public:
 	}
 
 	int start(){
-		xe_string path = data -> url.path();
+		xe_string_view path = data -> url.path();
+		xe_string path_copy;
 
-		path.data()[path.length()] = 0;
-
-		int err = file.open(path.c_str(), O_RDONLY);
+		if(!path_copy.copy(path))
+			return XE_ENOMEM;
+		int err = file.open(path_copy.c_str(), O_RDONLY);
 
 		if(err < 0)
 			return err;
@@ -87,8 +89,8 @@ xe_file_data::xe_file_data(): xe_protocol_specific(XE_PROTOCOL_FILE){
 
 }
 
-int xe_file_data::open(xe_url url_){
-	url = url_;
+int xe_file_data::open(xe_url&& url_){
+	url = std::move(url_);
 
 	return 0;
 }
@@ -101,14 +103,14 @@ class xe_file : public xe_protocol{
 public:
 	xe_file(xurl_ctx& ctx);
 
-	int start(xe_request& request);
+	int start(xe_request_internal& request);
 
-	int transferctl(xe_request& request, uint flags);
-	void end(xe_request& request);
+	int transferctl(xe_request_internal& request, uint flags);
+	void end(xe_request_internal& request);
 
-	int open(xe_request& request, xe_url url);
+	int open(xe_request_internal& request, xe_url&& url);
 
-	bool matches(const xe_string& scheme) const;
+	bool matches(const xe_string_view& scheme) const;
 
 	~xe_file();
 
@@ -119,7 +121,7 @@ xe_file::xe_file(xurl_ctx& ctx) : xe_protocol(ctx, XE_PROTOCOL_FILE){
 
 }
 
-int xe_file::start(xe_request& request){
+int xe_file::start(xe_request_internal& request){
 	xe_file_reader* reader = xe_znew<xe_file_reader>(ctx -> loop(), &request);
 
 	if(!reader)
@@ -135,15 +137,15 @@ int xe_file::start(xe_request& request){
 	return 0;
 }
 
-int xe_file::transferctl(xe_request& request, uint flags){
+int xe_file::transferctl(xe_request_internal& request, uint flags){
 	return 0;
 }
 
-void xe_file::end(xe_request& request){
+void xe_file::end(xe_request_internal& request){
 
 }
 
-int xe_file::open(xe_request& request, xe_url url){
+int xe_file::open(xe_request_internal& request, xe_url&& url){
 	xe_file_data* data;
 
 	if(request.data && request.data -> id() == XE_PROTOCOL_FILE){
@@ -155,7 +157,7 @@ int xe_file::open(xe_request& request, xe_url url){
 			return XE_ENOMEM;
 	}
 
-	int err = data -> open(url);
+	int err = data -> open(std::move(url));
 
 	if(err){
 		xe_delete(data);
@@ -163,14 +165,14 @@ int xe_file::open(xe_request& request, xe_url url){
 		return err;
 	}
 
-	xe_log_verbose(this, "opened file request for: %s", url.string().c_str());
+	xe_log_verbose(this, "opened file request for: %s", url.href().c_str());
 
 	request.data = data;
 
 	return 0;
 }
 
-bool xe_file::matches(const xe_string& scheme) const{
+bool xe_file::matches(const xe_string_view& scheme) const{
 	return scheme == "file";
 }
 

@@ -1,5 +1,5 @@
 #pragma once
-#include "xe/types.h"
+#include "xutil/types.h"
 
 namespace xurl{
 
@@ -24,7 +24,8 @@ class xurl_ctx;
 class xe_connection;
 class xe_protocol;
 class xe_protocol_specific;
-struct xe_request;
+class xe_request;
+class xe_request_internal;
 
 int xurl_init();
 void xurl_cleanup();

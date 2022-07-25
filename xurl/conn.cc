@@ -2,9 +2,9 @@
 #include <sys/epoll.h>
 #include <arpa/inet.h>
 #include <netinet/tcp.h>
-#include "xe/clock.h"
+#include "xutil/clock.h"
 #include "conn.h"
-#include "common.h"
+#include "xutil/inet.h"
 
 using namespace xurl;
 
@@ -289,8 +289,6 @@ int xe_connection::writable(){
 	return 0;
 }
 
-xe_connection::xe_connection(){}
-
 int xe_connection::init(xurl_ctx& ctx_){
 	fd = -1;
 	ctx = &ctx_;
@@ -331,7 +329,7 @@ int xe_connection::init_ssl(xe_ssl_ctx& shared){
 	return err;
 }
 
-int xe_connection::connect(xe_string host_, int port_){
+int xe_connection::connect(const xe_string_view& host_, int port_){
 	int err;
 
 	xe_log_verbose(this, "connecting to %.*s:%u", host_.length(), host_.c_str(), port_);

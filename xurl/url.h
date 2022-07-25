@@ -1,12 +1,12 @@
 #pragma once
-#include "xe/common.h"
-#include "xe/string.h"
+#include "xutil/xutil.h"
+#include "xutil/string.h"
 
 namespace xurl{
 
 class xe_url{
 private:
-	xe_string string_;
+	xe_string string;
 
 	uint n_scheme;
 	uint n_authl;
@@ -16,21 +16,29 @@ private:
 	uint n_path;
 	uint v_port;
 public:
-	xe_url();
-	xe_url(xe_string string);
+	xe_url(){}
+	xe_url(xe_string&& url);
 
-	xe_string string();
+	xe_url(xe_url&& other);
+	xe_url& operator=(xe_url&& other);
+
+	xe_url(const xe_url& other) = delete;
+	xe_url& operator=(const xe_url& other) = delete;
+
+	xe_string_view href() const;
 
 	int parse();
 
-	xe_string scheme();
-	xe_string user_info();
-	xe_string host();
-	xe_string hostname();
-	xe_string path();
+	xe_string_view scheme() const;
+	xe_string_view user_info() const;
+	xe_string_view host() const;
+	xe_string_view hostname() const;
+	xe_string_view path() const;
 
-	uint port();
+	uint port() const;
 	void free();
+
+	~xe_url();
 };
 
 }

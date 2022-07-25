@@ -1,8 +1,8 @@
 #pragma once
 #include <netdb.h>
 #include "xe/loop.h"
-#include "xe/container/vector.h"
-#include "xe/string.h"
+#include "xutil/container/vector.h"
+#include "xutil/string.h"
 #include "xurl.h"
 
 namespace xurl{
@@ -21,12 +21,12 @@ public:
 
 class xe_endpoint{
 private:
-	xe_array<in_addr> inet_;
-	xe_array<in6_addr> inet6_;
+	xe_slice<in_addr> inet_;
+	xe_slice<in6_addr> inet6_;
 
 	friend class xe_resolve;
 public:
-	xe_endpoint();
+	xe_endpoint(){}
 
 	xe_endpoint(const xe_endpoint& other) = delete;
 	xe_endpoint& operator=(const xe_endpoint& other) = delete;
@@ -34,8 +34,8 @@ public:
 	xe_endpoint(xe_endpoint&& other);
 	xe_endpoint& operator=(xe_endpoint&& other);
 
-	const xe_array<in_addr>& inet() const;
-	const xe_array<in6_addr>& inet6() const;
+	const xe_slice<const in_addr>& inet() const;
+	const xe_slice<const in6_addr>& inet6() const;
 
 	void free();
 
@@ -61,7 +61,7 @@ private:
 	static void sockstate(xe_ptr, int, int, int);
 	static int sockcreate(int, int, xe_ptr);
 	static void resolved(xe_ptr, int, int, xe_ptr);
-	static int ip_resolve(xe_string&, xe_endpoint&);
+	static int ip_resolve(const xe_string_view&, xe_endpoint&);
 	void poll();
 
 	friend struct ::xe_loop;
@@ -74,7 +74,7 @@ public:
 	int start();
 	void stop();
 
-	int resolve(xe_string host, xe_endpoint& endpoint);
+	int resolve(const xe_string_view& host, xe_endpoint& endpoint);
 
 	static xe_cstr class_name();
 };

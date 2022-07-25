@@ -3,15 +3,15 @@
 #include <sys/timerfd.h>
 #include <unistd.h>
 #include <arpa/inet.h>
-#include "xe/overflow.h"
-#include "xe/mem.h"
+#include "xutil/overflow.h"
+#include "xutil/mem.h"
 #include "xe/error.h"
-#include "xe/common.h"
-#include "xe/log.h"
-#include "xe/clock.h"
+#include "xutil/xutil.h"
+#include "xutil/log.h"
+#include "xutil/clock.h"
 #include "resolve.h"
 #include "ctx.h"
-#include "common.h"
+#include "xutil/inet.h"
 
 using namespace xurl;
 
@@ -27,7 +27,7 @@ struct xe_resolve_ctx::xe_resolve_ctx_data{
 };
 
 struct xe_resolve_query{
-	xe_string host;
+	xe_string_view host;
 	xe_endpoint endpoint;
 	xe_resolve* resolve;
 #ifdef XE_DEBUG
@@ -92,10 +92,8 @@ void xe_resolve_ctx::close(){
 	xe_dealloc(priv);
 }
 
-xe_endpoint::xe_endpoint(){}
-
 xe_endpoint::xe_endpoint(xe_endpoint&& other){
-	operator=(std::forward<xe_endpoint>(other));
+	operator=(std::move(other));
 }
 
 xe_endpoint& xe_endpoint::operator=(xe_endpoint&& other){
@@ -107,16 +105,16 @@ xe_endpoint& xe_endpoint::operator=(xe_endpoint&& other){
 	return *this;
 }
 
-const xe_array<in_addr>& xe_endpoint::inet() const{
-	return inet_;
+const xe_slice<const in_addr>& xe_endpoint::inet() const{
+	return (xe_slice<const in_addr>&)inet_;
 }
 
-const xe_array<in6_addr>& xe_endpoint::inet6() const{
-	return inet6_;
+const xe_slice<const in6_addr>& xe_endpoint::inet6() const{
+	return (xe_slice<const in6_addr>&)inet6_;
 }
 
 void xe_endpoint::free(){
-	inet_.free();
+	xe_dealloc(inet_.data());
 }
 
 xe_endpoint::~xe_endpoint(){
@@ -204,7 +202,7 @@ static int xe_ares_error(int status){
 	}
 }
 
-static bool alloc_entries(size_t inet_len, size_t inet6_len, xe_array<in_addr>& inet, xe_array<in6_addr>& inet6){
+static bool alloc_entries(size_t inet_len, size_t inet6_len, xe_slice<in_addr>& inet, xe_slice<in6_addr>& inet6){
 	ptrdiff_t inet_total, inet6_total, total;
 
 	xe_bptr endpoints;
@@ -217,8 +215,8 @@ static bool alloc_entries(size_t inet_len, size_t inet6_len, xe_array<in_addr>& 
 
 	if(!endpoints)
 		return false;
-	inet = xe_array<in_addr>((in_addr*)endpoints, inet_len);
-	inet6 = xe_array<in6_addr>((in6_addr*)(endpoints + inet_total), inet6_len);
+	inet = xe_slice<in_addr>((in_addr*)endpoints, inet_len);
+	inet6 = xe_slice<in6_addr>((in6_addr*)(endpoints + inet_total), inet6_len);
 
 	return true;
 }
@@ -287,13 +285,13 @@ void xe_resolve::resolved(xe_ptr data, int status, int timeouts, xe_ptr ptr){
 		query.done = true;
 		query.error = status;
 	}else{
-		query.resolve -> ctx -> resolved(query.host, query.endpoint, status);
+		query.resolve -> ctx -> resolved(query.host, std::move(query.endpoint), status);
 
 		xe_delete(&query);
 	}
 }
 
-int xe_resolve::ip_resolve(xe_string& host, xe_endpoint& endpoint){
+int xe_resolve::ip_resolve(const xe_string_view& host, xe_endpoint& endpoint){
 	in_addr addr;
 	in6_addr addr6;
 
@@ -309,15 +307,17 @@ int xe_resolve::ip_resolve(xe_string& host, xe_endpoint& endpoint){
 	}
 
 	if(inet_pton(AF_INET, host.c_str(), &addr) == 1){
-		if(!endpoint.inet_.copy(&addr, 1))
+		if(!alloc_entries(1, 0, endpoint.inet_, endpoint.inet6_))
 			return XE_ENOMEM;
+		endpoint.inet_[0] = addr;
+
 		return 0;
 	}
 
 	if(inet_pton(AF_INET6, host.c_str(), &addr6) == 1){
-		if(!endpoint.inet6_.copy(&addr6, 1))
+		if(!alloc_entries(0, 1, endpoint.inet_, endpoint.inet6_))
 			return XE_ENOMEM;
-		endpoint.inet_ = xe_array<in_addr>((in_addr*)endpoint.inet6_.data(), 0);
+		xe_tmemcpy(&endpoint.inet6_[0], &addr6);
 
 		return 0;
 	}
@@ -446,7 +446,7 @@ void xe_resolve::stop(){
 	xe_assert(ret >= 0);
 }
 
-int xe_resolve::resolve(xe_string host, xe_endpoint& endpoint){
+int xe_resolve::resolve(const xe_string_view& host, xe_endpoint& endpoint){
 	xe_assertm(host.c_str()[host.length()] == 0, "host is not null terminated");
 
 	int err = ip_resolve(host, endpoint);

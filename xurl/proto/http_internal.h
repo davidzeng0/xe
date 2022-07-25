@@ -1,10 +1,11 @@
 #pragma once
-#include "xe/string.h"
+#include "xutil/string.h"
 #include "http_base.h"
 #include "../url.h"
 #include "../conn.h"
 #include "../request.h"
-#include "../encoding.h"
+#include "../request_internal.h"
+#include "xutil/encoding.h"
 
 using namespace xurl;
 
@@ -12,11 +13,16 @@ class xe_http_string : public xe_string{
 protected:
 	bool owner;
 public:
-	bool copy(const xe_string& src);
-	void own(const xe_string& src);
+	xe_http_string();
+
+	xe_http_string(xe_http_string&& other);
+	xe_http_string& operator=(xe_http_string&& other);
+
+	bool copy(const xe_string_view& src);
+	void own(const xe_string_view& src);
 	void free();
 
-	xe_http_string& operator=(const xe_string& src);
+	xe_http_string& operator=(const xe_string_view& src);
 
 	~xe_http_string();
 };
@@ -24,13 +30,13 @@ public:
 class xe_http_connection;
 class xe_http_internal_data{
 	struct xe_http_case_insensitive{
-		bool operator()(const xe_string& a, const xe_string& b) const{
+		bool operator()(const xe_string_view& a, const xe_string_view& b) const{
 			return a.equal_case(b);
 		}
 	};
 
 	struct xe_http_lowercase_hash{
-		size_t operator()(const xe_string& str) const{
+		size_t operator()(const xe_string_view& str) const{
 			return str.hash();
 		}
 	};
@@ -47,8 +53,8 @@ public:
 
 	xe_http_internal_data();
 
-	bool internal_set_method(xe_string method, uint flags);
-	bool internal_set_header(xe_string key, xe_string value, uint flags);
+	bool internal_set_method(const xe_string_view& method, uint flags);
+	bool internal_set_header(const xe_string_view& key, const xe_string_view& value, uint flags);
 	void free();
 
 	~xe_http_internal_data();
@@ -60,10 +66,10 @@ class xe_http_protocol : public xe_protocol{
 public:
 	xe_http_protocol(xurl_ctx& ctx, xe_protocol_id id): xe_protocol(ctx, id){}
 
-	virtual void redirect(xe_request& request, xe_string&& url);
+	virtual void redirect(xe_request_internal& request, xe_string&& url);
 	virtual bool available(xe_http_connection& connection, bool available);
 	virtual void closed(xe_http_connection& connection);
-	virtual int open(xe_http_internal_data& data, xe_url url, bool redirect);
+	virtual int open(xe_http_internal_data& data, xe_url&& url, bool redirect);
 
 	~xe_http_protocol(){}
 };
@@ -74,9 +80,9 @@ protected:
 public:
 	xe_http_connection(xe_http_protocol& proto): proto(proto){}
 
-	virtual int open(xe_request& request) = 0;
-	virtual int transferctl(xe_request& request, uint flags) = 0;
-	virtual void end(xe_request& request) = 0;
+	virtual int open(xe_request_internal& request) = 0;
+	virtual int transferctl(xe_request_internal& request, uint flags) = 0;
+	virtual void end(xe_request_internal& request) = 0;
 
 	virtual void close(int error);
 
@@ -87,7 +93,7 @@ public:
 
 class xe_http_singleconnection : public xe_http_connection{
 protected:
-	xe_request* request;
+	xe_request_internal* request;
 	xe_http_common_specific* specific;
 
 	uint read_state;
@@ -122,28 +128,31 @@ protected:
 	bool readable();
 	int writable();
 	int ready();
-	void close(int error);
 
 	ssize_t data(xe_ptr data, size_t size);
 
-	int read_line(xe_bptr& buf, size_t& len, xe_string& line);
-	bool parse_status_line(xe_string& line, xe_http_version& version, uint& status, xe_string& reason);
+	int read_line(xe_bptr& buf, size_t& len, xe_string_view& line);
+	bool parse_status_line(xe_string_view& line, xe_http_version& version, uint& status, xe_string_view& reason);
 	int parse_headers(xe_bptr buf, size_t len);
-	int handle_header(xe_string& key, xe_string& value);
+	int handle_header(xe_string_view& key, xe_string_view& value);
 	int parse_trailers(xe_bptr buf, size_t len);
+	bool chunked_save(xe_bptr buf, size_t len);
 	int chunked_body(xe_bptr buf, size_t len);
 
+	virtual int pretransfer();
 	virtual int write_body(xe_bptr buf, size_t len);
 
-	virtual int handle_statusline(xe_http_version version, uint status, xe_string& reason);
-	virtual int handle_singleheader(xe_string& key, xe_string& value);
-	virtual int handle_trailer(xe_string& key, xe_string& value);
+	virtual int handle_statusline(xe_http_version version, uint status, xe_string_view& reason);
+	virtual int handle_singleheader(xe_string_view& key, xe_string_view& value);
+	virtual int handle_trailer(xe_string_view& key, xe_string_view& value);
 public:
 	xe_http_singleconnection(xe_http_protocol& proto): xe_http_connection(proto){}
 
-	int open(xe_request& req);
-	int transferctl(xe_request& request, uint flags);
-	void end(xe_request& request);
+	int open(xe_request_internal& req);
+	int transferctl(xe_request_internal& request, uint flags);
+	void end(xe_request_internal& request);
+
+	void close(int error);
 
 	~xe_http_singleconnection();
 

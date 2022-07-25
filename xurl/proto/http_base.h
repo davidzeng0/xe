@@ -1,7 +1,7 @@
 #pragma once
 #include "net_common.h"
-#include "xe/string.h"
-#include "xe/container/map.h"
+#include "xutil/string.h"
+#include "xutil/container/map.h"
 
 namespace xurl{
 
@@ -50,9 +50,9 @@ public:
 		return immediate_redirect;
 	}
 
-	bool set_header(xe_string key, xe_string value, uint flags = 0);
+	bool set_header(const xe_string_view& key, const xe_string_view& value, uint flags = 0);
 
-	xe_string location();
+	xe_string_view location() const;
 
 	~xe_http_common_data(){}
 };

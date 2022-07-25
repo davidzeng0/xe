@@ -1,7 +1,7 @@
 #pragma once
-#include "xe/common.h"
+#include "xutil/xutil.h"
 #include "xe/error.h"
-#include "xe/string.h"
+#include "xutil/string.h"
 
 namespace xurl{
 
@@ -24,11 +24,11 @@ public:
 	void close();
 
 	void set_fd(int fd);
-	int verify_host(xe_string host);
-	int set_alpn(xe_string protocols);
+	int verify_host(const xe_string_view& host);
+	int set_alpn(const xe_string_view& protocols);
 
 	int connect(int flags);
-	int get_alpn_protocol(xe_string& proto);
+	int get_alpn_protocol(xe_string_view& proto);
 
 	int recv(xe_ptr buffer, size_t len, int flags);
 	int send(xe_cptr buffer, size_t len, int flags);

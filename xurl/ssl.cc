@@ -51,7 +51,7 @@ void xe_ssl::set_fd(int fd){
 	wolfSSL_set_fd((WOLFSSL*)data, fd);
 }
 
-int xe_ssl::verify_host(xe_string host){
+int xe_ssl::verify_host(const xe_string_view& host){
 	WOLFSSL* ssl = (WOLFSSL*)data;
 	xe_string host_copy;
 
@@ -70,10 +70,10 @@ int xe_ssl::verify_host(xe_string host){
 	return err;
 }
 
-int xe_ssl::set_alpn(xe_string protocols){
+int xe_ssl::set_alpn(const xe_string_view& protocols){
 	WOLFSSL* ssl = (WOLFSSL*)data;
 
-	if(wolfSSL_UseALPN(ssl, protocols.data(), protocols.length(), WOLFSSL_ALPN_CONTINUE_ON_MISMATCH) != WOLFSSL_SUCCESS)
+	if(wolfSSL_UseALPN(ssl, (char*)protocols.data(), protocols.length(), WOLFSSL_ALPN_CONTINUE_ON_MISMATCH) != WOLFSSL_SUCCESS)
 		return XE_ENOMEM;
 	return 0;
 }
@@ -105,7 +105,7 @@ int xe_ssl::connect(int flags){
 	return XE_SSL;
 }
 
-int xe_ssl::get_alpn_protocol(xe_string& proto){
+int xe_ssl::get_alpn_protocol(xe_string_view& proto){
 	WOLFSSL* ssl = (WOLFSSL*)data;
 
 	char* name;
@@ -115,7 +115,7 @@ int xe_ssl::get_alpn_protocol(xe_string& proto){
 
 	switch(err){
 		case WOLFSSL_SUCCESS:
-			proto = xe_string(name, size);
+			proto = xe_string_view(name, size);
 
 			return 0;
 		case WOLFSSL_ALPN_NOT_FOUND:

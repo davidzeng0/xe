@@ -16,7 +16,7 @@ namespace std{
 #include <coroutine>
 #endif
 
-#include "types.h"
+#include "xutil/types.h"
 
 enum{
 	XE_LOOP_IOBUF_SIZE = 16 * 1024,

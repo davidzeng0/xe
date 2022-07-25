@@ -1,6 +1,6 @@
 #pragma once
 #include "http_base.h"
-#include "xe/container/map.h"
+#include "xutil/container/map.h"
 
 namespace xurl{
 
@@ -24,8 +24,8 @@ public:
 	virtual int read(xe_ptr& buf, size_t& size);
 };
 
-typedef int (*xe_http_statusline_cb)(xe_request& request, xe_http_version version, uint status, const xe_string& reason);
-typedef int (*xe_http_singleheader_cb)(xe_request& request, const xe_string& key, const xe_string& value);
+typedef int (*xe_http_statusline_cb)(xe_request& request, xe_http_version version, uint status, const xe_string_view& reason);
+typedef int (*xe_http_singleheader_cb)(xe_request& request, const xe_string_view& key, const xe_string_view& value);
 typedef int (*xe_http_response_cb)(xe_request& request, xe_http_response& response);
 typedef int (*xe_http_external_redirect_cb)(xe_request& request, const xe_url& url);
 
@@ -44,7 +44,7 @@ public:
 	void set_response_cb(xe_http_response_cb cb);
 	void set_trailer_cb(xe_http_singleheader_cb cb);
 
-	bool set_method(xe_string method, uint flags = 0);
+	bool set_method(const xe_string_view& method, uint flags = 0);
 
 	~xe_http_specific();
 };

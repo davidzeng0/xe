@@ -4,10 +4,23 @@
 #include "http.h"
 
 using namespace xurl;
-using namespace xe_hash;
 
-struct xe_http_host{
-	xe_string hostname;
+struct xe_host{
+	xe_http_string hostname;
+
+	xe_host(){}
+
+	xe_host(xe_host&& other){
+		operator=(std::move(other));
+	}
+
+	xe_host& operator=(xe_host&& other){
+		hostname = std::move(other.hostname);
+		port = other.port;
+		secure = other.secure;
+
+		return *this;
+	}
 
 	union{
 		uint num;
@@ -22,8 +35,15 @@ struct xe_http_host{
 		return xe_hash_combine(xe_hash_int(num), hostname.hash());
 	}
 
-	bool operator==(const xe_http_host& other) const{
+	bool operator==(const xe_host& other) const{
 		return num == other.num && hostname == other.hostname;
+	}
+};
+
+template<>
+struct xe_hash<xe_host>{
+	size_t operator()(const xe_host& host) const{
+		return host.hash();
 	}
 };
 
@@ -42,20 +62,25 @@ public:
 
 class xe_http;
 class xe_http_protocol_singleconnection : public xe_http_singleconnection{
-	xe_http_specific_internal* options(){
-		return (xe_http_specific_internal*)specific;
+	xe_http_specific_internal& options(){
+		return *(xe_http_specific_internal*)specific;
+	}
+
+	template<typename F, typename... Args>
+	int call(F callback, Args&& ...args){
+		return callback && callback(std::forward<Args>(args)...) ? XE_ABORTED : 0;
 	}
 protected:
-	int handle_statusline(xe_http_version version, uint status, xe_string& reason){
-		return options() -> callbacks.statusline && options() -> callbacks.statusline(*request, version, status, reason) ? XE_ABORTED : 0;
+	int handle_statusline(xe_http_version version, uint status, xe_string_view& reason){
+		return call(options().callbacks.statusline, *request, version, status, reason);
 	}
 
-	int handle_singleheader(xe_string& key, xe_string& value){
-		return options() -> callbacks.singleheader && options() -> callbacks.singleheader(*request, key, value) ? XE_ABORTED : 0;
+	int handle_singleheader(xe_string_view& key, xe_string_view& value){
+		return call(options().callbacks.singleheader, *request, key, value);
 	}
 
-	int handle_trailer(xe_string& key, xe_string& value){
-		return options() -> callbacks.trailer && options() -> callbacks.trailer(*request, key, value) ? XE_ABORTED : 0;
+	int handle_trailer(xe_string_view& key, xe_string_view& value){
+		return call(options().callbacks.trailer, *request, key, value);
 	}
 public:
 	xe_http_protocol_singleconnection(xe_http& proto);
@@ -110,21 +135,21 @@ public:
 
 class xe_http : public xe_http_protocol{
 public:
-	xe_map<xe_http_host, xe_http_connection_list*> connections;
+	xe_map<xe_host, xe_http_connection_list*> connections;
 
 	xe_http(xurl_ctx& net);
 
-	int start(xe_request& request);
+	int start(xe_request_internal& request);
 
-	int transferctl(xe_request& request, uint flags);
-	void end(xe_request& request);
+	int transferctl(xe_request_internal& request, uint flags);
+	void end(xe_request_internal& request);
 
-	int open(xe_request& request, xe_url url);
+	int open(xe_request_internal& request, xe_url&& url);
 
-	bool matches(const xe_string& scheme) const;
+	bool matches(const xe_string_view& scheme) const;
 
-	void redirect(xe_request& request, xe_string&& url);
-	int internal_redirect(xe_request& request, xe_string&& url);
+	void redirect(xe_request_internal& request, xe_string&& url);
+	int internal_redirect(xe_request_internal& request, xe_string&& url);
 	bool available(xe_http_connection& connection, bool available);
 	void closed(xe_http_connection& connection);
 
@@ -139,7 +164,7 @@ xe_http::xe_http(xurl_ctx& net): xe_http_protocol(net, XE_PROTOCOL_HTTP){
 	connections.init();
 }
 
-int xe_http::start(xe_request& request){
+int xe_http::start(xe_request_internal& request){
 	xe_http_specific_internal& data = *(xe_http_specific_internal*)request.data;
 
 	uint port = data.port;
@@ -155,7 +180,7 @@ int xe_http::start(xe_request& request){
 		xe_log_debug(this, "using default port %u", port);
 	}
 
-	xe_http_host host;
+	xe_host host;
 
 	host.hostname = data.url.hostname();
 	host.port = port;
@@ -171,24 +196,13 @@ int xe_http::start(xe_request& request){
 		if(*list){
 			err = list -> head -> connection.open(request);
 
-			if(!err)
-				return 0;
+			if(!err) return 0;
 		}
 	}else{
 		list = xe_zalloc<xe_http_connection_list>();
 
-		if(!list)
-			return XE_ENOMEM;
-		if(!host.hostname.copy(data.url.hostname())){
+		if(!list || !host.hostname.copy(data.url.hostname()) || !connections.insert(std::move(host), list)){
 			xe_dealloc(list);
-
-			return XE_ENOMEM;
-		}
-
-		if(!connections.insert(host, list)){
-			xe_dealloc(list);
-
-			host.hostname.free();
 
 			return XE_ENOMEM;
 		}
@@ -203,7 +217,6 @@ int xe_http::start(xe_request& request){
 	node -> connection.set_ip_mode(data.ip_mode);
 	node -> connection.set_recvbuf_size(data.recvbuf_size);
 	node -> connection.set_tcp_keepalive(true);
-	node -> connection.open(request);
 
 	do{
 		if((err = node -> connection.init(*ctx)))
@@ -212,27 +225,29 @@ int xe_http::start(xe_request& request){
 			break;
 		if((err = node -> connection.connect(data.url.hostname(), port)))
 			break;
+		node -> connection.open(request);
+
 		return 0;
 	}while(false);
 
-	xe_delete(node);
+	node -> connection.close(err);
 
 	return err;
 }
 
-int xe_http::transferctl(xe_request& request, uint flags){
+int xe_http::transferctl(xe_request_internal& request, uint flags){
 	auto& data = *(xe_http_common_specific*)request.data;
 
 	return data.connection -> transferctl(request, flags);
 }
 
-void xe_http::end(xe_request& request){
+void xe_http::end(xe_request_internal& request){
 	auto& data = *(xe_http_common_specific*)request.data;
 
 	data.connection -> end(request);
 }
 
-int xe_http::open(xe_request& request, xe_url url){
+int xe_http::open(xe_request_internal& request, xe_url&& url){
 	xe_http_specific_internal* data;
 
 	int err;
@@ -245,32 +260,32 @@ int xe_http::open(xe_request& request, xe_url url){
 		if(!data) return XE_ENOMEM;
 	}
 
-	if((err = xe_http_protocol::open(*(xe_http_internal_data*)data, url, false))){
+	if((err = xe_http_protocol::open(*data, std::move(url), false))){
 		if(data != (xe_http_specific_internal*)request.data)
 			xe_delete(data);
 		return err;
 	}
 
-	xe_log_verbose(this, "opened http request for: %s", url.string().c_str());
+	xe_log_verbose(this, "opened http request for: %s", data -> url.href().c_str());
 
 	request.data = data;
 
 	return 0;
 }
 
-bool xe_http::matches(const xe_string& scheme) const{
+bool xe_http::matches(const xe_string_view& scheme) const{
 	return scheme == "http" || scheme == "https";
 }
 
-void xe_http::redirect(xe_request& request, xe_string&& url){
-	int err = internal_redirect(request, std::forward<xe_string>(url));
+void xe_http::redirect(xe_request_internal& request, xe_string&& url){
+	int err = internal_redirect(request, std::move(url));
 
 	if(err) request.complete(err);
 }
 
-int xe_http::internal_redirect(xe_request& request, xe_string&& url){
+int xe_http::internal_redirect(xe_request_internal& request, xe_string&& url){
 	xe_http_specific_internal& data = *(xe_http_specific_internal*)request.data;
-	xe_url parser(url);
+	xe_url parser(std::move(url));
 
 	if(data.redirects++ >= data.max_redirects)
 		return XE_TOO_MANY_REDIRECTS;
@@ -278,7 +293,7 @@ int xe_http::internal_redirect(xe_request& request, xe_string&& url){
 
 	if(!matches(parser.scheme()))
 		return XE_EXTERNAL_REDIRECT;
-	xe_return_error(xe_http_protocol::open((xe_http_internal_data&)data, parser, true));
+	xe_return_error(xe_http_protocol::open(data, std::move(parser), true));
 
 	return start(request);
 }
@@ -315,17 +330,11 @@ xe_protocol* xurl::xe_http_new(xurl_ctx& ctx){
 	return xe_new<xe_http>(ctx);
 }
 
-static int combine_version(uint major, uint minor){
-	if(major > 9 || minor > 9)
-		return -1;
-	return major * 10 + minor;
-}
-
 xe_http_specific::xe_http_specific(): xe_http_common_data(XE_PROTOCOL_HTTP){}
 
 xe_http_specific::~xe_http_specific(){}
 
-bool xe_http_specific::set_method(xe_string method, uint flags){
+bool xe_http_specific::set_method(const xe_string_view& method, uint flags){
 	xe_http_specific_internal& internal = *(xe_http_specific_internal*)this;
 
 	return internal.internal_set_method(method, flags);

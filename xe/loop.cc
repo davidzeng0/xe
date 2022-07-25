@@ -2,10 +2,10 @@
 #include <signal.h>
 #include <sys/syscall.h>
 #include "loop.h"
-#include "log.h"
-#include "clock.h"
-#include "common.h"
-#include "mem.h"
+#include "xutil/log.h"
+#include "xutil/clock.h"
+#include "xutil/xutil.h"
+#include "xutil/mem.h"
 #include "error.h"
 #include "io/socket.h"
 #include "io/file.h"
@@ -724,8 +724,8 @@ bool xe_loop::reserve(uint count){
 }
 
 void xe_loop::release(uint count){
-	if(num_reserved < count)
-		xe_stop("invalid release");
+	xe_assert(num_reserved >= count);
+
 	num_reserved -= count;
 }
 
@@ -733,10 +733,12 @@ void xe_loop::run_timer(xe_timer& timer){
 	ulong time_now, time_align;
 
 	reserve(1); /* reserve an sqe for the timer */
+
 	timer.flags &= ~(XE_TIMER_ACTIVE | XE_TIMER_CANCELLING);
 	timer.flags |= XE_TIMER_CALLBACK;
 	timer.callback(*this, timer);
 	timer.flags &= ~XE_TIMER_CALLBACK;
+
 	release(1);
 
 	if(timer.flags & XE_TIMER_ACTIVE)
@@ -755,8 +757,6 @@ void xe_loop::run_timer(xe_timer& timer){
 		}
 
 		queue_timer(timer);
-
-		timer.flags |= XE_TIMER_ACTIVE;
 	}
 }
 

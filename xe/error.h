@@ -1,13 +1,13 @@
 #pragma once
 #include <errno.h>
 #include <string.h>
-#include "types.h"
+#include "xutil/types.h"
 
-static constexpr int xe_syserror(int err){
+static constexpr inline int xe_syserror(int err){
 	return -err;
 }
 
-static constexpr int xe_unsyserror(int err){
+static constexpr inline int xe_unsyserror(int err){
 	return -err;
 }
 
@@ -27,18 +27,22 @@ enum xe_error{
 	XE_RESOLVER_TIMEOUT,
 	XE_RESOLVER_CONNREFUSED,
 	XE_RESOLVER_BADNAME,
+
 	XE_MALFORMED_URL,
+
 	XE_SSL,
 	XE_SSL_BADCERTS,
 	XE_SSL_NO_SIGNER,
 	XE_SSL_PEER_VERIFICATION_FAILED,
-	XE_PARTIAL_FILE,
+
 	XE_SEND_ERROR,
+	XE_PARTIAL_FILE,
 	XE_ABORTED,
 	XE_HEADERS_TOO_LONG,
 	XE_INVALID_RESPONSE,
 	XE_TOO_MANY_REDIRECTS,
 	XE_EXTERNAL_REDIRECT,
+
 	XE_WEBSOCKET_CONNECTION_REFUSED,
 
 	XE_LAST,

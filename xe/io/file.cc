@@ -2,9 +2,9 @@
 #include <unistd.h>
 #include "file.h"
 #include "../error.h"
-#include "../log.h"
-#include "../common.h"
-#include "../assert.h"
+#include "xutil/xutil.h"
+#include "xutil/assert.h"
+#include "xutil/log.h"
 
 enum xe_file_iotype{
 	XE_FILE_OPEN = 0,
@@ -103,5 +103,7 @@ void xe_file::io(xe_loop_handle& handle, int result){
 			break;
 		default:
 			xe_notreached();
+
+			break;
 	}
 }

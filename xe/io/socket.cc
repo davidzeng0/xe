@@ -1,8 +1,8 @@
 #include <unistd.h>
 #include "../error.h"
-#include "../log.h"
-#include "../common.h"
-#include "../assert.h"
+#include "xutil/log.h"
+#include "xutil/xutil.h"
+#include "xutil/assert.h"
 #include "socket.h"
 
 enum XE_SOCKET_iotype{
@@ -147,5 +147,7 @@ void xe_socket::io(xe_loop_handle& handle, int result){
 			break;
 		default:
 			xe_notreached();
+
+			break;
 	}
 }

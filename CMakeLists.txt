@@ -40,6 +40,7 @@ file(GLOB SOURCES
 	"xe/io/*.cc"
 	"xurl/*.cc"
 	"xurl/proto/*.cc"
+	"xutil/*.cc"
 )
 
 set(ARCH "")

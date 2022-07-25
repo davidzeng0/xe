@@ -1,7 +1,8 @@
 #pragma once
-#include "xe/string.h"
+#include "xutil/string.h"
 #include "xurl.h"
 #include "proto/http.h"
+#include "proto/ws.h"
 
 namespace xurl{
 
@@ -13,12 +14,13 @@ enum xe_request_state{
 	XE_REQUEST_STATE_COMPLETE
 };
 
-struct xe_request{
+class xe_request{
+public:
+	xe_protocol_specific* data;
+protected:
 	typedef void (*state_cb)(xe_request& request, xe_request_state state);
 	typedef int (*write_cb)(xe_request& request, xe_ptr buf, size_t size);
 	typedef void (*done_cb)(xe_request& request, int error);
-
-	xe_protocol_specific* data;
 
 	struct xe_callbacks{
 		state_cb state;
@@ -28,9 +30,9 @@ struct xe_request{
 
 	xe_request_state state;
 
-	void set_state(xe_request_state);
-	bool write(xe_ptr, size_t);
-	void complete(int);
+	friend class xurl_ctx;
+public:
+	xe_request();
 
 	void set_state_cb(state_cb cb);
 	void set_write_cb(write_cb cb);
@@ -42,13 +44,24 @@ struct xe_request{
 	void set_ip_mode(xe_ip_mode mode);
 	void set_recvbuf_size(uint size);
 
-	int set_http_method(xe_string method, bool copy = false);
-	int set_http_header(xe_string key, xe_string value, bool copy = false);
 	void set_max_redirects(uint max_redirects);
 	void set_follow_location(bool follow);
+	int set_http_header(const xe_string_view& key, const xe_string_view& value, bool copy = false);
+
+	int set_http_method(const xe_string_view& method, bool copy = false);
+	void set_http_min_version(xe_http_version version);
+	void set_http_max_version(xe_http_version version);
 	void set_http_statusline_cb(xe_http_statusline_cb cb);
 	void set_http_singleheader_cb(xe_http_singleheader_cb cb);
 	void set_http_response_cb(xe_http_response_cb cb);
+	void set_http_trailer_cb(xe_http_singleheader_cb cb);
+
+	int ws_send(xe_websocket_message_type type, xe_cptr data, size_t size);
+	int ws_ping();
+	int ws_pong();
+	void set_ws_ready_cb(xe_websocket_ready_cb cb);
+	void set_ws_ping_cb(xe_websocket_ping_cb cb);
+	void set_ws_message_cb(xe_websocket_message_cb cb);
 
 	void close();
 

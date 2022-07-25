@@ -14,4 +14,4 @@ if(NOT DEFINED XE_CACHESIZE)
 	endif()
 endif()
 
-configure_file("cmake/cpu.h.in" "${CMAKE_CURRENT_SOURCE_DIR}/include/xe/cpu.h")
+configure_file("cmake/cpu.h.in" "${CMAKE_CURRENT_SOURCE_DIR}/include/xconfig/cpu.h")

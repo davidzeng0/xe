@@ -9,9 +9,9 @@
 #include "proto/http.h"
 #include "proto/ws.h"
 #include "proto/file.h"
-#include "xe/mem.h"
+#include "xutil/mem.h"
 #include "xe/error.h"
-#include "xe/log.h"
+#include "xutil/log.h"
 
 using namespace xurl;
 
@@ -57,8 +57,8 @@ static xe_protocol* allocate_protocol(xurl_ctx& ctx, int id){
 	}
 }
 
-int xurl_ctx::resolve(xe_connection& conn, xe_string& host, xe_endpoint*& ep){
-	auto entry = endpoints.find(host);
+int xurl_ctx::resolve(xe_connection& conn, const xe_string_view& host, xe_endpoint*& ep){
+	auto entry = endpoints.find((xe_string&)host);
 
 	if(entry != endpoints.end()){
 		if(entry -> second.pending){
@@ -73,18 +73,17 @@ int xurl_ctx::resolve(xe_connection& conn, xe_string& host, xe_endpoint*& ep){
 		}
 	}else{
 		xe_string host_copy;
-
 		int err;
 
 		if(!host_copy.copy(host))
 			return XE_ENOMEM;
-		entry = endpoints.insert(host_copy);
+		entry = endpoints.insert(std::move(host_copy));
 
 		if(entry == endpoints.end())
 			return XE_ENOMEM;
 		entry -> second.pending = null;
 		conn.next = null;
-		err = resolver.resolve(host_copy, entry -> second.endpoint);
+		err = resolver.resolve(entry -> first, entry -> second.endpoint);
 
 		if(err != XE_EINPROGRESS){
 			if(err)
@@ -101,12 +100,12 @@ int xurl_ctx::resolve(xe_connection& conn, xe_string& host, xe_endpoint*& ep){
 	return XE_EINPROGRESS;
 }
 
-void xurl_ctx::resolved(xe_string host, xe_endpoint& endpoint, int status){
+void xurl_ctx::resolved(const xe_string_view& host, xe_endpoint&& endpoint, int status){
 	xe_connection* conn;
 	xe_connection* next;
 
 	int err;
-	auto entry = endpoints.find(host);
+	auto entry = endpoints.find((xe_string&)host);
 
 	xe_assert(entry != endpoints.end());
 
@@ -306,21 +305,19 @@ void xurl_ctx::stop(){
 	xe_assert(ret >= 0);
 }
 
-int xurl_ctx::open(xe_request& request, xe_string url_){
+int xurl_ctx::open(xe_request& request, const xe_string_view& url_){
 	xe_string url;
 
 	if(!url.copy(url_))
 		return XE_ENOMEM;
 	xe_protocol_specific* data = request.data;
-	xe_url parser(url);
+	xe_url parser(std::move(url));
 
 	xe_return_error(parser.parse());
 
-	xe_string scheme = parser.scheme();
-
 	for(uint i = 0; i < XE_PROTOCOL_LAST; i++){
-		if(protocols[i] -> matches(scheme)){
-			xe_return_error(protocols[i] -> open(request, parser));
+		if(protocols[i] -> matches(parser.scheme())){
+			xe_return_error(protocols[i] -> open((xe_request_internal&)request, std::move(parser)));
 
 			if(request.data != data)
 				xe_delete(data);
@@ -336,7 +333,7 @@ int xurl_ctx::start(xe_request& request){
 		return XE_EINVAL;
 	xe_protocol* protocol = protocols[request.data -> id()];
 
-	return protocol -> start(request);
+	return protocol -> start((xe_request_internal&)request);
 }
 
 int xurl_ctx::transferctl(xe_request& request, uint flags){
@@ -344,7 +341,7 @@ int xurl_ctx::transferctl(xe_request& request, uint flags){
 		return XE_EINVAL;
 	xe_protocol* protocol = protocols[request.data -> id()];
 
-	return protocol -> transferctl(request, flags);
+	return protocol -> transferctl((xe_request_internal&)request, flags);
 }
 
 int xurl_ctx::end(xe_request& request){
@@ -352,7 +349,7 @@ int xurl_ctx::end(xe_request& request){
 		return XE_EINVAL;
 	xe_protocol* protocol = protocols[request.data -> id()];
 
-	protocol -> end(request);
+	protocol -> end((xe_request_internal&)request);
 
 	return 0;
 }

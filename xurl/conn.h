@@ -1,7 +1,7 @@
 #pragma once
-#include "xe/types.h"
+#include "xutil/types.h"
 #include "proto/net_common.h"
-#include "xe/config.h"
+#include "xconfig/config.h"
 #include "protocol.h"
 #include "ssl.h"
 #include "ctx.h"
@@ -19,32 +19,6 @@ enum xe_connection_state{
 
 class xe_connection{
 private:
-	xe_connection* next;
-	xe_connection* prev;
-	xurl_ctx* ctx;
-	xe_ptr buf;
-
-	xe_ssl ssl;
-
-	uint endpoint_index;
-	xe_endpoint* endpoint;
-
-	int fd;
-
-	uint recvbuf_size;
-	xe_ip_mode ip_mode;
-
-	ushort port;
-	ushort ssl_enabled: 1;
-	ushort ssl_verify: 1;
-	ushort recv_paused: 1;
-	ushort send_paused: 1;
-	ushort refcounted: 1;
-	ushort tcp_keepalive: 1;
-#ifdef XE_DEBUG
-	xe_string host;
-	ulong time;
-#endif
 	void io(int);
 	void start_connect(xe_endpoint&, int);
 
@@ -55,7 +29,36 @@ private:
 	static int socket_read(xe_connection&);
 
 	friend class xurl_ctx;
+
+	xe_connection* next;
+	xe_connection* prev;
+	xurl_ctx* ctx;
+	xe_ptr buf;
+
+	xe_ssl ssl;
+
+#ifdef XE_DEBUG
+	xe_string_view host;
+	ulong time;
+#endif
+
+	xe_endpoint* endpoint;
+	uint endpoint_index;
+
+	uint recvbuf_size;
+	xe_ip_mode ip_mode;
+
+	int fd;
+
+	ushort port;
+	ushort ssl_enabled: 1;
+	ushort ssl_verify: 1;
+	ushort refcounted: 1;
+	ushort tcp_keepalive: 1;
 protected:
+	ushort recv_paused: 1;
+	ushort send_paused: 1;
+
 	xe_connection_state state;
 
 	virtual void set_state(xe_connection_state state);
@@ -64,7 +67,7 @@ protected:
 	virtual int writable();
 	virtual ssize_t data(xe_ptr data, size_t size) = 0;
 public:
-	xe_connection();
+	xe_connection(){}
 
 	int init(xurl_ctx& ctx);
 	void set_connect_timeout(uint timeout_ms);
@@ -75,7 +78,7 @@ public:
 
 	int init_ssl(xe_ssl_ctx& ctx);
 
-	int connect(xe_string host, int port);
+	int connect(const xe_string_view& host, int port);
 	ssize_t send(xe_cptr data, size_t size);
 
 	int transferctl(uint flags);
