@@ -12,6 +12,9 @@ protocols:
 - http
 - websocket
 
+## xutil
+utility library
+
 # compiling
 
 ## prerequisites
