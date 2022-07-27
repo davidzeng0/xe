@@ -38,17 +38,18 @@ public:
 	}
 };
 
+struct xe_websocket_callbacks{
+	xe_websocket_ready_cb ready;
+	xe_websocket_ping_cb ping;
+	xe_websocket_message_cb message;
+};
+
 class xe_websocket_connection;
 class xe_websocket_data_internal : public xe_websocket_data, public xe_http_internal_data{
 protected:
 	friend class xe_websocket;
 public:
-	struct xe_callbacks{
-		xe_websocket_ready_cb ready;
-		xe_websocket_ping_cb ping;
-		xe_websocket_ping_cb pong;
-		xe_websocket_message_cb message;
-	} callbacks;
+	xe_websocket_callbacks callbacks;
 
 	xe_localarray<byte, 24> key;
 	xe_localarray<byte, 28> accept;
@@ -60,96 +61,64 @@ enum xe_websocket_opcode{
 	WS_BINARY = 0x2,
 	WS_CLOSE = 0x8,
 	WS_PING = 0x9,
-	WS_PONG = 0xA
+	WS_PONG = 0xa
 };
 
 enum{
 	WS_NONE = 0,
 	WS_FRAME_HEADER_FIRST,
 	WS_FRAME_HEADER_SECOND,
-	WS_FRAME_HEADER_LENGTH1,
-	WS_FRAME_HEADER_LENGTH2,
-	WS_FRAME_HEADER_LENGTH3,
-	WS_FRAME_HEADER_LENGTH4,
-	WS_FRAME_HEADER_LENGTH5,
-	WS_FRAME_HEADER_LENGTH6,
-	WS_FRAME_HEADER_LENGTH7,
-	WS_FRAME_HEADER_LENGTH8,
+	WS_FRAME_HEADER_LENGTH,
 	WS_FRAME_DATA
 };
 
 enum{
-	MAX_MESSAGE_SIZE = 1024 * 1024
+	MAX_MESSAGE_SIZE = 100 * 1024 * 1024
+};
+
+struct message_queue{
+	message_queue* next;
+	size_t len;
+	byte data[];
 };
 
 class xe_websocket_connection : public xe_http_singleconnection{
 protected:
+	xe_websocket_data_internal& options(){
+		return *(xe_websocket_data_internal*)specific;
+	}
+
+	template<typename F, typename... Args>
+	bool call(F xe_websocket_callbacks::*field, Args&& ...args){
+		auto callback = options().callbacks.*field;
+		return callback && callback(std::forward<Args>(args)...) ? true : false;
+	}
+public:
 	bool connection_upgrade_seen: 1;
 	bool upgrade_websocket_seen: 1;
 	bool websocket_accept_seen: 1;
 	bool failure: 1;
+
 	bool is_first_fragment: 1;
+	bool is_control: 1;
+	bool is_fin: 1;
 
-	xe_websocket_data_internal& options(){
-		return *(xe_websocket_data_internal*)specific;
-	}
-public:
-	struct send_list{
-		send_list* next;
-		size_t len;
-		byte data[];
-	};
-
-	byte fin, rsv, opcode;
-	byte mask;
-	uint ws_state;
+	uint payload_len_size;
+	uint message_state;
+	xe_websocket_opcode opcode;
+	xe_websocket_opcode current_message_opcode;
 	ulong payload_len;
-	size_t max_size = MAX_MESSAGE_SIZE;
+	size_t max_message_size = MAX_MESSAGE_SIZE;
 
-	xe_vector<byte> message;
+	xe_localarray<byte, 0x7e> control_frame_data;
+	xe_writer control_frame_writer;
+	xe_vector<byte> current_message_data;
 
-	send_list* send_head;
-	send_list* send_tail;
-	size_t offset;
+	message_queue* message_head;
+	message_queue* message_tail;
+	size_t send_offset;
 
-	xe_websocket_connection(xe_websocket& proto): xe_http_singleconnection(proto){}
-
-	bool readable(){
-		return ws_state == WS_NONE ? xe_http_singleconnection::readable() : send_head != null;
-	}
-
-	int writable(){
-		if(ws_state == WS_NONE)
-			return xe_http_singleconnection::readable();
-		xe_assert(send_head != null);
-
-		send_list& data = *send_head;
-		size_t result;
-
-		result = xe_connection::send(data.data + offset, data.len - offset);
-
-		xe_log_trace(this, "sent %zi bytes", result);
-
-		if(result <= 0){
-			if(!result) return XE_SEND_ERROR;
-			if(result == XE_EAGAIN) return 0;
-
-			return result;
-		}
-
-		offset += result;
-
-		if(offset == data.len){
-			send_head = data.next;
-			offset = 0;
-
-			if(!send_head)
-				send_tail = null;
-			xe_dealloc(&data);
-		}
-
-		return 0;
-	}
+	xe_websocket_connection(xe_websocket& proto): xe_http_singleconnection(proto), control_frame_writer(control_frame_data){}
 
 	int handle_statusline(xe_http_version version, uint status, xe_string_view& reason){
 		if(status != 101)
@@ -173,7 +142,7 @@ public:
 		}else if(key.equal_case("Sec-WebSocket-Accept")){
 			websocket_accept_seen = true;
 
-			if(xe_string_view((xe_slice<const byte>)options().accept) != value)
+			if(value != (xe_slice<const byte>)options().accept)
 				failure = true;
 		}
 
@@ -181,31 +150,86 @@ public:
 	}
 
 	int pretransfer(){
-		if(failure || !connection_upgrade_seen || !upgrade_websocket_seen || !websocket_accept_seen) return XE_WEBSOCKET_CONNECTION_REFUSED;
-		if(options().callbacks.ready && options().callbacks.ready(*request)) return XE_ABORTED;
+		if(follow){
+			bodyless = true;
+			connection_close = true;
 
-		ws_state = WS_FRAME_HEADER_FIRST;
+			return xe_http_singleconnection::pretransfer();
+		}
+
+		if(failure || !connection_upgrade_seen || !upgrade_websocket_seen || !websocket_accept_seen) return XE_WEBSOCKET_CONNECTION_REFUSED;
+		if(call(&xe_websocket_callbacks::ready, *request)) return XE_ABORTED;
+
+		message_state = WS_FRAME_HEADER_FIRST;
 		bodyless = false;
 		is_first_fragment = true;
 
 		return xe_http_singleconnection::pretransfer();
 	}
 
+	int predata(){
+		if(is_control) return 0;
+		if(payload_len > max_message_size) return XE_WEBSOCKET_MESSAGE_TOO_LONG;
+		if(max_message_size - current_message_data.size() < payload_len) return XE_WEBSOCKET_MESSAGE_TOO_LONG;
+		if(!current_message_data.grow(current_message_data.size() + payload_len, max_message_size)) return XE_ENOMEM;
+
+		return 0;
+	}
+
+	int write_frame(xe_bptr buf, size_t len){
+		if(is_control) control_frame_writer.write(buf, len);
+		else current_message_data.append(buf, len);
+
+		payload_len -= len;
+
+		if(payload_len)
+			return 0;
+		message_state = WS_FRAME_HEADER_FIRST;
+
+		if(is_control){
+			if(opcode == WS_CLOSE){
+
+			}else{
+				auto slice = control_frame_data.slice(0, control_frame_writer.count());
+
+				if(call(&xe_websocket_callbacks::ping, *request, opcode == WS_PING ? XE_WEBSOCKET_PING : XE_WEBSOCKET_PONG, (const xe_slice<const byte>&)slice)) return XE_ABORTED;
+			}
+		}else{
+			if(!is_fin) return 0;
+			if(call(&xe_websocket_callbacks::message, *request, (xe_websocket_op)current_message_opcode, current_message_data)) return XE_ABORTED;
+
+			current_message_data.resize(0);
+			is_first_fragment = true;
+		}
+
+		return 0;
+	}
+
 	int write_body(xe_bptr buf, size_t len){
 		size_t wlen;
+		byte rsv, mask;
 
 		while(len){
-			switch(ws_state){
+			switch(message_state){
 				case WS_FRAME_HEADER_FIRST:
-					fin = buf[0] & 0x80;
+					is_control = false;
+					is_fin = (buf[0] & 0x80) ? true : false;
 					rsv = buf[0] & 0x70;
+					opcode = (xe_websocket_opcode)(buf[0] & 0xf);
 
-					if(is_first_fragment){
-						opcode = buf[0] & 0xf;
+					if(!(opcode == WS_TEXT || opcode == WS_BINARY || opcode == WS_CLOSE || opcode == WS_PING || opcode == WS_PONG)) return XE_INVALID_RESPONSE;
+					if(rsv) return XE_INVALID_RESPONSE;
+					if(opcode == WS_PING || opcode == WS_PONG || opcode == WS_CLOSE){
+						control_frame_writer.reset();
+						is_control = true;
+					}else if(is_first_fragment){
 						is_first_fragment = false;
+						current_message_opcode = opcode;
+					}else if(opcode != WS_CONTINUATION){
+						return XE_INVALID_RESPONSE;
 					}
 
-					ws_state = WS_FRAME_HEADER_SECOND;
+					message_state = WS_FRAME_HEADER_SECOND;
 					buf++;
 					len--;
 
@@ -213,58 +237,53 @@ public:
 				case WS_FRAME_HEADER_SECOND:
 					mask = buf[0] & 0x80;
 					payload_len = buf[0] & 0x7f;
-					ws_state = WS_FRAME_DATA;
+					message_state = WS_FRAME_DATA;
 
-					if(payload_len == 0x7e){
-						ws_state = WS_FRAME_HEADER_LENGTH2;
+					if(is_control && payload_len > 0x7e){
+						xe_log_error(this, "control frame too large");
+
+						return XE_INVALID_RESPONSE;
+					}
+
+					if(mask){
+						xe_log_error(this, "received masked frame from server");
+
+						return XE_INVALID_RESPONSE;
+					}
+
+					if(payload_len >= 0x7e){
 						payload_len = 0;
-					}else if(payload_len == 0x7f){
-						ws_state = WS_FRAME_HEADER_LENGTH8;
-						payload_len = 0;
+						message_state = WS_FRAME_HEADER_LENGTH;
+
+						if(payload_len == 0x7f) payload_len_size = 8;
+						else payload_len_size = 2;
 					}
 
 					buf++;
 					len--;
 
-					if(mask)
-						return XE_INVALID_RESPONSE;
 					break;
-				case WS_FRAME_HEADER_LENGTH1:
-				case WS_FRAME_HEADER_LENGTH2:
-				case WS_FRAME_HEADER_LENGTH3:
-				case WS_FRAME_HEADER_LENGTH4:
-				case WS_FRAME_HEADER_LENGTH5:
-				case WS_FRAME_HEADER_LENGTH6:
-				case WS_FRAME_HEADER_LENGTH7:
-				case WS_FRAME_HEADER_LENGTH8:
+				case WS_FRAME_HEADER_LENGTH:
 					payload_len <<= 8;
 					payload_len |= buf[0];
+					payload_len_size--;
 					buf++;
 					len--;
-					ws_state--;
 
-					if(ws_state == WS_FRAME_HEADER_SECOND)
-						ws_state = WS_FRAME_DATA;
+					if(!payload_len_size){
+						xe_return_error(predata());
+
+						message_state = WS_FRAME_DATA;
+					}
+
 					break;
 				case WS_FRAME_DATA:
 					wlen = xe_min(len, payload_len);
 
-					if(payload_len > max_size - message.size() || max_size - message.size() < wlen || !message.append(buf, wlen))
-						return XE_ENOMEM;
+					xe_return_error(write_frame(buf, wlen));
+
 					len -= wlen;
 					buf += wlen;
-					payload_len -= wlen;
-
-					if(!payload_len){
-						ws_state = WS_FRAME_HEADER_FIRST;
-
-						if(!fin)
-							break;
-						if(options().callbacks.message && options().callbacks.message(*request, (xe_websocket_message_type)opcode, message))
-							return XE_ABORTED;
-						message.resize(0);
-						is_first_fragment = true;
-					}
 
 					break;
 			}
@@ -273,29 +292,65 @@ public:
 		return 0;
 	}
 
-	int ping(xe_websocket_opcode type){
+	bool readable(){
+		return message_state == WS_NONE ? xe_http_singleconnection::readable() : message_head != null;
+	}
+
+	int writable(){
+		if(message_state == WS_NONE)
+			return xe_http_singleconnection::readable();
+		xe_assert(message_head != null);
+
+		message_queue& data = *message_head;
+		size_t result;
+
+		result = xe_connection::send(data.data + send_offset, data.len - send_offset);
+
+		xe_log_trace(this, "sent %zi bytes", result);
+
+		if(result <= 0){
+			if(!result) return XE_SEND_ERROR;
+			if(result == XE_EAGAIN) return 0;
+
+			return result;
+		}
+
+		send_offset += result;
+
+		if(send_offset == data.len){
+			message_head = data.next;
+			send_offset = 0;
+
+			if(!message_head)
+				message_tail = null;
+			xe_dealloc(&data);
+		}
+
 		return 0;
 	}
 
-	send_list* make_send_node(size_t len){
-		send_list* node = (send_list*)xe_zalloc<byte>(sizeof(send_list) + len);
+	message_queue* make_send_node(size_t len, bool priority){
+		message_queue* node = (message_queue*)xe_zalloc<byte>(sizeof(message_queue) + len);
 
 		if(!node)
 			return null;
-		if(!send_head){
-			send_head = node;
-			send_tail = node;
-		}else{
-			send_tail -> next = node;
-			send_tail = node;
-		}
-
 		node -> len = len;
+
+		if(!message_head){
+			message_head = node;
+			message_tail = node;
+		}else if(priority){
+			node -> next = message_head;
+			message_head = node;
+		}else{
+			message_tail -> next = node;
+			message_tail = node;
+		}
 
 		return node;
 	}
 
-	int send(xe_websocket_message_type type, xe_cptr buf, size_t len){
+	int send(xe_websocket_opcode opcode, xe_cptr buf, size_t len, bool priority = false){
 		xe_localarray<byte, 14> header;
 		xe_writer writer(header);
 		byte payload_len = len;
@@ -305,18 +360,18 @@ public:
 			payload_len = 0x7f;
 		else if(len > 0x7d)
 			payload_len = 0x7e;
-		writer.write<byte>(0x80 | type);
+		writer.write<byte>(0x80 | opcode);
 		writer.write<byte>(0x80 | payload_len);
 
 		if(payload_len == 0x7e)
 			writer.write(xe_htons(len));
 		else if(payload_len == 0x7f)
 			writer.write(xe_htonll(len));
-		writer.write<uint>(0);
+		writer.write<uint>(0); /* mask */
 
-		if(send_head){
+		if(message_head && (!priority || send_offset)){
 		queue:
-			send_list* node = make_send_node(len + writer.count() - sent);
+			message_queue* node = make_send_node(len + writer.count() - sent, priority);
 
 			if(!node)
 				return XE_ENOMEM;
@@ -343,6 +398,8 @@ public:
 
 		sent += result;
 
+		xe_log_trace(this, "sent %zi bytes", result);
+
 		if(result < writer.count())
 			goto queue;
 		result = xe_connection::send(buf, len);
@@ -356,9 +413,32 @@ public:
 
 		sent += result;
 
+		xe_log_trace(this, "sent %zi bytes", result);
+
 		if(result < len)
 			goto queue;
 		return 0;
+	}
+
+	int ping(xe_websocket_opcode type, xe_cptr data, size_t size){
+		if(size > 0x7e) return XE_EINVAL;
+		return send(type, data, size, true);
+	}
+
+	void close(int error){
+		message_queue* node = message_head;
+
+		while(node){
+			message_queue* next = node -> next;
+
+			xe_dealloc(node);
+
+			node = next;
+		}
+
+		current_message_data.free();
+
+		xe_http_singleconnection::close(error);
 	}
 
 	xe_cstr class_name(){
@@ -400,21 +480,17 @@ int xe_websocket::start(xe_request_internal& request){
 	connection -> set_ip_mode(data.ip_mode);
 	connection -> set_recvbuf_size(data.recvbuf_size);
 
-	do{
-		if((err = connection -> init(*ctx)))
-			break;
-		if(secure && (err = connection -> init_ssl(ctx -> ssl())))
-			break;
-		if((err = connection -> connect(data.url.hostname(), port)))
-			break;
-		connection -> open(request);
+	if((err = connection -> init(*ctx)) ||
+		(secure && (err = connection -> init_ssl(ctx -> ssl()))) ||
+		(err = connection -> connect(data.url.hostname(), port))){
+		connection -> close(err);
 
-		return 0;
-	}while(false);
+		return err;
+	}
 
-	connection -> close(err);
+	connection -> open(request);
 
-	return err;
+	return 0;
 }
 
 int xe_websocket::transferctl(xe_request_internal& request, uint flags){
@@ -476,7 +552,7 @@ int xe_websocket::open(xe_websocket_data_internal& data, xe_url&& url, bool redi
 	if(!data.internal_set_header("Connection", "Upgrade", 0) ||
 		!data.internal_set_header("Upgrade", "websocket", 0) ||
 		!data.internal_set_header("Sec-WebSocket-Version", "13", 0) ||
-		!data.internal_set_header("Sec-WebSocket-Key", xe_string_view((xe_slice<const byte>)data.key), 0))
+		!data.internal_set_header("Sec-WebSocket-Key", (xe_slice<const byte>)data.key, 0))
 		return XE_ENOMEM;
 	return 0;
 }
@@ -510,22 +586,23 @@ xe_websocket::~xe_websocket(){}
 
 xe_websocket_data::xe_websocket_data(): xe_http_common_data(XE_PROTOCOL_WEBSOCKET){}
 
-int xe_websocket_data::send(xe_websocket_message_type type, xe_cptr data, size_t size){
+int xe_websocket_data::send(xe_websocket_op type, xe_cptr data, size_t size){
 	xe_websocket_connection& connection = *(xe_websocket_connection*)(((xe_websocket_data_internal*)this) -> connection);
 
-	return connection.send(type, data, size);
+	if(type > XE_WEBSOCKET_BINARY) return XE_EINVAL;
+	return connection.send((xe_websocket_opcode)type, data, size);
 }
 
-int xe_websocket_data::ping(){
+int xe_websocket_data::ping(xe_cptr data, size_t size){
 	xe_websocket_connection& connection = *(xe_websocket_connection*)(((xe_websocket_data_internal*)this) -> connection);
 
-	return connection.ping(WS_PING);
+	return connection.ping(WS_PING, data, size);
 }
 
-int xe_websocket_data::pong(){
+int xe_websocket_data::pong(xe_cptr data, size_t size){
 	xe_websocket_connection& connection = *(xe_websocket_connection*)(((xe_websocket_data_internal*)this) -> connection);
 
-	return connection.ping(WS_PONG);
+	return connection.ping(WS_PONG, data, size);
 }
 
 void xe_websocket_data::set_ready_cb(xe_websocket_ready_cb cb){

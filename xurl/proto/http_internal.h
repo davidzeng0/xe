@@ -86,8 +86,6 @@ public:
 
 	virtual void close(int error);
 
-	virtual ~xe_http_connection(){}
-
 	virtual xe_cstr class_name() = 0;
 };
 
@@ -131,9 +129,9 @@ protected:
 
 	ssize_t data(xe_ptr data, size_t size);
 
-	int read_line(xe_bptr& buf, size_t& len, xe_string_view& line);
+	int read_line(xe_bptr& buf, size_t& len, xe_string_view& line, size_t& read);
 	bool parse_status_line(xe_string_view& line, xe_http_version& version, uint& status, xe_string_view& reason);
-	int parse_headers(xe_bptr buf, size_t len);
+	ssize_t parse_headers(xe_bptr buf, size_t len);
 	int handle_header(xe_string_view& key, xe_string_view& value);
 	int parse_trailers(xe_bptr buf, size_t len);
 	bool chunked_save(xe_bptr buf, size_t len);
@@ -153,8 +151,6 @@ public:
 	void end(xe_request_internal& request);
 
 	void close(int error);
-
-	~xe_http_singleconnection();
 
 	xe_cstr class_name();
 };

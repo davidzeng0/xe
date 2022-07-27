@@ -75,8 +75,7 @@ int xe_connection::io(xe_connection& conn, int res){
 }
 
 void xe_connection::io(int res){
-	if((res = io(*this, res)))
-		close(res);
+	if((res = io(*this, res))) close(res);
 }
 
 void xe_connection::start_connect(xe_endpoint& endpoint_, int status){
@@ -365,10 +364,8 @@ int xe_connection::connect(const xe_string_view& host_, int port_){
 ssize_t xe_connection::send(xe_cptr data, size_t size){
 	ssize_t sent;
 
-	if(ssl_enabled)
-		return ssl.send(data, size, MSG_NOSIGNAL);
-	if((sent = ::send(fd, data, size, MSG_NOSIGNAL)) < 0)
-		return xe_errno();
+	if(ssl_enabled) return ssl.send(data, size, MSG_NOSIGNAL);
+	if((sent = ::send(fd, data, size, MSG_NOSIGNAL)) < 0) return xe_errno();
 	return sent;
 }
 
@@ -449,6 +446,8 @@ void xe_connection::close(int error){
 		ssl.close();
 	if(fd != -1)
 		::close(fd);
+	if(buf != ctx -> loop().iobuf())
+		xe_dealloc(buf);
 	if(state > XE_CONNECTION_STATE_RESOLVING){
 		if(state != XE_CONNECTION_STATE_ACTIVE || !recv_paused || !send_paused)
 			ctx -> uncount(*this);
@@ -457,11 +456,6 @@ void xe_connection::close(int error){
 
 	set_state(XE_CONNECTION_STATE_CLOSED);
 	xe_log_trace(this, "close()");
-}
-
-xe_connection::~xe_connection(){
-	if(buf != ctx -> loop().iobuf())
-		xe_dealloc(buf);
 }
 
 xe_cstr xe_connection::class_name(){

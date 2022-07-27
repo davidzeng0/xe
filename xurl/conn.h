@@ -86,8 +86,6 @@ public:
 
 	virtual void close(int error);
 
-	~xe_connection();
-
 	static xe_cstr class_name();
 };
 

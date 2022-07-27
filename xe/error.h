@@ -44,6 +44,7 @@ enum xe_error{
 	XE_EXTERNAL_REDIRECT,
 
 	XE_WEBSOCKET_CONNECTION_REFUSED,
+	XE_WEBSOCKET_MESSAGE_TOO_LONG,
 
 	XE_LAST,
 
@@ -236,7 +237,8 @@ static xe_cstr xe_strerror(int err){
 			return "External redirect (switching protocols)";
 		case XE_WEBSOCKET_CONNECTION_REFUSED:
 			return "WebSocket connection rejected";
-
+		case XE_WEBSOCKET_MESSAGE_TOO_LONG:
+			return "WebSocket message too long";
 		case XE_EHWPOISON:
 			return "Memory page has hardware error";
 		case XE_ERFKILL:

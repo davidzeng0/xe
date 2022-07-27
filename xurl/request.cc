@@ -79,16 +79,16 @@ void xe_request::set_http_trailer_cb(xe_http_singleheader_cb cb){
 	((xe_http_specific*)data) -> set_trailer_cb(cb);
 }
 
-int xe_request::ws_send(xe_websocket_message_type type, xe_cptr data, size_t size){
-	return ((xe_websocket_data*)data) -> send(type, data, size);
+int xe_request::ws_send(xe_websocket_op op, xe_cptr data, size_t size){
+	return ((xe_websocket_data*)data) -> send(op, data, size);
 }
 
-int xe_request::ws_ping(){
-	return ((xe_websocket_data*)data) -> ping();
+int xe_request::ws_ping(xe_cptr data, size_t size){
+	return ((xe_websocket_data*)data) -> ping(data, size);
 }
 
-int xe_request::ws_pong(){
-	return ((xe_websocket_data*)data) -> pong();
+int xe_request::ws_pong(xe_cptr data, size_t size){
+	return ((xe_websocket_data*)data) -> pong(data, size);
 }
 
 void xe_request::set_ws_ready_cb(xe_websocket_ready_cb cb){

@@ -194,32 +194,32 @@ public:
 		return true;
 	}
 
-	bool grow(size_t size){
-		if(size > max_size())
-			return false;
-		if(capacity_ >= size)
-			return true;
+	bool grow(size_t size, size_t max){
+		if(max > max_size()) max = max_size();
+		if(size > max) return false;
+		if(capacity_ >= size) return true;
+
 		size_t capacity = capacity_, new_size = size;
 
-		if(max_size() >> 1 < capacity)
-			new_size = max_size();
+		if(max >> 1 < capacity)
+			new_size = max;
 		else{
 			capacity = capacity << 1;
 
-			if(capacity > size)
-				new_size = capacity;
+			if(capacity > size) new_size = capacity;
 		}
 
 		return reserve(new_size);
 	}
 
+	bool grow(size_t size){
+		return grow(size, max_size());
+	}
+
 	void trim(){
-		if(capacity_ <= size_)
-			return;
-		if(size_)
-			reserve(size_);
-		else
-			free();
+		if(capacity_ <= size_) return;
+		if(size_) reserve(size_);
+		else free();
 	}
 
 	void free(){

@@ -56,9 +56,9 @@ public:
 	void set_http_response_cb(xe_http_response_cb cb);
 	void set_http_trailer_cb(xe_http_singleheader_cb cb);
 
-	int ws_send(xe_websocket_message_type type, xe_cptr data, size_t size);
-	int ws_ping();
-	int ws_pong();
+	int ws_send(xe_websocket_op op, xe_cptr data, size_t size);
+	int ws_ping(xe_cptr data, size_t size);
+	int ws_pong(xe_cptr data, size_t size);
 	void set_ws_ready_cb(xe_websocket_ready_cb cb);
 	void set_ws_ping_cb(xe_websocket_ping_cb cb);
 	void set_ws_message_cb(xe_websocket_message_cb cb);

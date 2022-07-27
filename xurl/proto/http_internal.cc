@@ -314,32 +314,48 @@ int xe_http_singleconnection::writable(){
 	return send_headers();
 }
 
-ssize_t xe_http_singleconnection::data(xe_ptr data, size_t size){
-	int error;
+ssize_t xe_http_singleconnection::data(xe_ptr buf, size_t size){
+	xe_bptr data = (xe_bptr)buf;
+	size_t in = size;
+	ssize_t error = 0;
 
-	if(read_state < READ_BODY){
-		if(!size)
-			return XE_PARTIAL_FILE;
-		error = parse_headers((xe_bptr)data, size);
-	}else{
-		error = write_body((xe_bptr)data, size);
-	}
+	do{
+		if(read_state < READ_BODY){
+			if(!size)
+				return XE_PARTIAL_FILE;
+			error = parse_headers(data, size);
 
-	if(read_state == READ_NONE){
-		bodyless = false;
-		transfer_active = false;
+			if(!error) return size;
+			if(error < 0) return error;
 
-		if(connection_close)
-			return 0;
-		if(!error && proto.available(*this, true))
-			return 0;
-		if(request_active)
-			complete(0);
-		if(!request_active)
-			transferctl(XE_PAUSE_ALL);
-	}
+			data += error;
+			size -= error;
+			error = pretransfer();
 
-	return error ? error : size;
+			if(read_state == READ_NONE) break;
+			if(error) return error;
+		}
+
+		error = write_body(data, size);
+
+		if(read_state == READ_NONE) break;
+		if(error) return error;
+
+		return in;
+	}while(false);
+
+	bodyless = false;
+	transfer_active = false;
+
+	if(connection_close)
+		return 0;
+	if(!error && proto.available(*this, true))
+		return 0;
+	if(request_active)
+		complete(0);
+	if(!request_active)
+		transferctl(XE_PAUSE_ALL);
+	return error ? error : in;
 }
 
 void xe_http_singleconnection::close(int error){
@@ -347,6 +363,10 @@ void xe_http_singleconnection::close(int error){
 
 	if(request)
 		complete(error);
+	xe_dealloc(header_buffer);
+
+	client_headers.free();
+
 	xe_http_connection::close(error);
 }
 
@@ -519,7 +539,7 @@ int xe_http_singleconnection::handle_header(xe_string_view& key, xe_string_view&
 	return 0;
 }
 
-inline int xe_http_singleconnection::read_line(xe_bptr& buf, size_t& len, xe_string_view& line){
+inline int xe_http_singleconnection::read_line(xe_bptr& buf, size_t& len, xe_string_view& line, size_t& read){
 	size_t next, line_end;
 	xe_bptr line_buf;
 
@@ -538,6 +558,7 @@ inline int xe_http_singleconnection::read_line(xe_bptr& buf, size_t& len, xe_str
 
 		header_offset += len;
 		header_total += len;
+		read += len;
 
 		return XE_EAGAIN;
 	}
@@ -564,6 +585,7 @@ inline int xe_http_singleconnection::read_line(xe_bptr& buf, size_t& len, xe_str
 
 	buf += next;
 	len -= next;
+	read += next;
 
 	if(line_end > 0 && line_buf[line_end - 1] == '\r')
 		line_end--;
@@ -572,12 +594,15 @@ inline int xe_http_singleconnection::read_line(xe_bptr& buf, size_t& len, xe_str
 	return 0;
 }
 
-int xe_http_singleconnection::parse_headers(xe_bptr buf, size_t len){
+ssize_t xe_http_singleconnection::parse_headers(xe_bptr buf, size_t len){
 	xe_string_view line;
+	size_t read;
 	int err;
 
+	read = 0;
+
 	while(len){
-		err = read_line(buf, len, line);
+		err = read_line(buf, len, line, read);
 
 		if(err == XE_EAGAIN)
 			return 0;
@@ -613,19 +638,16 @@ int xe_http_singleconnection::parse_headers(xe_bptr buf, size_t len){
 		}
 	}
 
-	xe_return_error(pretransfer());
-
-	if(len)
-		xe_return_error(write_body(buf, len));
-	return 0;
+	return read;
 }
 
 int xe_http_singleconnection::parse_trailers(xe_bptr buf, size_t len){
 	xe_string_view line;
+	size_t read;
 	int err;
 
 	while(len){
-		err = read_line(buf, len, line);
+		err = read_line(buf, len, line, read);
 
 		if(err == XE_EAGAIN)
 			break;
@@ -869,12 +891,6 @@ int xe_http_singleconnection::transferctl(xe_request_internal& request, uint fla
 
 void xe_http_singleconnection::end(xe_request_internal& req){
 	if(request) close(XE_ABORTED);
-}
-
-xe_http_singleconnection::~xe_http_singleconnection(){
-	xe_dealloc(header_buffer);
-
-	client_headers.free();
 }
 
 xe_cstr xe_http_singleconnection::class_name(){

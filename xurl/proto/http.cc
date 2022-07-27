@@ -47,40 +47,39 @@ struct xe_hash<xe_host>{
 	}
 };
 
+struct xe_http_callbacks{
+	xe_http_statusline_cb statusline;
+	xe_http_singleheader_cb singleheader;
+	xe_http_response_cb response;
+	xe_http_singleheader_cb trailer;
+	xe_http_external_redirect_cb external_redirect;
+};
+
 class xe_http_specific_internal : public xe_http_specific, public xe_http_internal_data{
 protected:
 	friend class xe_http;
 public:
-	struct xe_callbacks{
-		xe_http_statusline_cb statusline;
-		xe_http_singleheader_cb singleheader;
-		xe_http_response_cb response;
-		xe_http_singleheader_cb trailer;
-		xe_http_external_redirect_cb external_redirect;
-	} callbacks;
+	xe_http_callbacks callbacks;
 };
 
 class xe_http;
 class xe_http_protocol_singleconnection : public xe_http_singleconnection{
-	xe_http_specific_internal& options(){
-		return *(xe_http_specific_internal*)specific;
-	}
-
 	template<typename F, typename... Args>
-	int call(F callback, Args&& ...args){
+	int call(F xe_http_callbacks::*field, Args&& ...args){
+		auto callback = ((xe_http_specific_internal*)specific) -> callbacks.*field;
 		return callback && callback(std::forward<Args>(args)...) ? XE_ABORTED : 0;
 	}
 protected:
 	int handle_statusline(xe_http_version version, uint status, xe_string_view& reason){
-		return call(options().callbacks.statusline, *request, version, status, reason);
+		return call(&xe_http_callbacks::statusline, *request, version, status, reason);
 	}
 
 	int handle_singleheader(xe_string_view& key, xe_string_view& value){
-		return call(options().callbacks.singleheader, *request, key, value);
+		return call(&xe_http_callbacks::singleheader, *request, key, value);
 	}
 
 	int handle_trailer(xe_string_view& key, xe_string_view& value){
-		return call(options().callbacks.trailer, *request, key, value);
+		return call(&xe_http_callbacks::trailer, *request, key, value);
 	}
 public:
 	xe_http_protocol_singleconnection(xe_http& proto);
@@ -218,21 +217,17 @@ int xe_http::start(xe_request_internal& request){
 	node -> connection.set_recvbuf_size(data.recvbuf_size);
 	node -> connection.set_tcp_keepalive(true);
 
-	do{
-		if((err = node -> connection.init(*ctx)))
-			break;
-		if(secure && (err = node -> connection.init_ssl(ctx -> ssl())))
-			break;
-		if((err = node -> connection.connect(data.url.hostname(), port)))
-			break;
-		node -> connection.open(request);
+	if((err = node -> connection.init(*ctx)) ||
+		(secure && (err = node -> connection.init_ssl(ctx -> ssl()))) ||
+		(err = node -> connection.connect(data.url.hostname(), port))){
+		node -> connection.close(err);
 
-		return 0;
-	}while(false);
+		return err;
+	}
 
-	node -> connection.close(err);
+	node -> connection.open(request);
 
-	return err;
+	return 0;
 }
 
 int xe_http::transferctl(xe_request_internal& request, uint flags){
@@ -320,6 +315,8 @@ xe_http::~xe_http(){
 
 		xe_dealloc(t.second);
 	}
+
+	connections.free();
 }
 
 xe_cstr xe_http::class_name(){

@@ -27,7 +27,11 @@ public:
 		return write(&data, 1);
 	}
 
-	size_t count(){
+	size_t count() const{
 		return written;
+	}
+
+	void reset(){
+		written = 0;
 	}
 };
