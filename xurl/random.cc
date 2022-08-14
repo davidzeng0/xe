@@ -4,10 +4,8 @@
 
 using namespace xurl;
 
-bool xurl::xe_crypto_random(xe_ptr buf, size_t size){
-	if(size > SSIZE_MAX)
-		return false;
-	return getrandom(buf, size, 0) == size;
+ssize_t xurl::xe_crypto_random(xe_ptr buf, size_t size){
+	return getrandom(buf, size, 0);
 }
 
 xe_rng::xe_rng(){

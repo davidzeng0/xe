@@ -1,6 +1,7 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include "file.h"
+#include "xe/error.h"
 #include "xe/io/file.h"
 #include "../request.h"
 #include "../ctx.h"

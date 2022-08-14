@@ -1,8 +1,9 @@
 #pragma once
 #include <netdb.h>
 #include "xe/loop.h"
-#include "xutil/container/vector.h"
-#include "xutil/string.h"
+#include "xstd/types.h"
+#include "xstd/slice.h"
+#include "xstd/string.h"
 #include "xurl.h"
 
 namespace xurl{
@@ -13,7 +14,7 @@ private:
 
 	xe_resolve_ctx_data* priv;
 
-	friend struct xe_resolve;
+	friend class xe_resolve;
 public:
 	int init();
 	void close();
@@ -34,8 +35,8 @@ public:
 	xe_endpoint(xe_endpoint&& other);
 	xe_endpoint& operator=(xe_endpoint&& other);
 
-	const xe_slice<const in_addr>& inet() const;
-	const xe_slice<const in6_addr>& inet6() const;
+	const xe_slice<in_addr>& inet() const;
+	const xe_slice<in6_addr>& inet6() const;
 
 	void free();
 
@@ -44,37 +45,30 @@ public:
 
 class xe_resolve{
 private:
-	xe_ptr resolver;
-	xe_loop* loop;
 	xurl_ctx* ctx;
+	xe_timer timer;
+	xe_ptr resolver;
 
 	int pollfd;
-	int tfd;
-
-	uint handle;
-	uint active: 1;
-	uint flags: 31;
-
 	size_t count;
 
-	static void io(xe_loop_handle&, int);
+	void io();
+
 	static void sockstate(xe_ptr, int, int, int);
 	static int sockcreate(int, int, xe_ptr);
 	static void resolved(xe_ptr, int, int, xe_ptr);
-	static int ip_resolve(const xe_string_view&, xe_endpoint&);
-	void poll();
 
-	friend struct ::xe_loop;
+	static int ip_resolve(const xe_string&, xe_endpoint&);
+	static int timeout(xe_loop&, xe_timer&);
+
+	friend class xurl_ctx;
 public:
 	xe_resolve();
 
 	int init(xurl_ctx& xurl_ctx, xe_resolve_ctx& ctx);
 	void close();
 
-	int start();
-	void stop();
-
-	int resolve(const xe_string_view& host, xe_endpoint& endpoint);
+	int resolve(const xe_string& host, xe_endpoint& endpoint);
 
 	static xe_cstr class_name();
 };

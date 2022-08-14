@@ -88,25 +88,14 @@ public:
 		return const_iterator(data() + size());
 	}
 
-	xe_slice<T> slice(size_t start, size_t end){
+	constexpr xe_slice<T> slice(size_t start, size_t end) const{
 		xe_assert(start <= end);
 		xe_assert(end <= N);
 
-		return xe_slice<T>(data_ + start, end - start);
+		return xe_slice<T>((T*)data_ + start, end - start);
 	}
 
 	operator xe_slice<T>(){
-		return slice(0, N);
-	}
-
-	constexpr xe_slice<const T> slice(size_t start, size_t end) const{
-		xe_assert(start <= end);
-		xe_assert(end <= N);
-
-		return xe_slice<const T>(data_ + start, end - start);
-	}
-
-	constexpr operator xe_slice<const T>() const{
 		return slice(0, N);
 	}
 };

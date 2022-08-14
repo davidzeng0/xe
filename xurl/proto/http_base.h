@@ -1,7 +1,6 @@
 #pragma once
 #include "net_common.h"
-#include "xutil/string.h"
-#include "xutil/container/map.h"
+#include "xstd/string.h"
 
 namespace xurl{
 

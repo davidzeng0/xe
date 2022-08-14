@@ -1,9 +1,7 @@
 #include <unistd.h>
-#include "../error.h"
-#include "xutil/log.h"
-#include "xutil/xutil.h"
-#include "xutil/assert.h"
 #include "socket.h"
+#include "xutil/assert.h"
+#include "../error.h"
 
 enum XE_SOCKET_iotype{
 	XE_SOCKET_CONNECT = 0,
@@ -44,8 +42,10 @@ xe_loop& xe_socket::loop(){
 }
 
 int xe_socket::connect(sockaddr* addr, socklen_t addrlen, ulong key){
-	if(connecting || accepting || connected)
-		return XE_EINVAL;
+	if(connecting)
+		return XE_EALREADY;
+	if(accepting || connected)
+		return XE_STATE;
 	int ret = loop_.connect(fd_, addr, addrlen, this, null, XE_SOCKET_CONNECT, key, XE_LOOP_HANDLE_SOCKET);
 
 	if(ret >= 0){
@@ -58,29 +58,27 @@ int xe_socket::connect(sockaddr* addr, socklen_t addrlen, ulong key){
 	return ret;
 }
 
-int xe_socket::recv(xe_buf buf, uint len, uint flags, ulong key){
+int xe_socket::recv(xe_ptr buf, uint len, uint flags, ulong key){
 	return loop_.recv(fd_, buf, len, flags, this, null, XE_SOCKET_RECV, key, XE_LOOP_HANDLE_SOCKET);
 }
 
-int xe_socket::send(xe_buf buf, uint len, uint flags, ulong key){
+int xe_socket::send(xe_cptr buf, uint len, uint flags, ulong key){
 	return loop_.send(fd_, buf, len, flags, this, null, XE_SOCKET_SEND, key, XE_LOOP_HANDLE_SOCKET);
 }
 
 int xe_socket::bind(sockaddr* addr, socklen_t addrlen){
-	if(::bind(fd_, addr, addrlen) < 0)
-		return xe_errno();
-	return 0;
+	return ::bind(fd_, addr, addrlen) < 0 ? xe_errno() : 0;
 }
 
 int xe_socket::listen(int maxqueuesize){
-	if(::listen(fd_, maxqueuesize) < 0)
-		return xe_errno();
-	return 0;
+	return ::listen(fd_, maxqueuesize) < 0 ? xe_errno() : 0;
 }
 
 int xe_socket::accept(sockaddr* addr, socklen_t* addrlen, uint flags){
-	if(connecting || accepting || connected)
-		return XE_EINVAL;
+	if(accepting)
+		return XE_EALREADY;
+	if(connecting || connected)
+		return XE_STATE;
 	int ret = loop_.accept(fd_, addr, addrlen, flags, this, null, XE_SOCKET_ACCEPT, 0, XE_LOOP_HANDLE_SOCKET);
 
 	if(ret >= 0){
@@ -95,12 +93,10 @@ int xe_socket::accept(sockaddr* addr, socklen_t* addrlen, uint flags){
 
 int xe_socket::cancel(){
 	if(!accepting && !connecting)
-		return XE_EINVAL;
+		return XE_ENOENT;
 	int ret = loop_.cancel(handle, 0, null, null, 0, 0, XE_LOOP_HANDLE_DISCARD);
 
-	if(ret > 0)
-		ret = 0;
-	return ret;
+	return ret > 0 ? 0 : ret;
 }
 
 void xe_socket::close(){

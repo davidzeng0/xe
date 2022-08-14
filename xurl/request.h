@@ -1,5 +1,5 @@
 #pragma once
-#include "xutil/string.h"
+#include "xstd/string.h"
 #include "xurl.h"
 #include "proto/http.h"
 #include "proto/ws.h"
@@ -46,9 +46,9 @@ public:
 
 	void set_max_redirects(uint max_redirects);
 	void set_follow_location(bool follow);
-	int set_http_header(const xe_string_view& key, const xe_string_view& value, bool copy = false);
+	int set_http_header(const xe_string_view& key, const xe_string_view& value, uint flags = 0);
 
-	int set_http_method(const xe_string_view& method, bool copy = false);
+	int set_http_method(const xe_string_view& method, uint flags = 0);
 	void set_http_min_version(xe_http_version version);
 	void set_http_max_version(xe_http_version version);
 	void set_http_statusline_cb(xe_http_statusline_cb cb);
@@ -59,9 +59,11 @@ public:
 	int ws_send(xe_websocket_op op, xe_cptr data, size_t size);
 	int ws_ping(xe_cptr data, size_t size);
 	int ws_pong(xe_cptr data, size_t size);
+	int ws_close(ushort code, xe_cptr data, size_t size);
 	void set_ws_ready_cb(xe_websocket_ready_cb cb);
 	void set_ws_ping_cb(xe_websocket_ping_cb cb);
 	void set_ws_message_cb(xe_websocket_message_cb cb);
+	void set_ws_close_cb(xe_websocket_close_cb cb);
 
 	void close();
 

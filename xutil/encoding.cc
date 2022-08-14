@@ -1,5 +1,5 @@
 #include "encoding.h"
-#include "xutil/string.h"
+#include "xstd/string.h"
 
 static xe_string_view base64_charsets[] = {
 	"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/",
@@ -93,7 +93,7 @@ size_t xe_base64_encoded_length(xe_base64_encoding encoding, size_t length){
 
 size_t xe_base64_decoded_length(xe_base64_encoding encoding, xe_cptr vin, size_t length){
 	size_t lens[] = {0, 1, 1, 2, 3};
-	xe_cbptr in = (xe_cbptr)vin;
+	const byte* in = (const byte*)vin;
 
 	if(encoding == XE_BASE64_PAD || encoding == XE_BASE64_URL_PAD){
 		while(length && in[length - 1] == '=')
@@ -105,9 +105,9 @@ size_t xe_base64_decoded_length(xe_base64_encoding encoding, xe_cptr vin, size_t
 
 size_t xe_base64_encode(xe_base64_encoding encoding, xe_ptr vout, size_t out_len, xe_cptr vin, size_t in_len){
 	xe_string_view& set = xe_base64_getcharset(encoding);
-	xe_bptr out = (xe_bptr)vout;
-	xe_cbptr in = (xe_cbptr)vin;
-	xe_bptr start = out;
+	byte* out = (byte*)vout;
+	const byte* in = (const byte*)vin;
+	byte* start = out;
 
 	while(in_len >= 3){
 		out[0] = set[in[0] >> 2];
@@ -151,9 +151,9 @@ size_t xe_base64_encode(xe_base64_encoding encoding, xe_ptr vout, size_t out_len
 }
 
 size_t xe_base64_decode(xe_base64_encoding encoding, xe_ptr vout, size_t out_len, xe_cptr vin, size_t in_len){
-	xe_bptr out = (xe_bptr)out;
-	xe_cbptr in = (xe_cbptr)vin;
-	xe_bptr start = out;
+	byte* out = (byte*)vout;
+	const byte* in = (const byte*)vin;
+	byte* start = out;
 	byte decoded[4];
 	size_t lens[] = {0, 1, 1, 2, 3};
 
@@ -201,7 +201,7 @@ bool xe_char_is_hex(byte c){
 }
 
 byte xe_char_tolower(byte c){
-	return char_tolower[(byte)c];
+	return char_tolower[c];
 }
 
 size_t xe_encoding_to_int(xe_integer_encoding encoding, byte c){

@@ -1,6 +1,5 @@
 #pragma once
 #include "list.h"
-#include "array.h"
 #include "slice.h"
 
 template<typename T>
@@ -47,14 +46,12 @@ public:
 	}
 
 	T& at(size_t i){
-		xe_assert(data_ != null);
 		xe_assert(i < size_);
 
 		return data_[i];
 	}
 
 	const T& at(size_t i) const{
-		xe_assert(data_ != null);
 		xe_assert(i < size_);
 
 		return data_[i];
@@ -121,17 +118,17 @@ public:
 		return true;
 	}
 
-	bool copy(const xe_vector<T>& src){
-		return copy(src.data_, src.size_);
+	bool copy(const xe_slice<T>& src){
+		return copy(src.data(), src.size());
 	}
 
-	bool push_back(T& el){
+	bool push_back(const T& el){
 		xe_assert(size_ <= capacity_);
 		xe_assert(capacity_ <= max_size());
 
 		if(size_ >= max_size() || (size_ >= capacity_ && !grow(size_ + 1)))
 			return false;
-		at(size_++) = el;
+		xe_construct(&at(size_++), el);
 
 		return true;
 	}
@@ -157,18 +154,18 @@ public:
 		return true;
 	}
 
-	bool append(const xe_slice<const T>& arr){
+	bool append(const xe_slice<T>& arr){
 		return append(arr.data(), arr.size());
 	}
 
-	T&& pop_back(){
+	T pop_back(){
 		xe_assert(size_ > 0);
 
 		T rval = std::move(at(size_ - 1));
 
 		size_--;
 
-		return std::move(rval);
+		return rval;
 	}
 
 	bool resize(size_t size){
@@ -238,17 +235,6 @@ public:
 	}
 
 	operator xe_slice<T>(){
-		return slice(0, size_);
-	}
-
-	xe_slice<const T> slice(size_t start, size_t end) const{
-		xe_assert(start <= end);
-		xe_assert(end <= size_);
-
-		return xe_slice<const T>(data_ + start, end - start);
-	}
-
-	operator xe_slice<const T>() const{
 		return slice(0, size_);
 	}
 

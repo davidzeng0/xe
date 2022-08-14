@@ -1,11 +1,12 @@
 #pragma once
-#include "xutil/string.h"
+#include "xstd/string.h"
+#include "xutil/encoding.h"
+#include "xe/error.h"
 #include "http_base.h"
 #include "../url.h"
 #include "../conn.h"
 #include "../request.h"
 #include "../request_internal.h"
-#include "xutil/encoding.h"
 
 using namespace xurl;
 
@@ -13,6 +14,8 @@ class xe_http_string : public xe_string{
 protected:
 	bool owner;
 public:
+	using xe_string::operator==;
+
 	xe_http_string();
 
 	xe_http_string(xe_http_string&& other);
@@ -23,6 +26,7 @@ public:
 	void free();
 
 	xe_http_string& operator=(const xe_string_view& src);
+	bool operator==(const xe_http_string& other) const;
 
 	~xe_http_string();
 };
@@ -104,7 +108,7 @@ protected:
 	xe_vector<char> client_headers;
 	size_t send_offset;
 
-	xe_bptr header_buffer;
+	byte* header_buffer;
 	uint header_total;
 	uint header_offset;
 
@@ -122,6 +126,8 @@ protected:
 	int send_headers();
 	void complete(int error);
 
+	int init_socket();
+	void set_request_state(xe_connection_state state);
 	void set_state(xe_connection_state state);
 	bool readable();
 	int writable();
@@ -129,20 +135,18 @@ protected:
 
 	ssize_t data(xe_ptr data, size_t size);
 
-	int read_line(xe_bptr& buf, size_t& len, xe_string_view& line, size_t& read);
-	bool parse_status_line(xe_string_view& line, xe_http_version& version, uint& status, xe_string_view& reason);
-	ssize_t parse_headers(xe_bptr buf, size_t len);
-	int handle_header(xe_string_view& key, xe_string_view& value);
-	int parse_trailers(xe_bptr buf, size_t len);
-	bool chunked_save(xe_bptr buf, size_t len);
-	int chunked_body(xe_bptr buf, size_t len);
+	int read_line(byte*& buf, size_t& len, xe_string_view& line, size_t& read);
+	virtual int handle_status_line(xe_http_version version, uint status, xe_string_view& reason);
+	ssize_t parse_headers(byte* buf, size_t len);
+	virtual int handle_header(xe_string_view& key, xe_string_view& value);
+	int parse_trailers(byte* buf, size_t len);
+	bool chunked_save(byte* buf, size_t len);
+	int chunked_body(byte* buf, size_t len);
+	virtual int handle_trailer(xe_string_view& key, xe_string_view& value);
 
 	virtual int pretransfer();
-	virtual int write_body(xe_bptr buf, size_t len);
-
-	virtual int handle_statusline(xe_http_version version, uint status, xe_string_view& reason);
-	virtual int handle_singleheader(xe_string_view& key, xe_string_view& value);
-	virtual int handle_trailer(xe_string_view& key, xe_string_view& value);
+	virtual int posttransfer();
+	virtual int write_body(byte* buf, size_t len);
 public:
 	xe_http_singleconnection(xe_http_protocol& proto): xe_http_connection(proto){}
 

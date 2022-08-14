@@ -12,7 +12,6 @@ private:
 	uint connected: 1;
 	uint flags: 29;
 	uint handle;
-	uint pad;
 
 	static void io(xe_loop_handle& handle, int);
 
@@ -38,8 +37,8 @@ public:
 
 	int connect(sockaddr* addr, socklen_t addrlen, ulong key = 0);
 
-	int recv(xe_buf buf, uint len, uint flags, ulong key = 0);
-	int send(xe_buf buf, uint len, uint flags, ulong key = 0);
+	int recv(xe_ptr buf, uint len, uint flags, ulong key = 0);
+	int send(xe_cptr buf, uint len, uint flags, ulong key = 0);
 
 	int listen(int maxqueuesize);
 	int bind(sockaddr* addr, socklen_t addrlen);

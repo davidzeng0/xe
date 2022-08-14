@@ -3,14 +3,15 @@
 #include <sys/syscall.h>
 #include "loop.h"
 #include "xutil/log.h"
-#include "xutil/clock.h"
-#include "xutil/xutil.h"
+#include "clock.h"
+#include "xstd/types.h"
+#include "xutil/util.h"
 #include "xutil/mem.h"
-#include "error.h"
 #include "io/socket.h"
 #include "io/file.h"
 #include "xurl/conn.h"
 #include "xurl/resolve.h"
+#include "error.h"
 
 #define XE_IO_ARGS xe_ptr user_data, xe_loop_handle::xe_callback callback, ulong u1, ulong u2, xe_loop_handle_type handle_type
 #define XE_IO_ARGS_PASS user_data, callback, u1, u2, handle_type
@@ -20,20 +21,13 @@ enum{
 	MAX_ENTRIES = 16777216 /* max sqe count permitted to allow packing xe_loop_handle_type and handle index into a signed int */
 };
 
-enum{
+enum xe_handle_constants{
+	INVALID_HANDLE = -1,
 	READY_HANDLE = -2
 };
 
-enum xe_timer_flags{
-	XE_TIMER_NONE       = 0x0,
-	XE_TIMER_ACTIVE     = 0x1,
-	XE_TIMER_REPEAT     = 0x2,
-	XE_TIMER_CALLBACK   = 0x4,
-	XE_TIMER_CANCELLING = 0x8
-};
-
 /* handle pack
- * | 1 bit zero | 7bit handle_type | 24bit handle_index |
+ * | 1 bit zero | 7 bit handle_type | 24 bit handle_index |
  */
 static inline uint xe_handle_packed_type(xe_loop_handle_type handle_type){
 	return (uint)handle_type << 24;
@@ -48,7 +42,7 @@ static inline uint xe_handle_unpack_index(ulong packed){
 }
 
 inline bool xe_loop::handle_invalid(int handle){
-	return handle < 0 ||
+	return handle <= INVALID_HANDLE ||
 		xe_handle_unpack_index(handle) >= num_capacity ||
 		xe_handle_unpack_type(handle) <= XE_LOOP_HANDLE_NONE ||
 		xe_handle_unpack_type(handle) >= XE_LOOP_HANDLE_LAST;
@@ -64,10 +58,10 @@ int xe_loop::queue_io(int op, XE_IO_ARGS, F init_sqe){
 	io_uring_sqe* sqe;
 	xe_loop_handle* handle;
 
-	if(handle_type <= XE_LOOP_HANDLE_NONE || handle_type >= XE_LOOP_HANDLE_LAST)
+	if(handle_type >= XE_LOOP_HANDLE_LAST)
 		return XE_EINVAL;
 	if(num_queued + num_handles + num_reserved >= num_capacity)
-		return XE_ETOOMANYHANDLES;
+		return XE_TOOMANYHANDLES;
 	num_queued++;
 	sqe = &ring.sq.sqes[ring.sq.sqe_tail++ & ring.sq.sqe_head];
 
@@ -90,7 +84,7 @@ int xe_loop::queue_io(int op, XE_IO_ARGS, F init_sqe){
 	return sqe -> user_data;
 }
 
-static inline void xe_sqe_rw(io_uring_sqe* sqe, uint flags, int fd, const void* addr, uint len, ulong offset, uint rw_flags, uint buf_index){
+static inline void xe_sqe_rw(io_uring_sqe* sqe, uint flags, int fd, xe_cptr addr, uint len, ulong offset, uint rw_flags, uint buf_index){
 	sqe -> flags = flags;
 	sqe -> fd = fd;
 	sqe -> addr = (ulong)addr;
@@ -100,7 +94,7 @@ static inline void xe_sqe_rw(io_uring_sqe* sqe, uint flags, int fd, const void* 
 	sqe -> buf_index = buf_index;
 }
 
-static inline void xe_sqe_socket_rw(io_uring_sqe* sqe, uint flags, int fd, const void* addr, uint len, uint rw_flags){
+static inline void xe_sqe_socket_rw(io_uring_sqe* sqe, uint flags, int fd, xe_cptr addr, uint len, uint rw_flags){
 	sqe -> flags = flags;
 	sqe -> fd = fd;
 	sqe -> addr = (ulong)addr;
@@ -118,61 +112,38 @@ static inline void xe_sqe_pipe(io_uring_sqe* sqe, uint flags, int fd_in, ulong o
 	sqe -> splice_flags = rw_flags;
 }
 
-int xe_loop::queue_timer_internal(xe_timer& timer){
-	int res = queue_io(IORING_OP_TIMEOUT, &timer, null, 0, 0, XE_LOOP_HANDLE_TIMER, [&](io_uring_sqe* sqe){
-		sqe -> flags = 0;
-		sqe -> addr = (ulong)&timer.expire;
-		sqe -> len = 1;
-		sqe -> off = 0;
-		sqe -> rw_flags = IORING_TIMEOUT_ABS;
-		sqe -> buf_index = 0;
-	});
-
-	if(res >= 0)
-		timer.cancel = res;
-	return res;
-}
-
-int xe_loop::queue_timer(xe_timer& timer){
-	if(timer.flags & XE_TIMER_ACTIVE)
-		return XE_EALREADY;
-	if(timer.flags & XE_TIMER_CALLBACK){
-		/* an sqe was reserved before callback, just mark as active */
-		timer.flags |= XE_TIMER_ACTIVE;
-
-		return 0;
-	}
-
-	int ret = queue_timer_internal(timer);
-
-	if(ret >= 0){
-		timer.flags |= XE_TIMER_ACTIVE;
-
-		return 0;
-	}
-
-	return ret;
-}
-
 xe_timer::xe_timer(){
-	expire = {0, 0};
-	callback = null;
-	start = 0;
+	expire.key = 0;
 	delay = 0;
-	flags = 0;
-	cancel = -1;
+	active_ = false;
+	repeat_ = false;
+	align_ = false;
+	in_callback = false;
+}
+
+bool xe_timer::active() const{
+	return active_;
+}
+
+bool xe_timer::repeat() const{
+	return repeat_;
+}
+
+bool xe_timer::align() const{
+	return align_;
 }
 
 xe_loop_options::xe_loop_options(){
 	capacity = 0;
-	flags = 0;
 	sq_thread_cpu = 0;
-	pad = 0;
+	flag_sqpoll = 0;
+	flag_iopoll = 0;
+	flag_sqaff = 0;
+	flag_iobuf = 0;
 }
 
 xe_promise::xe_promise(){
 	waiter = null;
-	handle_ = -1;
 }
 
 bool xe_promise::await_ready(){
@@ -210,26 +181,24 @@ int xe_loop::init(){
 }
 
 int xe_loop::init_options(xe_loop_options& options){
-	xe_buf io_buf;
-	xe_loop_handle* handles;
+	xe_loop_handle* handles_;
 	io_uring_params params;
+	byte* io_buf_;
+	int err;
 
-	if(options.flags & ~(XE_LOOP_FLAGS_SQPOLL | XE_LOOP_FLAGS_IOPOLL | XE_LOOP_FLAGS_SQAFF | XE_LOOP_FLAGS_IOBUF))
-		return XE_EINVAL;
 	if(!options.capacity)
 		options.capacity = ENTRY_COUNT;
 	else if(options.capacity > MAX_ENTRIES)
-		return XE_ETOOMANYHANDLES;
-	io_buf = null;
-	handles = null;
+		return XE_EINVAL;
+	io_buf_ = null;
+	handles_ = null;
 
-	if(options.flags & XE_LOOP_FLAGS_IOBUF){
-		io_buf = xe_alloc_aligned<byte>(0, XE_LOOP_IOBUF_SIZE_LARGE);
+	if(options.flag_iobuf){
+		io_buf_ = xe_alloc_aligned<byte>(0, XE_LOOP_IOBUF_SIZE_LARGE);
 
-		if(!io_buf)
-			return XE_ENOMEM;
+		if(!io_buf_) return XE_ENOMEM;
 		/* force memory allocation */
-		xe_zero((byte*)io_buf, XE_LOOP_IOBUF_SIZE_LARGE);
+		xe_zero(io_buf_, XE_LOOP_IOBUF_SIZE_LARGE);
 	}
 
 	xe_zero(&params);
@@ -237,34 +206,34 @@ int xe_loop::init_options(xe_loop_options& options){
 	params.cq_entries = options.capacity;
 	params.flags = IORING_SETUP_CQSIZE;
 
-	if(options.flags & XE_LOOP_FLAGS_IOPOLL)
+	if(options.flag_iopoll)
 		params.flags |= IORING_SETUP_IOPOLL;
-	if(options.flags & XE_LOOP_FLAGS_SQPOLL)
+	if(options.flag_sqpoll)
 		params.flags |= IORING_SETUP_SQPOLL;
-	if(options.flags & XE_LOOP_FLAGS_SQAFF){
+	if(options.flag_sqaff){
 		params.flags |= IORING_SETUP_SQ_AFF;
 		params.sq_thread_cpu = options.sq_thread_cpu;
 	}
 
-	int err = io_uring_queue_init_params(options.capacity, &ring, &params);
+	err = io_uring_queue_init_params(options.capacity, &ring, &params);
 
 	if(err){
-		xe_dealloc(io_buf);
+		xe_dealloc(io_buf_);
 
 		return err;
 	}
 
-	handles = xe_alloc_aligned<xe_loop_handle>(0, params.sq_entries);
+	handles_ = xe_alloc_aligned<xe_loop_handle>(0, params.sq_entries);
 
-	if(!handles){
+	if(!handles_){
 		io_uring_queue_exit(&ring);
-		xe_dealloc(io_buf);
+		xe_dealloc(io_buf_);
 
 		return XE_ENOMEM;
 	}
 
 	/* force memory allocation */
-	xe_zero(handles, params.sq_entries);
+	xe_zero(handles_, params.sq_entries);
 
 	for(uint i = 0; i < params.sq_entries; i++){
 		ring.sq.sqes[i].user_data = i; /* link each sqe to an {xe_loop_handle} */
@@ -274,67 +243,55 @@ int xe_loop::init_options(xe_loop_options& options){
 	num_capacity = params.sq_entries;
 	ring.sq.sqe_head = *ring.sq.kring_mask; /* sqe_head will be used as the sqe mask */
 
-	this -> handles = handles;
-	this -> io_buf = io_buf;
+	handles = handles_;
+	io_buf = io_buf_;
 
 	xe_log_trace(this, "init(), %u entries", num_capacity);
 
 	return 0;
 }
 
-void xe_loop::destroy(){
+void xe_loop::close(){
 	io_uring_queue_exit(&ring);
 	xe_dealloc(handles);
 	xe_dealloc(io_buf);
 
-	xe_log_trace(this, "destroy()");
+	xe_log_trace(this, "close()");
 }
 
-int xe_loop::timer_ms(xe_timer& timer, ulong millis, bool repeat){
-	return timer_ns(timer, millis * XE_NANOS_PER_MS, repeat);
+int xe_loop::timer_ms(xe_timer& timer, ulong millis, ulong repeat, uint flags){
+	return timer_ns(timer, millis * XE_NANOS_PER_MS, repeat * XE_NANOS_PER_MS, flags);
 }
 
-int xe_loop::timer_ns(xe_timer& timer, ulong nanos, bool repeat){
-	timer.start = xe_time_ns();
-	timer.delay = nanos;
-	timer.expire.tv_nsec = timer.start + nanos;
+int xe_loop::timer_ns(xe_timer& timer, ulong nanos, ulong repeat, uint flags){
+	if(timer.active_)
+		return XE_EALREADY;
+	if(!(flags & XE_TIMER_ABS))
+		nanos += xe_time_ns();
+	timer.delay = repeat;
+	timer.repeat_ = flags & XE_TIMER_REPEAT ? true : false;
+	timer.align_ = flags & XE_TIMER_ALIGN ? true : false;
+	timer.expire.key = nanos;
 
-	if(repeat)
-		timer.flags |= XE_TIMER_REPEAT;
-	else
-		timer.flags &= ~XE_TIMER_REPEAT;
-	return queue_timer(timer);
+	queue_timer(timer);
+
+	return 0;
 }
 
 int xe_loop::timer_cancel(xe_timer& timer){
-	if(timer.flags & XE_TIMER_CALLBACK){
-		timer.flags &= ~XE_TIMER_REPEAT;
+	if(timer.in_callback){
+		timer.repeat_ = false; /* won't be queued again */
 
 		return 0;
 	}
 
-	if(!(timer.flags & XE_TIMER_ACTIVE))
-		return XE_EINVAL;
-	if(timer.flags & XE_TIMER_CANCELLING)
-		return XE_EALREADY;
-	xe_assert(!handle_invalid(timer.cancel));
+	if(!timer.active_)
+		return XE_ENOENT;
+	timer.repeat_ = false;
+	timer.active_= false;
+	timers.erase(timer.expire);
 
-	int ret = queue_io(IORING_OP_TIMEOUT_REMOVE, null, null, 0, 0, XE_LOOP_HANDLE_DISCARD, [&](io_uring_sqe* sqe){
-		sqe -> flags = 0;
-		sqe -> addr = (ulong)timer.cancel;
-		sqe -> len = 0;
-		sqe -> rw_flags = 0;
-		sqe -> buf_index = 0;
-	});
-
-	if(ret >= 0){
-		timer.flags &= ~XE_TIMER_REPEAT;
-		timer.flags |= XE_TIMER_CANCELLING;
-
-		return 0;
-	}
-
-	return ret;
+	return 0;
 }
 
 int xe_loop::nop(XE_IO_ARGS){
@@ -365,13 +322,13 @@ int xe_loop::openat2(int fd, xe_cstr path, struct open_how* how, XE_IO_ARGS){
 	});
 }
 
-int xe_loop::read(int fd, xe_buf buf, uint len, ulong offset, XE_IO_ARGS){
+int xe_loop::read(int fd, xe_ptr buf, uint len, ulong offset, XE_IO_ARGS){
 	return queue_io(IORING_OP_READ, XE_IO_ARGS_PASS, [&](io_uring_sqe* sqe){
 		xe_sqe_rw(sqe, 0, fd, buf, len, offset, 0, 0);
 	});
 }
 
-int xe_loop::write(int fd, xe_buf buf, uint len, ulong offset, XE_IO_ARGS){
+int xe_loop::write(int fd, xe_cptr buf, uint len, ulong offset, XE_IO_ARGS){
 	return queue_io(IORING_OP_WRITE, XE_IO_ARGS_PASS, [&](io_uring_sqe* sqe){
 		xe_sqe_rw(sqe, 0, fd, buf, len, offset, 0, 0);
 	});
@@ -389,13 +346,13 @@ int xe_loop::writev(int fd, iovec* vecs, uint vlen, ulong offset, XE_IO_ARGS){
 	});
 }
 
-int xe_loop::read_fixed(int fd, xe_buf buf, uint len, ulong offset, uint buf_index, XE_IO_ARGS){
+int xe_loop::read_fixed(int fd, xe_ptr buf, uint len, ulong offset, uint buf_index, XE_IO_ARGS){
 	return queue_io(IORING_OP_READ_FIXED, XE_IO_ARGS_PASS, [&](io_uring_sqe* sqe){
 		xe_sqe_rw(sqe, 0, fd, buf, len, offset, 0, buf_index);
 	});
 }
 
-int xe_loop::write_fixed(int fd, xe_buf buf, uint len, ulong offset, uint buf_index, XE_IO_ARGS){
+int xe_loop::write_fixed(int fd, xe_cptr buf, uint len, ulong offset, uint buf_index, XE_IO_ARGS){
 	return queue_io(IORING_OP_WRITE_FIXED, XE_IO_ARGS_PASS, [&](io_uring_sqe* sqe){
 		xe_sqe_rw(sqe, 0, fd, buf, len, offset, 0, buf_index);
 	});
@@ -489,13 +446,13 @@ int xe_loop::accept(int fd, sockaddr* addr, socklen_t* addrlen, uint flags, XE_I
 	});
 }
 
-int xe_loop::recv(int fd, xe_buf buf, uint len, uint flags, XE_IO_ARGS){
+int xe_loop::recv(int fd, xe_ptr buf, uint len, uint flags, XE_IO_ARGS){
 	return queue_io(IORING_OP_RECV, XE_IO_ARGS_PASS, [&](io_uring_sqe* sqe){
 		xe_sqe_socket_rw(sqe, 0, fd, buf, len, flags);
 	});
 }
 
-int xe_loop::send(int fd, xe_buf buf, uint len, uint flags, XE_IO_ARGS){
+int xe_loop::send(int fd, xe_cptr buf, uint len, uint flags, XE_IO_ARGS){
 	return queue_io(IORING_OP_SEND, XE_IO_ARGS_PASS, [&](io_uring_sqe* sqe){
 		xe_sqe_socket_rw(sqe, 0, fd, buf, len, flags);
 	});
@@ -578,6 +535,7 @@ int xe_loop::modify_handle(int hd, xe_ptr user_data, xe_loop_handle::xe_callback
 		promise.handle_ = READY_HANDLE;									\
 	}else{																\
 		promise.handle_ = res;											\
+		promise.result_ = 0;											\
 	}																	\
 																		\
 	return promise;
@@ -593,11 +551,11 @@ xe_promise xe_loop::openat2(int fd, xe_cstr path, struct open_how* how){
 	xe_promise_start(openat2, fd, path, how, )
 }
 
-xe_promise xe_loop::read(int fd, xe_buf buf, uint len, ulong offset){
+xe_promise xe_loop::read(int fd, xe_ptr buf, uint len, ulong offset){
 	xe_promise_start(read, fd, buf, len, offset, )
 }
 
-xe_promise xe_loop::write(int fd, xe_buf buf, uint len, ulong offset){
+xe_promise xe_loop::write(int fd, xe_cptr buf, uint len, ulong offset){
 	xe_promise_start(write, fd, buf, len, offset, )
 }
 
@@ -609,11 +567,11 @@ xe_promise xe_loop::writev(int fd, iovec* iovecs, uint vlen, ulong offset){
 	xe_promise_start(writev, fd, iovecs, vlen, offset, )
 }
 
-xe_promise xe_loop::read_fixed(int fd, xe_buf buf, uint len, ulong offset, uint buf_index){
+xe_promise xe_loop::read_fixed(int fd, xe_ptr buf, uint len, ulong offset, uint buf_index){
 	xe_promise_start(read_fixed, fd, buf, len, offset, buf_index, )
 }
 
-xe_promise xe_loop::write_fixed(int fd, xe_buf buf, uint len, ulong offset, uint buf_index){
+xe_promise xe_loop::write_fixed(int fd, xe_cptr buf, uint len, ulong offset, uint buf_index){
 	xe_promise_start(write_fixed, fd, buf, len, offset, buf_index, )
 }
 
@@ -665,11 +623,11 @@ xe_promise xe_loop::accept(int fd, sockaddr* addr, socklen_t* addrlen, uint flag
 	xe_promise_start(accept, fd, addr, addrlen, flags, )
 }
 
-xe_promise xe_loop::recv(int fd, xe_buf buf, uint len, uint flags){
+xe_promise xe_loop::recv(int fd, xe_ptr buf, uint len, uint flags){
 	xe_promise_start(recv, fd, buf, len, flags, )
 }
 
-xe_promise xe_loop::send(int fd, xe_buf buf, uint len, uint flags){
+xe_promise xe_loop::send(int fd, xe_cptr buf, uint len, uint flags){
 	xe_promise_start(send, fd, buf, len, flags, )
 }
 
@@ -697,11 +655,11 @@ xe_promise xe_loop::files_update(int* fds, uint len, uint offset){
 	xe_promise_start(files_update, fds, len, offset, )
 }
 
-xe_buf xe_loop::iobuf() const{
+xe_ptr xe_loop::iobuf() const{
 	return io_buf;
 }
 
-xe_buf xe_loop::iobuf_large() const{
+xe_ptr xe_loop::iobuf_large() const{
 	return io_buf;
 }
 
@@ -729,42 +687,78 @@ void xe_loop::release(uint count){
 	num_reserved -= count;
 }
 
-void xe_loop::run_timer(xe_timer& timer){
-	ulong time_now, time_align;
+void xe_loop::run_timer(xe_timer& timer, ulong now){
+	ulong align;
+	int ret;
 
-	reserve(1); /* reserve an sqe for the timer */
+	timer.active_ = false;
+	timer.in_callback = true;
+	ret = timer.callback(*this, timer);
 
-	timer.flags &= ~(XE_TIMER_ACTIVE | XE_TIMER_CANCELLING);
-	timer.flags |= XE_TIMER_CALLBACK;
-	timer.callback(*this, timer);
-	timer.flags &= ~XE_TIMER_CALLBACK;
-
-	release(1);
-
-	if(timer.flags & XE_TIMER_ACTIVE)
-		/* timer was set in callback */
-		queue_timer_internal(timer);
-	else if(timer.flags & XE_TIMER_REPEAT){
-		time_now = xe_time_ns();
-
-		if(timer.delay > 0){
-			time_align = (time_now - timer.start - 1) % timer.delay;
-			timer.expire.tv_nsec = time_now + timer.delay - time_align - 1;
-			timer.start = timer.expire.tv_nsec - timer.delay;
-		}else{
-			timer.start = time_now;
-			timer.expire.tv_nsec = timer.start;
-		}
-
-		queue_timer(timer);
+	if(ret){
+		/* timer no longer accessible */
+		return;
 	}
+
+	timer.in_callback = false;
+
+	if(timer.active_ || !timer.repeat_){
+		/*
+		 * timer active: enqueued in callback
+		 * not repeating: nothing left to do
+		 */
+		return;
+	}
+
+	now = xe_time_ns();
+
+	if(timer.align_){
+		if(timer.delay > 0){
+			/* find how much we overshot */
+			align = (now - timer.expire.key) % timer.delay;
+
+			/* subtract the overshot */
+			now += timer.delay - align;
+		}
+	}else{
+		now += timer.delay;
+	}
+
+	timer.expire.key = now;
+
+	queue_timer(timer);
 }
 
-int xe_loop::enter(uint submit, uint wait, uint flags){
-	return syscall(__NR_io_uring_enter, ring.ring_fd, submit, wait, flags, null, _NSIG / 8);
+void xe_loop::queue_timer(xe_timer& timer){
+	timer.active_ = true;
+	timers.insert(timer.expire);
 }
 
-int xe_loop::submit(uint wait){
+int xe_loop::enter(uint submit, uint wait, uint flags, ulong timeout){
+	__kernel_timespec ts;
+	io_uring_getevents_arg args;
+	xe_ptr arg;
+	size_t sz;
+
+	if(timeout){
+		flags |= IORING_ENTER_EXT_ARG;
+		args.sigmask = 0;
+		args.sigmask_sz = _NSIG / 8;
+		args.ts = (ulong)&ts;
+		args.pad = 0;
+		ts.tv_nsec = timeout;
+		ts.tv_sec = 0;
+		arg = &args;
+		sz = sizeof(args);
+	}else{
+		arg = null;
+		sz = _NSIG / 8;
+	}
+
+	return syscall(__NR_io_uring_enter, ring.ring_fd, submit, wait, flags, arg, sz);
+}
+
+int xe_loop::submit(uint wait, ulong timeout){
 	uint flags = 0;
 	uint submit = ring.sq.sqe_tail - *ring.sq.khead;
 
@@ -786,22 +780,18 @@ int xe_loop::submit(uint wait){
 enter:
 	if(wait || (ring.flags & IORING_SETUP_IOPOLL))
 		flags |= IORING_ENTER_GETEVENTS;
-	ret = enter(submit, wait, flags);
+	ret = enter(submit, wait, flags, timeout);
 
-	if(ret < 0)
-		return xe_errno();
-	return ret;
+	return ret < 0 ? xe_errno() : ret;
 }
 
-int xe_loop::waitsingle(){
-	int ret = enter(0, 1, IORING_ENTER_GETEVENTS);
+int xe_loop::waitsingle(ulong timeout){
+	int ret = enter(0, 1, IORING_ENTER_GETEVENTS, timeout);
 
 	if(ret < 0){
 		ret = xe_errno();
 
-		if(ret == XE_EINTR)
-			return 0;
-		return ret;
+		return ret == XE_EINTR ? 0 : ret;
 	}
 
 	return 0;
@@ -811,23 +801,46 @@ int xe_loop::run(){
 	xe_loop_handle* handle;
 	xe_promise* promise;
 
-	int res;
-
-	uint handle_index;
 	ulong packed_handle_index;
+	uint handle_index;
+	int res;
 
 	uint cqe_head;
 	uint cqe_tail;
 	uint cqe_mask;
 	uint sqe_mask;
 
+	ulong now, timeout;
+	xe_rbtree<ulong>::iterator it;
+	bool wait;
+
 	cqe_mask = *ring.cq.kring_mask;
 	cqe_head = *ring.cq.khead;
 	sqe_mask = ring.sq.sqe_head;
+	cqe_tail = cqe_head;
 
 	while(true){
+		now = xe_time_ns();
+		it = timers.begin();
+		wait = true;
+
+		if(it != timers.end()){
+			/* we have a timer to run */
+			timeout = it -> key;
+
+			if(now >= timeout){
+				/* just submit, don't wait */
+				wait = false;
+			}else{
+				timeout -= now;
+			}
+		}else{
+			/* wait indefinitely */
+			timeout = 0;
+		}
+
 		if(num_queued){
-			res = submit(1);
+			res = submit(wait ? 1 : 0, timeout);
 
 			if(res >= 0){
 				xe_log_trace(this, "queued %u handles", res);
@@ -835,23 +848,42 @@ int xe_loop::run(){
 				num_handles += res;
 				num_queued -= res;
 				res = 0;
+				cqe_tail = io_uring_smp_load_acquire(ring.cq.ktail);
+			}else if(res == XE_EAGAIN || res == XE_EBUSY){
+				/* not enough memory for more handles, just wait for returns */
+				goto waitsingle;
 			}
-
-			cqe_tail = io_uring_smp_load_acquire(ring.cq.ktail);
 		}else if(num_handles){
-			cqe_tail = io_uring_smp_load_acquire(ring.cq.ktail);
+		waitsingle:
 			res = 0;
+			cqe_tail = io_uring_smp_load_acquire(ring.cq.ktail);
 
-			if(cqe_head == cqe_tail){
-				res = waitsingle();
+			if(wait && cqe_head == cqe_tail){
+				res = waitsingle(timeout);
 				cqe_tail = io_uring_smp_load_acquire(ring.cq.ktail);
 			}
+		}else if(it != timers.end()){
+			/* no handles, but we have a timer to run */
+			res = waitsingle(timeout);
 		}else{
 			/* nothing else to do */
 			break;
 		}
 
-		xe_return_error(res);
+		if(res && res != XE_ETIME)
+			return res;
+		now = xe_time_ns();
+
+		for(it = timers.begin(); it != timers.end(); it = timers.begin()){
+			xe_timer& timer = xe_containerof(*it, &xe_timer::expire);
+
+			if(now < timer.expire.key)
+				break;
+			timers.erase(it);
+
+			run_timer(timer, now);
+		}
+
 		xe_log_trace(this, "processing %u handles", cqe_tail - cqe_head);
 
 		while(cqe_head != cqe_tail){
@@ -870,10 +902,6 @@ int xe_loop::run(){
 
 			switch(packed_handle_index){
 				case XE_LOOP_HANDLE_DISCARD:
-					break;
-				case XE_LOOP_HANDLE_TIMER:
-					run_timer(*(xe_timer*)handle -> user_data);
-
 					break;
 				case XE_LOOP_HANDLE_SOCKET:
 					xe_socket::io(*handle, res);
@@ -897,12 +925,8 @@ int xe_loop::run(){
 					if(promise -> waiter)
 						promise -> waiter.resume();
 					break;
-				case XURL_CONNECTION:
+				case XURL_CTX:
 					xurl::xurl_ctx::io(*handle, res);
-
-					break;
-				case XURL_RESOLVER:
-					xurl::xe_resolve::io(*handle, res);
 
 					break;
 				default:

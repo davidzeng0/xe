@@ -1,7 +1,6 @@
-#include "../request.h"
-#include "../conn.h"
-#include "http_internal.h"
 #include "http.h"
+#include "http_internal.h"
+#include "xstd/unique_ptr.h"
 
 using namespace xurl;
 
@@ -64,18 +63,64 @@ public:
 
 class xe_http;
 class xe_http_protocol_singleconnection : public xe_http_singleconnection{
+protected:
+	xe_http_response response;
+
+	xe_http_callbacks& callbacks(){
+		return ((xe_http_specific_internal*)specific) -> callbacks;
+	}
+
 	template<typename F, typename... Args>
 	int call(F xe_http_callbacks::*field, Args&& ...args){
-		auto callback = ((xe_http_specific_internal*)specific) -> callbacks.*field;
+		auto callback = callbacks().*field;
+
 		return callback && callback(std::forward<Args>(args)...) ? XE_ABORTED : 0;
 	}
-protected:
-	int handle_statusline(xe_http_version version, uint status, xe_string_view& reason){
+
+	int init_socket(){
+		xe_return_error(xe_http_singleconnection::init_socket());
+		xe_return_error(set_nodelay(true));
+		xe_return_error(set_keepalive(true, 60));
+
+		return 0;
+	}
+
+	int handle_status_line(xe_http_version version, uint status, xe_string_view& reason){
+		if(callbacks().response){
+			response.version = version;
+			response.status = status;
+
+			if(!response.status_text.copy(reason)) return XE_ENOMEM;
+		}
+
 		return call(&xe_http_callbacks::statusline, *request, version, status, reason);
 	}
 
-	int handle_singleheader(xe_string_view& key, xe_string_view& value){
+	int handle_header(xe_string_view& key, xe_string_view& value){
+		xe_return_error(xe_http_singleconnection::handle_header(key, value));
+
+		if(callbacks().response){
+			xe_string skey, svalue;
+
+			if(!skey.copy(key) || !svalue.copy(value) ||
+				!response.headers.insert(std::move(skey), std::move(svalue)))
+				return XE_ENOMEM;
+		}
+
 		return call(&xe_http_callbacks::singleheader, *request, key, value);
+	}
+
+	int pretransfer(){
+		int err;
+
+		xe_return_error(xe_http_singleconnection::pretransfer());
+
+		if(follow)
+			return 0;
+		err = call(&xe_http_callbacks::response, *request, response);
+		response.headers.free();
+
+		return err;
 	}
 
 	int handle_trailer(xe_string_view& key, xe_string_view& value){
@@ -96,7 +141,7 @@ public:
 
 	xe_connection_type connection;
 
-	xe_http_connection_node(xe_http& proto, xe_http_connection_list& list): connection(proto), list(list){}
+	xe_http_connection_node(xe_http& proto, xe_http_connection_list& list): list(list), connection(proto){}
 };
 
 class xe_http_connection_list{
@@ -134,7 +179,7 @@ public:
 
 class xe_http : public xe_http_protocol{
 public:
-	xe_map<xe_host, xe_http_connection_list*> connections;
+	xe_map<xe_host, xe_unique_ptr<xe_http_connection_list>> connections;
 
 	xe_http(xurl_ctx& net);
 
@@ -157,7 +202,9 @@ public:
 	static xe_cstr class_name();
 };
 
-xe_http_protocol_singleconnection::xe_http_protocol_singleconnection(xe_http& proto): xe_http_singleconnection(proto){}
+xe_http_protocol_singleconnection::xe_http_protocol_singleconnection(xe_http& proto): xe_http_singleconnection(proto){
+	response.headers.init();
+}
 
 xe_http::xe_http(xurl_ctx& net): xe_http_protocol(net, XE_PROTOCOL_HTTP){
 	connections.init();
@@ -192,19 +239,26 @@ int xe_http::start(xe_request_internal& request){
 	if(conn != connections.end()){
 		list = conn -> second;
 
-		if(*list){
-			err = list -> head -> connection.open(request);
+		while(*list){
+			xe_http_protocol_singleconnection& conn = list -> head -> connection;
 
-			if(!err) return 0;
+			if(conn.peer_closed())
+				conn.close(0);
+			else{
+				err = conn.open(request);
+
+				if(!err) return 0;
+			}
 		}
 	}else{
+		xe_unique_ptr<xe_http_connection_list> new_list;
+
 		list = xe_zalloc<xe_http_connection_list>();
+		new_list = list;
 
-		if(!list || !host.hostname.copy(data.url.hostname()) || !connections.insert(std::move(host), list)){
-			xe_dealloc(list);
-
+		if(!list || !host.hostname.copy(data.url.hostname()) ||
+			!connections.insert(std::move(host), std::move(new_list)))
 			return XE_ENOMEM;
-		}
 	}
 
 	xe_http_connection_node<>* node = xe_znew<xe_http_connection_node<>>(*this, *list);
@@ -212,10 +266,7 @@ int xe_http::start(xe_request_internal& request){
 	if(!node)
 		return XE_ENOMEM;
 	node -> connection.set_ssl_verify(data.ssl_verify);
-	node -> connection.set_connect_timeout(data.connect_timeout);
 	node -> connection.set_ip_mode(data.ip_mode);
-	node -> connection.set_recvbuf_size(data.recvbuf_size);
-	node -> connection.set_tcp_keepalive(true);
 
 	if((err = node -> connection.init(*ctx)) ||
 		(secure && (err = node -> connection.init_ssl(ctx -> ssl()))) ||
@@ -225,6 +276,8 @@ int xe_http::start(xe_request_internal& request){
 		return err;
 	}
 
+	if(data.connect_timeout)
+		node -> connection.start_connect_timeout(data.connect_timeout);
 	node -> connection.open(request);
 
 	return 0;
@@ -273,6 +326,8 @@ bool xe_http::matches(const xe_string_view& scheme) const{
 }
 
 void xe_http::redirect(xe_request_internal& request, xe_string&& url){
+	xe_log_verbose(this, "redirect to %.*s", url.length(), url.data());
+
 	int err = internal_redirect(request, std::move(url));
 
 	if(err) request.complete(err);
@@ -286,8 +341,12 @@ int xe_http::internal_redirect(xe_request_internal& request, xe_string&& url){
 		return XE_TOO_MANY_REDIRECTS;
 	xe_return_error(parser.parse());
 
-	if(!matches(parser.scheme()))
+	if(!matches(parser.scheme())){
+		data.url = std::move(url);
+
 		return XE_EXTERNAL_REDIRECT;
+	}
+
 	xe_return_error(xe_http_protocol::open(data, std::move(parser), true));
 
 	return start(request);
@@ -310,12 +369,6 @@ void xe_http::closed(xe_http_connection& connection){
 }
 
 xe_http::~xe_http(){
-	for(auto& t : connections){
-		t.first.hostname.free();
-
-		xe_dealloc(t.second);
-	}
-
 	connections.free();
 }
 

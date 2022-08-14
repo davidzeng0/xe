@@ -1,6 +1,6 @@
 #pragma once
-#include <limits>
-#include "xutil/types.h"
+#include "xstd/types.h"
+#include "overflow.h"
 
 enum xe_base64_encoding{
 	XE_BASE64 = 0,
@@ -30,10 +30,10 @@ byte xe_char_tolower(byte c);
 
 size_t xe_encoding_to_int(xe_integer_encoding encoding, byte c);
 
-template<class T>
+template<typename T>
 size_t xe_read_integer(xe_integer_encoding encoding, T& result, xe_cptr vin, size_t in_len){
-	xe_bptr in = (xe_bptr)vin;
 	size_t i;
+	byte* in = (byte*)vin;
 	byte digit;
 
 	for(i = 0; i < in_len; i++){
@@ -41,7 +41,8 @@ size_t xe_read_integer(xe_integer_encoding encoding, T& result, xe_cptr vin, siz
 
 		if(digit > encoding)
 			break;
-		if(xe_overflow_mul<T>(result, encoding) || xe_overflow_add<T>(result, digit))
+		if(xe_overflow_mul<T>(result, encoding) ||
+			xe_overflow_add<T>(result, digit))
 			return -1;
 	}
 

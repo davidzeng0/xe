@@ -1,23 +1,21 @@
 #include <ares.h>
-#include <sys/epoll.h>
-#include <sys/timerfd.h>
 #include <unistd.h>
 #include <arpa/inet.h>
+#include <sys/epoll.h>
 #include "xutil/overflow.h"
 #include "xutil/mem.h"
-#include "xe/error.h"
-#include "xutil/xutil.h"
 #include "xutil/log.h"
-#include "xutil/clock.h"
+#include "xe/clock.h"
+#include "xutil/inet.h"
+#include "xe/error.h"
 #include "resolve.h"
 #include "ctx.h"
-#include "xutil/inet.h"
 
 using namespace xurl;
 
 enum{
 	MAX_EVENTS = 256,
-	TIMEOUT = 10000
+	TIMEOUT = 5000
 };
 
 struct xe_resolve_ctx::xe_resolve_ctx_data{
@@ -57,7 +55,7 @@ int xe_resolve_ctx::init(){
 		return XE_ENOMEM;
 	data -> options.timeout = TIMEOUT;
 	data -> options.tries = 3;
-	data -> options.lookups = (xe_pchar)"b";
+	data -> options.lookups = (char*)"b";
 
 	/* preload /etc/resolv.conf */
 	ret = ares_init_options(&channel, &data -> options, ARES_OPT_TIMEOUTMS | ARES_OPT_LOOKUPS | ARES_OPT_TRIES);
@@ -65,9 +63,7 @@ int xe_resolve_ctx::init(){
 	if(ret != ARES_SUCCESS){
 		xe_dealloc(data);
 
-		if(ret == ARES_ENOMEM)
-			return XE_ENOMEM;
-		return XE_ERESOLVER;
+		return ret == ARES_ENOMEM ? XE_ENOMEM : XE_RESOLVER;
 	}
 
 	ret = ares_save_options(channel, &data -> options, &data -> optmask);
@@ -105,12 +101,12 @@ xe_endpoint& xe_endpoint::operator=(xe_endpoint&& other){
 	return *this;
 }
 
-const xe_slice<const in_addr>& xe_endpoint::inet() const{
-	return (xe_slice<const in_addr>&)inet_;
+const xe_slice<in_addr>& xe_endpoint::inet() const{
+	return inet_;
 }
 
-const xe_slice<const in6_addr>& xe_endpoint::inet6() const{
-	return (xe_slice<const in6_addr>&)inet6_;
+const xe_slice<in6_addr>& xe_endpoint::inet6() const{
+	return inet6_;
 }
 
 void xe_endpoint::free(){
@@ -119,15 +115,6 @@ void xe_endpoint::free(){
 
 xe_endpoint::~xe_endpoint(){
 	free();
-}
-
-void xe_resolve::poll(){
-	if(handle != -1 || !active)
-		return;
-	loop -> release(1);
-	handle = loop -> poll(pollfd, EPOLLIN, this, null, 0, 0, XURL_RESOLVER);
-
-	xe_assert(handle >= 0);
 }
 
 void xe_resolve::sockstate(xe_ptr data, int fd, int read, int write){
@@ -159,7 +146,7 @@ int xe_resolve::sockcreate(int fd, int type, xe_ptr data){
 	xe_resolve& resolve = *(xe_resolve*)data;
 	epoll_event event;
 
-	if(resolve.count == SIZE_MAX)
+	if(resolve.count == xe_max_value(resolve.count))
 		return -1;
 	event.events = 0;
 	event.data.u64 = fd;
@@ -198,14 +185,14 @@ static int xe_ares_error(int status){
 		case ARES_ENOTIMP:
 			return XE_ENOSYS;
 		default:
-			return XE_ERESOLVER;
+			return XE_RESOLVER;
 	}
 }
 
 static bool alloc_entries(size_t inet_len, size_t inet6_len, xe_slice<in_addr>& inet, xe_slice<in6_addr>& inet6){
 	ptrdiff_t inet_total, inet6_total, total;
 
-	xe_bptr endpoints;
+	byte* endpoints;
 
 	if(xe_overflow_mul(inet_total, inet_len, sizeof(in_addr)) ||
 		xe_overflow_mul(inet6_total, inet6_len, sizeof(in6_addr)) ||
@@ -291,7 +278,7 @@ void xe_resolve::resolved(xe_ptr data, int status, int timeouts, xe_ptr ptr){
 	}
 }
 
-int xe_resolve::ip_resolve(const xe_string_view& host, xe_endpoint& endpoint){
+int xe_resolve::ip_resolve(const xe_string& host, xe_endpoint& endpoint){
 	in_addr addr;
 	in6_addr addr6;
 
@@ -307,6 +294,7 @@ int xe_resolve::ip_resolve(const xe_string_view& host, xe_endpoint& endpoint){
 	}
 
 	if(inet_pton(AF_INET, host.c_str(), &addr) == 1){
+		/* ipv4 address */
 		if(!alloc_entries(1, 0, endpoint.inet_, endpoint.inet6_))
 			return XE_ENOMEM;
 		endpoint.inet_[0] = addr;
@@ -315,6 +303,7 @@ int xe_resolve::ip_resolve(const xe_string_view& host, xe_endpoint& endpoint){
 	}
 
 	if(inet_pton(AF_INET6, host.c_str(), &addr6) == 1){
+		/* ipv6 address */
 		if(!alloc_entries(0, 1, endpoint.inet_, endpoint.inet6_))
 			return XE_ENOMEM;
 		xe_tmemcpy(&endpoint.inet6_[0], &addr6);
@@ -325,27 +314,34 @@ int xe_resolve::ip_resolve(const xe_string_view& host, xe_endpoint& endpoint){
 	return XE_RESOLVER_UNKNOWN_HOST;
 }
 
+int xe_resolve::timeout(xe_loop& loop, xe_timer& timer){
+	xe_resolve& resolve = xe_containerof(timer, &xe_resolve::timer);
+
+	ares_process_fd((ares_channel)resolve.resolver, ARES_SOCKET_BAD, ARES_SOCKET_BAD);
+
+	if(!resolve.count){
+		resolve.ctx -> resolver_active(false);
+
+		xe_assertz(loop.timer_cancel(timer));
+	}
+
+	return 0;
+}
+
 xe_resolve::xe_resolve(){
 	resolver = null;
-	active = 0;
-	flags = 0;
 	count = 0;
 }
 
 int xe_resolve::init(xurl_ctx& ctx_, xe_resolve_ctx& shared){
 	ares_channel channel;
 	ares_options options;
-	itimerspec it;
-	epoll_event event;
 
-	int pollfd_, tfd_;
+	int pollfd_;
 	int ret;
 
 	ctx = &ctx_;
-	loop = &ctx_.loop();
 	pollfd_ = -1;
-	tfd_ = -1;
-	handle = -1;
 	channel = null;
 
 	xe_tmemcpy(&options, &shared.priv -> options);
@@ -356,38 +352,21 @@ int xe_resolve::init(xurl_ctx& ctx_, xe_resolve_ctx& shared){
 	ret = ares_init_options(&channel, &options, shared.priv -> optmask | ARES_OPT_SOCK_STATE_CB);
 
 	if(ret != ARES_SUCCESS)
-		return ret == ARES_ENOMEM ? XE_ENOMEM : XE_ERESOLVER;
+		return ret == ARES_ENOMEM ? XE_ENOMEM : XE_RESOLVER;
 	pollfd_ = epoll_create(MAX_EVENTS);
 
 	if(pollfd_ < 0)
 		goto err;
 	/* timeout resolves */
-	tfd_ = timerfd_create(CLOCK_MONOTONIC, 0);
+	timer.callback = timeout;
 
-	if(tfd_ < 0)
-		goto err;
-	it.it_value.tv_sec = (uint)TIMEOUT / XE_MILLIS_PER_SEC;
-	it.it_value.tv_nsec = ((uint)TIMEOUT % XE_MILLIS_PER_SEC) * XE_NANOS_PER_MS;
-	it.it_interval.tv_sec = it.it_value.tv_sec;
-	it.it_interval.tv_nsec = it.it_value.tv_nsec;
-
-	if(timerfd_settime(tfd_, 0, &it, null) < 0)
-		goto err;
-	event.data.u64 = tfd_;
-	event.events = EPOLLIN;
-
-	if(epoll_ctl(pollfd_, EPOLL_CTL_ADD, tfd_, &event) < 0)
-		goto err;
 	ares_set_socket_callback(channel, sockcreate, this);
 
 	resolver = channel;
 	pollfd = pollfd_;
-	tfd = tfd_;
 
 	return 0;
 err:
-	if(tfd_ != -1)
-		::close(tfd_);
 	if(pollfd_ != -1)
 		::close(pollfd_);
 	if(channel)
@@ -396,57 +375,13 @@ err:
 }
 
 void xe_resolve::close(){
-	if(active)
-		stop();
 	if(resolver)
 		ares_destroy((ares_channel)resolver);
-	if(handle != -1){
-		loop -> modify_handle(handle, null, null, tfd, pollfd);
-		handle = -1;
-
-		return;
-	}
-
-	if(tfd != -1)
-		::close(tfd);
 	if(pollfd != -1)
 		::close(pollfd);
 }
 
-int xe_resolve::start(){
-	if(active)
-		return XE_EALREADY;
-	if(handle != -1)
-		return XE_EINVAL;
-	if(loop -> remain() < 2)
-		return XE_ETOOMANYHANDLES;
-	xe_assert(loop -> reserve(2));
-
-	active = true;
-
-	return 0;
-}
-
-void xe_resolve::stop(){
-	if(!active)
-		return;
-	active = false;
-
-	if(handle == -1){
-		loop -> release(2);
-
-		return;
-	}
-
-	int ret;
-
-	loop -> release(1);
-	ret = loop -> poll_cancel(handle, null, null, 0, 0, XE_LOOP_HANDLE_DISCARD);
-
-	xe_assert(ret >= 0);
-}
-
-int xe_resolve::resolve(const xe_string_view& host, xe_endpoint& endpoint){
+int xe_resolve::resolve(const xe_string& host, xe_endpoint& endpoint){
 	xe_assertm(host.c_str()[host.length()] == 0, "host is not null terminated");
 
 	int err = ip_resolve(host, endpoint);
@@ -484,36 +419,24 @@ int xe_resolve::resolve(const xe_string_view& host, xe_endpoint& endpoint){
 
 	query -> returned = true;
 
-	if(count)
-		poll();
+	if(count){
+		ctx -> resolver_active(true);
+
+		if(!timer.active())
+			xe_assertz(ctx -> loop().timer_ms(timer, TIMEOUT, TIMEOUT, XE_TIMER_REPEAT));
+	}
+
 	return XE_EINPROGRESS;
 }
 
-void xe_resolve::io(xe_loop_handle& handle, int result){
-	if(!handle.user_data){
-		/* close called before stop request finished */
-		::close(handle.u1);
-		::close(handle.u2);
-
-		return;
-	}
-
-	xe_resolve& resolve = *(xe_resolve*)handle.user_data;
-
-	resolve.handle = -1;
-
-	if(!resolve.active)
-		return;
-	xe_assert(resolve.loop -> reserve(1));
-
+void xe_resolve::io(){
 	epoll_event events[MAX_EVENTS];
-	ulong buf;
 
 	int n;
 	int rfd, wfd;
 
 	/* process events */
-	n = epoll_wait(resolve.pollfd, events, MAX_EVENTS, 0);
+	n = epoll_wait(pollfd, events, MAX_EVENTS, 0);
 
 	if(n < 0){
 		xe_assert(xe_errno() == XE_EINTR);
@@ -521,24 +444,21 @@ void xe_resolve::io(xe_loop_handle& handle, int result){
 		return;
 	}
 
-	xe_log_trace(&resolve, "processing %i events", n);
+	xe_log_trace(this, "processing %i events", n);
 
 	for(int i = 0; i < n; i++){
-		if(events[i].data.fd == resolve.tfd){
-			rfd = ARES_SOCKET_BAD;
-			wfd = ARES_SOCKET_BAD;
+		rfd = events[i].events & (EPOLLIN | EPOLLERR) ? events[i].data.fd : ARES_SOCKET_BAD;
+		wfd = events[i].events & (EPOLLOUT | EPOLLERR) ? events[i].data.fd : ARES_SOCKET_BAD;
 
-			xe_asserteq(read(resolve.tfd, &buf, sizeof(buf)), sizeof(buf));
-		}else{
-			rfd = events[i].events & (EPOLLIN | EPOLLERR) ? events[i].data.fd : ARES_SOCKET_BAD;
-			wfd = events[i].events & (EPOLLOUT | EPOLLERR) ? events[i].data.fd : ARES_SOCKET_BAD;
-		}
-
-		ares_process_fd((ares_channel)resolve.resolver, rfd, wfd);
+		ares_process_fd((ares_channel)resolver, rfd, wfd);
 	}
 
-	if(resolve.count)
-		resolve.poll();
+	if(!count){
+		ctx -> resolver_active(false);
+
+		if(timer.active())
+			xe_assertz(ctx -> loop().timer_cancel(timer));
+	}
 }
 
 xe_cstr xe_resolve::class_name(){

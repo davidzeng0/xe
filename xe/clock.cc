@@ -1,5 +1,5 @@
+#include <time.h>
 #include "clock.h"
-#include "time.h"
 
 ulong xe_time_ns(){
 	timespec spec;

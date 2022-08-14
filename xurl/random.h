@@ -1,9 +1,9 @@
 #pragma once
-#include "xutil/types.h"
+#include "xstd/types.h"
 
 namespace xurl{
 
-bool xe_crypto_random(xe_ptr buf, size_t size);
+ssize_t xe_crypto_random(xe_ptr buf, size_t size);
 
 class xe_rng{
 	static const uint w = 32,

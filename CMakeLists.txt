@@ -32,7 +32,6 @@ include(debug)
 
 include_directories(".")
 include_directories("include")
-include_directories(${CMAKE_CURRENT_BINARY_DIR})
 
 set(SOURCES "")
 file(GLOB SOURCES
@@ -41,10 +40,11 @@ file(GLOB SOURCES
 	"xurl/*.cc"
 	"xurl/proto/*.cc"
 	"xutil/*.cc"
+	"xstd/*.cc"
 )
 
 set(ARCH "")
-file(GLOB ARCH "xe/arch/default/*.cc")
+file(GLOB ARCH "xarch/default/*.cc")
 
 add_library(xe ${SOURCES} ${ARCH})
 target_link_libraries(xe uring cares wolfssl)

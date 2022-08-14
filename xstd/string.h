@@ -1,10 +1,10 @@
 #pragma once
 #include "types.h"
-#include "container/array.h"
-#include "arch.h"
-#include "hash.h"
+#include "array.h"
+#include "xarch/arch.h"
+#include "xutil/hash.h"
 
-class xe_string_view : public xe_slice<const char>{
+class xe_string_view : public xe_slice<char>{
 protected:
 	static bool equal(const xe_string_view& a, const xe_string_view& b);
 	static bool equal_case(const xe_string_view& a, const xe_string_view& b);
@@ -18,18 +18,12 @@ public:
 	}
 
 	constexpr xe_string_view(xe_cptr string, size_t len){
-		data_ = (xe_cstr)string;
+		data_ = (char*)string;
 		size_ = len;
 	}
 
-	template<typename T>
-	constexpr xe_string_view(const xe_slice<T>& slice){
-		data_ = (xe_cstr)slice.data();
-		size_ = slice.size() * sizeof(T);
-	}
-
 	constexpr xe_string_view& operator=(xe_cptr string){
-		data_ = (xe_cstr)string;
+		data_ = (char*)string;
 		size_ = xe_strlen(data_);
 
 		return *this;
@@ -93,7 +87,7 @@ public:
 	xe_string(const xe_string_view& other) = delete;
 	xe_string& operator=(const xe_string_view& other) = delete;
 
-	constexpr xe_pchar data(){
+	constexpr char* data(){
 		return data_;
 	}
 

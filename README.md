@@ -4,6 +4,9 @@ This project is a WIP.
 ## xe
 linux uring event loop with support for c++20 coroutines
 
+## xstd
+structures and algorithms
+
 ## xurl
 url client library
 <br>
@@ -14,6 +17,9 @@ protocols:
 
 ## xutil
 utility library
+
+## xarch
+architecture specific optimized subroutines
 
 # compiling
 

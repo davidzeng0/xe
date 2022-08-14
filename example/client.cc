@@ -1,16 +1,18 @@
 #include <string.h>
 #include <netdb.h>
-#include "xe/mem.h"
-#include "xe/log.h"
-#include "xe/common.h"
+#include "xutil/mem.h"
+#include "xutil/log.h"
+#include "xutil/util.h"
+#include "xstd/types.h"
+#include "xstd/string.h"
 #include "xe/loop.h"
 #include "xe/io/socket.h"
+#include "xe/error.h"
 
 static uint len = 16384;
-static xe_buf buf = xe_alloc<byte>(len);
+static byte* buf = xe_alloc<byte>(len);
 
-static xe_buf msg = (xe_buf)"Hello World!";
-static uint msg_len = strlen((xe_cstr)msg);
+static xe_string_view msg = "Hello World!";
 
 void recv_callback(xe_socket& socket, ulong unused, int result){
 	if(result > 0)
@@ -20,6 +22,7 @@ void recv_callback(xe_socket& socket, ulong unused, int result){
 void send_callback(xe_socket& socket, ulong unused, int result){
 	if(result > 0){
 		xe_print("sent %d bytes", result);
+
 		socket.recv(buf, len, 0);
 	}
 }
@@ -27,7 +30,8 @@ void send_callback(xe_socket& socket, ulong unused, int result){
 void connect_callback(xe_socket& socket, ulong unused, int result){
 	if(!result){
 		xe_print("connected");
-		socket.send(msg, msg_len, MSG_NOSIGNAL);
+
+		socket.send(msg.data(), msg.size(), MSG_NOSIGNAL);
 	}
 }
 
@@ -44,7 +48,7 @@ int main(){
 	ret = loop.init_options(options);
 
 	if(ret){
-		xe_print("loop_init %s", strerror(-ret));
+		xe_print("loop_init %s", xe_strerror(ret));
 
 		return -1;
 	}
@@ -69,12 +73,12 @@ int main(){
 	ret = loop.run();
 
 	if(ret){
-		xe_print("loop_run %s", strerror(-ret));
+		xe_print("loop_run %s", xe_strerror(ret));
 
 		return -1;
 	}
 
-	loop.destroy();
+	loop.close();
 
 	return 0;
 }

@@ -1,17 +1,19 @@
 #include <string.h>
 #include <netdb.h>
-#include "xe/mem.h"
-#include "xe/log.h"
-#include "xe/common.h"
+#include "xutil/mem.h"
+#include "xutil/log.h"
+#include "xutil/util.h"
+#include "xstd/types.h"
 #include "xe/loop.h"
 #include "xe/io/socket.h"
 #include "xe/clock.h"
+#include "xe/error.h"
 
 static ulong t, reqs = 0, sends = 0, clients = 0;
 
 struct client{
 	xe_socket socket;
-	xe_buf buf;
+	byte* buf;
 	uint len;
 
 	client(xe_loop& loop): socket(loop){}
@@ -74,7 +76,7 @@ void accept_callback(xe_socket& socket, ulong unused, int result){
 		xe_print("failed to accept");
 }
 
-void timer_callback(xe_loop& loop, xe_timer& timer){
+int timer_callback(xe_loop& loop, xe_timer& timer){
 	ulong now = xe_time_ns();
 
 	xe_print("%lu reqs %lu sends in %f ms", reqs, sends, (now - t) / 1e6);
@@ -82,6 +84,8 @@ void timer_callback(xe_loop& loop, xe_timer& timer){
 	t = now;
 	reqs = 0;
 	sends = 0;
+
+	return 0;
 }
 
 int main(){
@@ -98,7 +102,7 @@ int main(){
 	ret = loop.init_options(options);
 
 	if(ret){
-		xe_print("loop_init %s", strerror(-ret));
+		xe_print("loop_init %s", xe_strerror(ret));
 
 		return -1;
 	}
@@ -115,30 +119,60 @@ int main(){
 	/* nonzero ret is a negative system error */
 	ret = socket.init(AF_INET, SOCK_STREAM, IPPROTO_TCP);
 
+	if(ret){
+		xe_print("socket init %s", xe_strerror(ret));
+
+		return -1;
+	}
+
 	int yes = 1;
 
 	setsockopt(socket.fd(), SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes));
 
 	ret = socket.bind((sockaddr*)&addr, sizeof(addr));
-	ret = socket.listen(SOMAXCONN);
-
-	socket.accept_callback = accept_callback;
-
-	socket.accept(null, null, 0);
-
-	timer.callback = timer_callback;
-
-	loop.timer_ms(timer, 1000, true);
-
-	ret = loop.run();
 
 	if(ret){
-		xe_print("loop_run %s", strerror(-ret));
+		xe_print("socket bind %s", xe_strerror(ret));
 
 		return -1;
 	}
 
-	loop.destroy();
+	ret = socket.listen(SOMAXCONN);
+
+	if(ret){
+		xe_print("socket listen %s", xe_strerror(ret));
+
+		return -1;
+	}
+
+	socket.accept_callback = accept_callback;
+	ret = socket.accept(null, null, 0);
+
+	if(ret){
+		xe_print("socket accept %s", xe_strerror(ret));
+
+		return -1;
+	}
+
+	timer.callback = timer_callback;
+
+	ret = loop.timer_ms(timer, 1000, 1000, XE_TIMER_REPEAT);
+
+	if(ret){
+		xe_print("loop timer_ms %s", xe_strerror(ret));
+
+		return -1;
+	}
+
+	ret = loop.run();
+
+	if(ret){
+		xe_print("loop run %s", xe_strerror(ret));
+
+		return -1;
+	}
+
+	loop.close();
 
 	return 0;
 }

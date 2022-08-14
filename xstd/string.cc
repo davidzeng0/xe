@@ -1,7 +1,5 @@
 #include "string.h"
-#include "arch.h"
-#include "mem.h"
-#include "xutil.h"
+#include "xutil/mem.h"
 
 static size_t xe_index_of(const xe_string_view& string, char c, size_t off){
 	xe_cptr ptr = xe_memchr(string.data() + off, c, string.length() - off);
@@ -102,7 +100,7 @@ bool xe_string::equal_case(xe_cptr o) const{
 }
 
 bool xe_string::copy(xe_cptr src, size_t n){
-	xe_pchar data = xe_alloc<char>(n + 1);
+	char* data = xe_alloc<char>(n + 1);
 
 	if(!data)
 		return false;

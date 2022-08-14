@@ -1,10 +1,13 @@
 #include <string.h>
-#include "xe/mem.h"
-#include "xe/log.h"
+#include "xutil/mem.h"
+#include "xutil/log.h"
 #include "xe/loop.h"
+#include "xe/error.h"
 
-void timer_callback(xe_loop& loop, xe_timer& timer){
+int timer_callback(xe_loop& loop, xe_timer& timer){
 	xe_print("timer callback executed");
+
+	return 0;
 }
 
 int main(){
@@ -20,24 +23,30 @@ int main(){
 	ret = loop.init_options(options);
 
 	if(ret){
-		xe_print("loop_init %s", strerror(-ret));
+		xe_print("loop init %s", xe_strerror(ret));
 
 		return -1;
 	}
 
 	timer.callback = timer_callback;
 
-	loop.timer_ms(timer, 1000, false); /* set a timer for 1000 ms without repeating */
-
-	ret = loop.run();
+	ret = loop.timer_ms(timer, 1000, 0, 0); /* set a timer for 1000 ms without repeating */
 
 	if(ret){
-		xe_print("loop_run %s", strerror(-ret));
+		xe_print("loop timer_ms %s", xe_strerror(ret));
 
 		return -1;
 	}
 
-	loop.destroy();
+	ret = loop.run();
+
+	if(ret){
+		xe_print("loop run %s", xe_strerror(ret));
+
+		return -1;
+	}
+
+	loop.close();
 
 	return 0;
 }

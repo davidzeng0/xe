@@ -1,7 +1,6 @@
 #pragma once
 #include <errno.h>
-#include <string.h>
-#include "xutil/types.h"
+#include "xstd/types.h"
 
 static constexpr inline int xe_syserror(int err){
 	return -err;
@@ -18,9 +17,11 @@ static int xe_errno(){
 enum xe_error{
 	XE_FIRST = -1100,
 
-	XE_ETOOMANYHANDLES,
+	XE_TOOMANYHANDLES,
+	XE_STATE,
+	XE_FATAL,
 
-	XE_ERESOLVER,
+	XE_RESOLVER,
 	XE_RESOLVER_UNKNOWN_HOST,
 	XE_RESOLVER_SERVER_FAIL,
 	XE_RESOLVER_CLIENT_FAIL,
@@ -187,18 +188,18 @@ static int xe_issyserror(int err){
 	return err > XE_LAST;
 }
 
-static xe_cstr xe_sysstrerror(int err){
-	return strerror(xe_unsyserror(err));
-}
-
 static xe_cstr xe_strerror(int err){
 	switch(err){
 		case XE_OK:
 			return "OK";
-		case XE_ETOOMANYHANDLES:
-			return "Too many I/O handles";
-		case XE_ERESOLVER:
-			return "Could not resolve host";
+		case XE_STATE:
+			return "Invalid state";
+		case XE_FATAL:
+			return "Fatal error";
+		case XE_TOOMANYHANDLES:
+			return "Too many handles";
+		case XE_RESOLVER:
+			return "Could not resolve hostname";
 		case XE_RESOLVER_UNKNOWN_HOST:
 			return "Unknown host";
 		case XE_RESOLVER_SERVER_FAIL:
@@ -234,11 +235,12 @@ static xe_cstr xe_strerror(int err){
 		case XE_TOO_MANY_REDIRECTS:
 			return "Too many redirects";
 		case XE_EXTERNAL_REDIRECT:
-			return "External redirect (switching protocols)";
+			return "External redirect";
 		case XE_WEBSOCKET_CONNECTION_REFUSED:
 			return "WebSocket connection rejected";
 		case XE_WEBSOCKET_MESSAGE_TOO_LONG:
 			return "WebSocket message too long";
+
 		case XE_EHWPOISON:
 			return "Memory page has hardware error";
 		case XE_ERFKILL:
@@ -502,8 +504,6 @@ static xe_cstr xe_strerror(int err){
 		case XE_EPERM:
 			return "Operation not permitted";
 		default:
-			if(err > XE_LAST)
-				return xe_sysstrerror(err);
 			return "Unknown error";
 	}
 }

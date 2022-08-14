@@ -1,6 +1,4 @@
 #include "url.h"
-#include "xutil/string.h"
-#include "xutil/mem.h"
 #include "xutil/encoding.h"
 #include "xe/error.h"
 

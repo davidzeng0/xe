@@ -1,6 +1,7 @@
 #include <wolfssl/options.h>
 #include <wolfssl/ssl.h>
 #include <wolfssl/error-ssl.h>
+#include "xe/error.h"
 #include "ssl.h"
 
 using namespace xurl;
@@ -97,9 +98,9 @@ int xe_ssl::connect(int flags){
 		case ASN_NO_SIGNER_E:
 			return XE_SSL_NO_SIGNER;
 		case SOCKET_ERROR_E:
-			if((err = xe_errno()))
-				return err;
-			return XE_ECONNRESET;
+			err = xe_errno();
+
+			return err ? err : XE_ECONNRESET;
 	}
 
 	return XE_SSL;
@@ -127,10 +128,11 @@ int xe_ssl::get_alpn_protocol(xe_string_view& proto){
 
 int xe_ssl::recv(xe_ptr buffer, size_t len, int flags){
 	WOLFSSL* ssl = (WOLFSSL*)data;
+	int recv;
 
 	wolfSSL_SetIOReadFlags(ssl, flags);
 
-	int recv = wolfSSL_read(ssl, buffer, xe_max(len, (size_t)INT_MAX));
+	recv = wolfSSL_read(ssl, buffer, xe_min<size_t>(len, xe_max_value<int>()));
 
 	if(recv >= 0)
 		return recv;
@@ -147,12 +149,11 @@ int xe_ssl::recv(xe_ptr buffer, size_t len, int flags){
 
 int xe_ssl::send(xe_cptr buffer, size_t len, int flags){
 	WOLFSSL* ssl = (WOLFSSL*)data;
+	int sent;
 
 	wolfSSL_SetIOWriteFlags(ssl, flags);
 
-	if(len > INT_MAX)
-		len = INT_MAX;
-	int sent = wolfSSL_write(ssl, buffer, len);
+	sent = wolfSSL_write(ssl, buffer, xe_min<size_t>(len, xe_max_value<int>()));
 
 	if(sent >= 0)
 		return sent;
@@ -168,9 +169,7 @@ int xe_ssl::send(xe_cptr buffer, size_t len, int flags){
 }
 
 int xurl::xe_ssl_init(){
-	if(wolfSSL_Init() != WOLFSSL_SUCCESS)
-		return XE_SSL;
-	return 0;
+	return wolfSSL_Init() != WOLFSSL_SUCCESS ? XE_SSL : 0;
 }
 
 void xurl::xe_ssl_cleanup(){

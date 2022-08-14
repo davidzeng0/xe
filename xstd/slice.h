@@ -34,8 +34,8 @@ public:
 		return *this;
 	}
 
-	xe_slice(const xe_slice& other) = default;
-	xe_slice& operator=(const xe_slice& other) = default;
+	xe_slice(const xe_slice<T>& other) = default;
+	xe_slice& operator=(const xe_slice<T>& other) = default;
 
 	constexpr T* data(){
 		return data_;
@@ -50,14 +50,12 @@ public:
 	}
 
 	constexpr T& at(size_t i){
-		xe_assert(data_ != null);
 		xe_assert(i < size_);
 
 		return data_[i];
 	}
 
 	constexpr const T& at(size_t i) const{
-		xe_assert(data_ != null);
 		xe_assert(i < size_);
 
 		return data_[i];
@@ -71,11 +69,19 @@ public:
 		return at(i);
 	}
 
-	constexpr iterator begin() const{
+	constexpr iterator begin(){
+		return iterator(data());
+	}
+
+	constexpr iterator end(){
+		return iterator(data() + size());
+	}
+
+	constexpr const_iterator begin() const{
 		return const_iterator(data());
 	}
 
-	constexpr iterator end() const{
+	constexpr const_iterator end() const{
 		return const_iterator(data() + size());
 	}
 
@@ -89,5 +95,10 @@ public:
 
 	constexpr operator bool(){
 		return data_ != null;
+	}
+
+	constexpr void clear(){
+		data_ = null;
+		size_ = 0;
 	}
 };

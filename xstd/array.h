@@ -34,14 +34,12 @@ public:
 	xe_array& operator=(const xe_array<T>& other) = delete;
 
 	constexpr T& at(size_t i){
-		xe_assert(data_ != null);
 		xe_assert(i < size_);
 
 		return data_[i];
 	}
 
 	constexpr const T& at(size_t i) const{
-		xe_assert(data_ != null);
 		xe_assert(i < size_);
 
 		return data_[i];
@@ -121,8 +119,8 @@ public:
 		return true;
 	}
 
-	bool copy(const xe_array<T>& src){
-		return copy(src.data_, src.size_);
+	bool copy(const xe_slice<T>& src){
+		return copy(src.data(), src.size());
 	}
 
 	void free(){
@@ -132,25 +130,14 @@ public:
 		size_ = 0;
 	}
 
-	xe_slice<T> slice(size_t start, size_t end){
+	constexpr xe_slice<T> slice(size_t start, size_t end) const{
 		xe_assert(start <= end);
 		xe_assert(end <= size_);
 
 		return xe_slice<T>(data_ + start, end - start);
 	}
 
-	operator xe_slice<T>(){
-		return slice(0, size_);
-	}
-
-	constexpr xe_slice<const T> slice(size_t start, size_t end) const{
-		xe_assert(start <= end);
-		xe_assert(end <= size_);
-
-		return xe_slice<const T>(data_ + start, end - start);
-	}
-
-	constexpr operator xe_slice<const T>() const{
+	constexpr operator xe_slice<T>() const{
 		return slice(0, size_);
 	}
 

@@ -1,10 +1,8 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include "file.h"
-#include "../error.h"
-#include "xutil/xutil.h"
 #include "xutil/assert.h"
-#include "xutil/log.h"
+#include "../error.h"
 
 enum xe_file_iotype{
 	XE_FILE_OPEN = 0,
@@ -29,8 +27,10 @@ xe_loop& xe_file::loop(){
 }
 
 int xe_file::open(xe_cstr path, uint flags){
-	if(opening || fd_ >= 0)
-		return XE_EINVAL;
+	if(opening)
+		return XE_EALREADY;
+	if(fd_ >= 0)
+		return XE_STATE;
 	int ret = loop_.openat(AT_FDCWD, path, flags, 0, this, null, XE_FILE_OPEN, 0, XE_LOOP_HANDLE_FILE);
 
 	if(ret >= 0){
@@ -41,21 +41,23 @@ int xe_file::open(xe_cstr path, uint flags){
 	return ret;
 }
 
-int xe_file::read(xe_buf buf, uint len, ulong offset, ulong key){
+int xe_file::read(xe_ptr buf, uint len, ulong offset, ulong key){
 	if(opening || fd_ < 0)
-		return XE_EINVAL;
+		return XE_STATE;
 	return loop_.read(fd_, buf, len, offset, this, null, XE_FILE_READ, key, XE_LOOP_HANDLE_FILE);
 }
 
-int xe_file::write(xe_buf buf, uint len, ulong offset, ulong key){
+int xe_file::write(xe_cptr buf, uint len, ulong offset, ulong key){
 	if(opening || fd_ < 0)
-		return XE_EINVAL;
+		return XE_STATE;
 	return loop_.write(fd_, buf, len, offset, this, null, XE_FILE_WRITE, key, XE_LOOP_HANDLE_FILE);
 }
 
 int xe_file::cancelopen(){
-	if(!opening || closing)
-		return XE_EINVAL;
+	if(!opening)
+		return XE_ENOENT;
+	if(closing)
+		return XE_EALREADY;
 	int ret = loop_.cancel(handle, 0, null, null, 0, 0, XE_LOOP_HANDLE_DISCARD);
 
 	if(ret >= 0){

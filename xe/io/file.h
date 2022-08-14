@@ -11,7 +11,6 @@ private:
 	uint closing: 1;
 	uint flags: 30;
 	uint handle;
-	uint pad;
 
 	static void io(xe_loop_handle&, int);
 
@@ -34,8 +33,8 @@ public:
 
 	int open(xe_cstr path, uint flags);
 
-	int read(xe_buf buf, uint len, ulong offset, ulong key = 0);
-	int write(xe_buf buf, uint len, ulong offset, ulong key = 0);
+	int read(xe_ptr buf, uint len, ulong offset, ulong key = 0);
+	int write(xe_cptr buf, uint len, ulong offset, ulong key = 0);
 
 	int cancelopen();
 	void close();

@@ -1,5 +1,6 @@
 #include "request.h"
-#include "xutil/xutil.h"
+#include "xstd/types.h"
+#include "xutil/util.h"
 
 using namespace xurl;
 
@@ -55,12 +56,12 @@ void xe_request::set_follow_location(bool follow){
 	((xe_http_common_data*)data) -> set_follow_location(follow);
 }
 
-int xe_request::set_http_header(const xe_string_view& key, const xe_string_view& value, bool copy){
-	return ((xe_http_specific*)data) -> set_header(key, value, copy);
+int xe_request::set_http_header(const xe_string_view& key, const xe_string_view& value, uint flags){
+	return ((xe_http_specific*)data) -> set_header(key, value, flags);
 }
 
-int xe_request::set_http_method(const xe_string_view& method, bool copy){
-	return ((xe_http_specific*)data) -> set_method(method, copy);
+int xe_request::set_http_method(const xe_string_view& method, uint flags){
+	return ((xe_http_specific*)data) -> set_method(method, flags);
 }
 
 void xe_request::set_http_statusline_cb(xe_http_statusline_cb cb){
@@ -91,6 +92,10 @@ int xe_request::ws_pong(xe_cptr data, size_t size){
 	return ((xe_websocket_data*)data) -> pong(data, size);
 }
 
+int xe_request::ws_close(ushort code, xe_cptr data, size_t size){
+	return ((xe_websocket_data*)data) -> close(code, data, size);
+}
+
 void xe_request::set_ws_ready_cb(xe_websocket_ready_cb cb){
 	((xe_websocket_data*)data) -> set_ready_cb(cb);
 }
@@ -101,6 +106,10 @@ void xe_request::set_ws_ping_cb(xe_websocket_ping_cb cb){
 
 void xe_request::set_ws_message_cb(xe_websocket_message_cb cb){
 	((xe_websocket_data*)data) -> set_message_cb(cb);
+}
+
+void xe_request::set_ws_close_cb(xe_websocket_close_cb cb){
+	((xe_websocket_data*)data) -> set_close_cb(cb);
 }
 
 void xe_request::close(){

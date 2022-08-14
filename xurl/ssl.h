@@ -1,7 +1,6 @@
 #pragma once
-#include "xutil/xutil.h"
-#include "xe/error.h"
-#include "xutil/string.h"
+#include "xstd/types.h"
+#include "xstd/string.h"
 
 namespace xurl{
 

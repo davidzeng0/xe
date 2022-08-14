@@ -2,12 +2,14 @@
 #include <netdb.h>
 #include <netinet/tcp.h>
 #include <string.h>
-#include "xe/common.h"
-#include "xe/log.h"
-#include "xe/mem.h"
+#include "xutil/util.h"
+#include "xstd/types.h"
+#include "xutil/log.h"
+#include "xutil/mem.h"
 #include "xe/error.h"
 #include "xe/loop.h"
 #include "xe/clock.h"
+#include "xe/error.h"
 
 /* coroutine task structure */
 struct task{
@@ -40,7 +42,7 @@ struct task{
 
 static ulong t, reqs = 0, sends = 0, clients = 0;
 
-void timer_callback(xe_loop& loop, xe_timer& timer){
+int timer_callback(xe_loop& loop, xe_timer& timer){
 	ulong now = xe_time_ns();
 
 	xe_print("%lu reqs %lu sends in %f ms", reqs, sends, (now - t) / 1e6);
@@ -48,11 +50,13 @@ void timer_callback(xe_loop& loop, xe_timer& timer){
 	t = now;
 	reqs = 0;
 	sends = 0;
+
+	return 0;
 }
 
 static task echo(xe_loop& loop, int fd){
 	uint len = 16384;
-	xe_buf buf = xe_alloc_aligned<byte>(0, len); /* 0 = page size */
+	byte* buf = xe_alloc_aligned<byte>(0, len); /* 0 = page size */
 
 	int yes = 1;
 
@@ -64,7 +68,7 @@ static task echo(xe_loop& loop, int fd){
 		if(bytes_recvd <= 0){
 			if(bytes_recvd == 0)
 				break;
-			if(bytes_recvd == XE_ETOOMANYHANDLES)
+			if(bytes_recvd == XE_TOOMANYHANDLES)
 				xe_print("loop reached io limit");
 			else
 				xe_print("could not recv");
@@ -91,10 +95,11 @@ static task echo(xe_loop& loop, int fd){
 
 static task accept_connections(xe_loop& loop, int fd){
 	while(true){
-		int client = co_await loop.accept(fd, null, null, 0);
+		xe_promise promise = loop.accept(fd, null, null, 0);
+		int client = co_await promise;
 
 		if(client < 0){
-			if(client == XE_ETOOMANYHANDLES)
+			if(client == XE_TOOMANYHANDLES)
 				xe_print("loop reached io limit");
 			else
 				xe_print("could not accept client");
@@ -121,7 +126,7 @@ int main(){
 	ret = loop.init_options(options);
 
 	if(ret){
-		xe_print("loop_init %s", strerror(-ret));
+		xe_print("loop_init %s", xe_strerror(ret));
 
 		return -1;
 	}
@@ -140,29 +145,59 @@ int main(){
 	int fd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
 	int yes = 1;
 
-	setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes));
-
-	bind(fd, (sockaddr*)&addr, sizeof(sockaddr));
-	listen(fd, SOMAXCONN);
-
-	accept_connections(loop, fd); /* accept clients */
-
-	/* stats */
-
-	timer.callback = timer_callback;
-	t = xe_time_ns();
-
-	loop.timer_ms(timer, 1000, true);
-
-	ret = loop.run();
-
-	if(ret){
-		xe_print("loop_run %s", strerror(-ret));
+	if(fd < 0){
+		xe_print("socket %s", xe_strerror(xe_errno()));
 
 		return -1;
 	}
 
-	loop.destroy();
+	ret = setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes));
+
+	if(ret){
+		xe_print("setsockopt %s", xe_strerror(xe_errno()));
+
+		return -1;
+	}
+
+	ret = bind(fd, (sockaddr*)&addr, sizeof(sockaddr));
+
+	if(ret){
+		xe_print("bind %s", xe_strerror(xe_errno()));
+
+		return -1;
+	}
+
+	ret = listen(fd, SOMAXCONN);
+
+	if(ret){
+		xe_print("listen %s", xe_strerror(xe_errno()));
+
+		return -1;
+	}
+
+	task tsk = accept_connections(loop, fd); /* accept clients */
+
+	/* stats */
+	timer.callback = timer_callback;
+	t = xe_time_ns();
+
+	ret = loop.timer_ms(timer, 1000, 1000, XE_TIMER_REPEAT);
+
+	if(ret){
+		xe_print("loop timer_ms %s", xe_strerror(xe_errno()));
+
+		return -1;
+	}
+
+	ret = loop.run();
+
+	if(ret){
+		xe_print("loop_run %s", xe_strerror(ret));
+
+		return -1;
+	}
+
+	loop.close();
 
 	return 0;
 }

@@ -2,9 +2,8 @@
 #include <stdarg.h>
 #include <stdlib.h>
 #include "log.h"
-#include "mem.h"
 
-static int level = XE_LOG_INFO;
+static xe_loglevel level = XE_LOG_INFO;
 
 enum{
 	XE_LOG_ABORT = XE_LOG_NONE
@@ -87,7 +86,6 @@ void xe__print(uint type, xe_cstr file, uint line, xe_cstr str, ...){
 
 static void xe__log(uint type, xe_cstr name, xe_cptr addr, xe_cstr str, va_list args){
 	xe_cstr format;
-	xe_cstr typestr;
 
 	if(type > level)
 		return;

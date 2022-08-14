@@ -1,6 +1,6 @@
 #pragma once
 #include "http_base.h"
-#include "xutil/container/map.h"
+#include "xstd/map.h"
 
 namespace xurl{
 
@@ -13,6 +13,7 @@ enum xe_http_version{
 };
 
 struct xe_http_response{
+	xe_http_version version;
 	uint status;
 	xe_string status_text;
 	xe_map<xe_string, xe_string> headers;
