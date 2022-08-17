@@ -29,8 +29,8 @@ enum xe_handle_constants{
 /* handle pack
  * | 1 bit zero | 7 bit handle_type | 24 bit handle_index |
  */
-static inline uint xe_handle_packed_type(xe_loop_handle_type handle_type){
-	return (uint)handle_type << 24;
+static inline uint xe_handle_pack(xe_loop_handle_type handle_type, uint handle_index){
+	return ((uint)handle_type << 24) | handle_index;
 }
 
 static inline uint xe_handle_unpack_type(ulong packed){
@@ -77,7 +77,7 @@ int xe_loop::queue_io(int op, XE_IO_ARGS, F init_sqe){
 		handle -> callback = callback;
 	/* copy io parameters */
 	sqe -> opcode = op;
-	sqe -> user_data |= xe_handle_packed_type(handle_type);
+	sqe -> user_data = xe_handle_pack(handle_type, sqe -> user_data);
 
 	init_sqe(sqe);
 
@@ -688,7 +688,7 @@ void xe_loop::release(uint count){
 }
 
 void xe_loop::run_timer(xe_timer& timer, ulong now){
-	ulong align;
+	ulong align, delay;
 	int ret;
 
 	timer.active_ = false;
@@ -710,18 +710,21 @@ void xe_loop::run_timer(xe_timer& timer, ulong now){
 		return;
 	}
 
-	now = xe_time_ns();
+	delay = timer.delay;
 
-	if(timer.align_){
-		if(timer.delay > 0){
-			/* find how much we overshot */
-			align = (now - timer.expire.key) % timer.delay;
-
+	if(!delay)
+		now++;
+	else if(!timer.align_)
+		now += delay;
+	else if(delay > 0){
+		/* find how much we overshot */
+		if(now <= timer.expire.key + delay)
+			now = timer.expire.key + delay;
+		else{
+			align = (now - timer.expire.key) % delay;
 			/* subtract the overshot */
-			now += timer.delay - align;
+			now += delay - align;
 		}
-	}else{
-		now += timer.delay;
 	}
 
 	timer.expire.key = now;
@@ -864,7 +867,7 @@ int xe_loop::run(){
 			}
 		}else if(it != timers.end()){
 			/* no handles, but we have a timer to run */
-			res = waitsingle(timeout);
+			res = wait ? waitsingle(timeout) : 0;
 		}else{
 			/* nothing else to do */
 			break;

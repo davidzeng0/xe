@@ -6,7 +6,7 @@ ulong xe_time_ns(){
 
 	clock_gettime(CLOCK_MONOTONIC, &spec);
 
-	return spec.tv_nsec + spec.tv_sec * (ulong)1e9;
+	return spec.tv_nsec + spec.tv_sec * XE_NANOS_PER_SEC;
 }
 
 ulong xe_time_ms(){

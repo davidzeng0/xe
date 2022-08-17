@@ -93,6 +93,26 @@ public:
 		return const_iterator(data() + size());
 	}
 
+	constexpr T& front(){
+		return at(0);
+	}
+
+	constexpr const T& front() const{
+		return at(0);
+	}
+
+	constexpr T& back(){
+		return at(size_ - 1);
+	}
+
+	constexpr const T& back() const{
+		return at(size_ - 1);
+	}
+
+	constexpr bool empty() const{
+		return size_ == 0;
+	}
+
 	constexpr operator bool(){
 		return data_ != null;
 	}
@@ -101,4 +121,6 @@ public:
 		data_ = null;
 		size_ = 0;
 	}
+
+	~xe_slice() = default;
 };

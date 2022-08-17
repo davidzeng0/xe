@@ -68,6 +68,8 @@ public:
 
 		return xe_string_view(data_ + start, end - start);
 	}
+
+	~xe_string_view() = default;
 };
 
 template<>

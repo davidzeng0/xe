@@ -2,11 +2,19 @@
 #include "list.h"
 #include "slice.h"
 
-template<typename T>
-class xe_array : public xe_list<T>{
+template<typename T, class traits = xe_traits<T>>
+class xe_array : public xe_list<T, traits>{
 protected:
 	T* data_;
 	size_t size_;
+
+	using xe_list<T, traits>::construct_range;
+	using xe_list<T, traits>::deconstruct_range;
+	using xe_list<T, traits>::copy_range;
+	using xe_list<T, traits>::move_range;
+	using xe_list<T, traits>::realloc_range;
+	using xe_list<T, traits>::copy_assign_range;
+	using xe_list<T, traits>::move_assign_range;
 public:
 	using xe_list<T>::max_size;
 	using iterator = T*;
@@ -18,10 +26,15 @@ public:
 	}
 
 	constexpr xe_array(xe_array<T>&& other){
-		operator=(std::move(other));
+		data_ = other.data_;
+		size_ = other.size_;
+		other.data_ = null;
+		other.size_ = 0;
 	}
 
 	constexpr xe_array& operator=(xe_array<T>&& other){
+		free();
+
 		data_ = other.data_;
 		size_ = other.size_;
 		other.data_ = null;
@@ -49,7 +62,7 @@ public:
 		return at(i);
 	}
 
-	const T& operator[](size_t i) const{
+	constexpr const T& operator[](size_t i) const{
 		return at(i);
 	}
 
@@ -89,45 +102,20 @@ public:
 		return const_iterator(data() + size());
 	}
 
-	bool resize(size_t size){
-		if(size > max_size())
-			return false;
-		T* data = xe_trealloc(data_, size);
-
-		if(!data)
-			return false;
-		size_ = size;
-		data_ = data;
-
-		return true;
+	constexpr T& front(){
+		return at(0);
 	}
 
-	bool copy(const T* src_data, size_t src_size){
-		if(src_size > max_size())
-			return false;
-		T* data = xe_alloc<T>(src_size);
-
-		if(!data)
-			return false;
-		xe_dealloc(data_);
-
-		data_ = data;
-		size_ = src_size;
-
-		xe_tmemcpy(data_, src_data, src_size);
-
-		return true;
+	constexpr const T& front() const{
+		return at(0);
 	}
 
-	bool copy(const xe_slice<T>& src){
-		return copy(src.data(), src.size());
+	constexpr T& back(){
+		return at(size_ - 1);
 	}
 
-	void free(){
-		xe_dealloc(data_);
-
-		data_ = null;
-		size_ = 0;
+	constexpr const T& back() const{
+		return at(size_ - 1);
 	}
 
 	constexpr xe_slice<T> slice(size_t start, size_t end) const{
@@ -141,8 +129,53 @@ public:
 		return slice(0, size_);
 	}
 
-	constexpr operator bool(){
+	constexpr operator bool() const{
 		return data_ != null;
+	}
+
+	constexpr bool empty() const{
+		return size_ == 0;
+	}
+
+	bool resize(size_t size){
+		if(size > max_size())
+			return false;
+		T* data = realloc_range(data_, size_, size);
+
+		if(!data)
+			return false;
+		data_ = data;
+		size_ = size;
+
+		return true;
+	}
+
+	bool copy(const T* src_data, size_t src_size){
+		if(src_size > max_size())
+			return false;
+		T* data = xe_alloc<T>(src_size);
+
+		if(!data)
+			return false;
+		free();
+		copy_range(data, src_data, src_size);
+
+		data_ = data;
+		size_ = src_size;
+
+		return true;
+	}
+
+	bool copy(const xe_slice<T>& src){
+		return copy(src.data(), src.size());
+	}
+
+	void free(){
+		deconstruct_range(data_, size_);
+		xe_dealloc(data_);
+
+		data_ = null;
+		size_ = 0;
 	}
 
 	~xe_array(){

@@ -47,4 +47,6 @@ public:
 	int cancel();
 
 	void close();
+
+	~xe_socket() = default;
 };

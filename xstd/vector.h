@@ -2,14 +2,22 @@
 #include "list.h"
 #include "slice.h"
 
-template<typename T>
-class xe_vector : public xe_list<T>{
+template<typename T, class traits = xe_traits<T>>
+class xe_vector : public xe_list<T, traits>{
 protected:
 	T* data_;
 	size_t size_;
 	size_t capacity_;
+
+	using xe_list<T, traits>::construct_range;
+	using xe_list<T, traits>::deconstruct_range;
+	using xe_list<T, traits>::copy_range;
+	using xe_list<T, traits>::move_range;
+	using xe_list<T, traits>::realloc_range;
+	using xe_list<T, traits>::copy_assign_range;
+	using xe_list<T, traits>::move_assign_range;
 public:
-	using xe_list<T>::max_size;
+	using xe_list<T, traits>::max_size;
 	using iterator = T*;
 	using const_iterator = const T*;
 
@@ -20,13 +28,20 @@ public:
 	}
 
 	constexpr xe_vector(xe_vector<T>&& other){
-		operator=(std::move(other));
+		data_ = other.data_;
+		capacity_ = other.capacity_;
+		size_ = other.size_;
+		other.data_ = null;
+		other.capacity_ = 0;
+		other.size_ = 0;
 	}
 
 	constexpr xe_vector& operator=(xe_vector<T>&& other){
+		free();
+
 		data_ = other.data_;
 		capacity_ = other.capacity_;
-		size_ = other._length;
+		size_ = other.size_;
 		other.data_ = null;
 		other.capacity_ = 0;
 		other.size_ = 0;
@@ -45,48 +60,64 @@ public:
 		return capacity_;
 	}
 
-	T& at(size_t i){
+	constexpr T& at(size_t i){
 		xe_assert(i < size_);
 
 		return data_[i];
 	}
 
-	const T& at(size_t i) const{
+	constexpr const T& at(size_t i) const{
 		xe_assert(i < size_);
 
 		return data_[i];
 	}
 
-	T& operator[](size_t i){
+	constexpr T& operator[](size_t i){
 		return at(i);
 	}
 
-	const T& operator[](size_t i) const{
+	constexpr const T& operator[](size_t i) const{
 		return at(i);
 	}
 
-	iterator begin(){
+	constexpr iterator begin(){
 		return iterator(data());
 	}
 
-	iterator end(){
+	constexpr iterator end(){
 		return iterator(data() + size());
 	}
 
-	const_iterator begin() const{
+	constexpr const_iterator begin() const{
 		return const_iterator(data());
 	}
 
-	const_iterator end() const{
+	constexpr const_iterator end() const{
 		return const_iterator(data() + size());
 	}
 
-	const_iterator cbegin() const{
+	constexpr const_iterator cbegin() const{
 		return iterator(data());
 	}
 
-	const_iterator cend() const{
+	constexpr const_iterator cend() const{
 		return iterator(data() + size());
+	}
+
+	constexpr T& front(){
+		return at(0);
+	}
+
+	constexpr const T& front() const{
+		return at(0);
+	}
+
+	constexpr T& back(){
+		return at(size_ - 1);
+	}
+
+	constexpr const T& back() const{
+		return at(size_ - 1);
 	}
 
 	constexpr T* data(){
@@ -97,10 +128,31 @@ public:
 		return data_;
 	}
 
+	constexpr xe_slice<T> slice(size_t start, size_t end) const{
+		xe_assert(start <= end);
+		xe_assert(end <= size_);
+
+		return xe_slice<T>(data_ + start, end - start);
+	}
+
+	constexpr operator xe_slice<T>() const{
+		return slice(0, size_);
+	}
+
+	constexpr operator bool() const{
+		return data_ != null;
+	}
+
+	constexpr bool empty() const{
+		return size_ == 0;
+	}
+
 	bool copy(const T* src_data, size_t src_size){
 		if(src_size > max_size())
 			return false;
-		if(src_size > capacity_){
+		if(src_size <= capacity_)
+			deconstruct_range(data_, size_);
+		else{
 			T* data = xe_alloc<T>(src_size);
 
 			if(!data)
@@ -111,9 +163,9 @@ public:
 			capacity_ = src_size;
 		}
 
-		xe_tmemcpy(data_, src_data, src_size);
-
 		size_ = src_size;
+
+		copy_range(data_, src_data, src_size);
 
 		return true;
 	}
@@ -147,7 +199,7 @@ public:
 	bool append(const T* src_data, size_t src_size){
 		if(src_size > capacity_ - size_ && (src_size > max_size() - size_ || !grow(size_ + src_size)))
 			return false;
-		xe_tmemcpy(data_ + size_, src_data, src_size);
+		copy_range(data_ + size_, src_data, src_size);
 
 		size_ += src_size;
 
@@ -163,14 +215,22 @@ public:
 
 		T rval = std::move(at(size_ - 1));
 
+		xe_deconstruct(&at(size_ - 1));
+
 		size_--;
 
 		return rval;
 	}
 
 	bool resize(size_t size){
-		if(size > capacity_ && !reserve(size))
-			return false;
+		if(size < size_){
+			deconstruct_range(data_ + size, size_ - size);
+		}else{
+			if(size > capacity_ && !reserve(size))
+				return false;
+			construct_range(data_ + size_, size - size_);
+		}
+
 		size_ = size;
 
 		return true;
@@ -181,10 +241,22 @@ public:
 
 		if(capacity > max_size())
 			return false;
-		T* data = xe_trealloc(data_, capacity);
+		T* data;
 
-		if(!data)
-			return false;
+		if(traits::trivially_permanent_move){
+			data = xe_trealloc(data_, capacity);
+
+			if(!data) return false;
+		}else{
+			data = xe_alloc<T>(capacity);
+
+			if(!data)
+				return false;
+			move_range(data, data_, size_);
+			deconstruct_range(data_, size_);
+			xe_dealloc(data_);
+		}
+
 		capacity_ = capacity;
 		data_ = data;
 
@@ -220,26 +292,12 @@ public:
 	}
 
 	void free(){
+		deconstruct_range(data_, size_);
 		xe_dealloc(data_);
 
 		data_ = null;
 		size_ = 0;
 		capacity_ = 0;
-	}
-
-	xe_slice<T> slice(size_t start, size_t end){
-		xe_assert(start <= end);
-		xe_assert(end <= size_);
-
-		return xe_slice<T>(data_ + start, end - start);
-	}
-
-	operator xe_slice<T>(){
-		return slice(0, size_);
-	}
-
-	constexpr operator bool(){
-		return data_ != null;
 	}
 
 	~xe_vector(){

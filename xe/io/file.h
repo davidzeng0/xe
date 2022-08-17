@@ -38,4 +38,6 @@ public:
 
 	int cancelopen();
 	void close();
+
+	~xe_file() = default;
 };

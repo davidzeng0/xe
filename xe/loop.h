@@ -103,7 +103,7 @@ private:
 	xe_promise(const xe_promise&) = delete;
 	xe_promise& operator=(const xe_promise&) = delete;
 	xe_promise(xe_promise&&) = default;
-	xe_promise& operator=(xe_promise&&) = default;
+	xe_promise& operator=(xe_promise&&) = delete;
 
 	friend class xe_loop;
 public:
@@ -251,6 +251,8 @@ public:
 	xe_ptr iobuf_large() const;
 
 	void close();
+
+	~xe_loop() = default;
 
 	static xe_cstr class_name();
 };

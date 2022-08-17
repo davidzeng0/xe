@@ -50,4 +50,6 @@ public:
 	void reset(){
 		written = 0;
 	}
+
+	~xe_writer() = default;
 };

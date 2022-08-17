@@ -11,7 +11,7 @@ private:
 
 	union{
 		unordered_map map;
-		struct{} empty;
+		struct{} empty_struct;
 	};
 public:
 	using iterator = typename unordered_map::iterator;
@@ -87,6 +87,14 @@ public:
 	template<class K>
 	bool has(K&& key){
 		return find(std::forward<K>(key)) != end();
+	}
+
+	bool empty(){
+		return map.empty();
+	}
+
+	size_t size(){
+		return map.size();
 	}
 
 	void clear(){
