@@ -1,11 +1,18 @@
 # libraries
 This project is a WIP.
 
-## xe
-linux uring event loop with support for c++20 coroutines
+## xarch
+architecture specific optimized subroutines
+
+## xutil
+utility library
 
 ## xstd
 structures and algorithms
+
+## xe
+- io_uring event loop
+- event completions with c++20 coroutines
 
 ## xurl
 url client library
@@ -14,12 +21,6 @@ protocols:
 - file
 - http
 - websocket
-
-## xutil
-utility library
-
-## xarch
-architecture specific optimized subroutines
 
 # compiling
 
