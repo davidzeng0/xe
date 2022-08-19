@@ -22,6 +22,9 @@ protocols:
 - http
 - websocket
 
+# limitations
+- linux kernel 5.11 or newer
+
 # compiling
 
 ## prerequisites
