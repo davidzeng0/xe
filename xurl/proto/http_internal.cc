@@ -134,8 +134,9 @@ bool xe_http_internal_data::internal_set_header(const xe_string_view& rkey, cons
 }
 
 void xe_http_internal_data::free(){
-	headers.free();
 	url.free();
+	headers.free();
+	method.free();
 }
 
 xe_http_internal_data::~xe_http_internal_data(){

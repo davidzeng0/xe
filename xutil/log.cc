@@ -2,6 +2,7 @@
 #include <stdarg.h>
 #include <stdlib.h>
 #include "log.h"
+#include "assert.h"
 
 static xe_loglevel level = XE_LOG_INFO;
 
@@ -18,6 +19,13 @@ enum{
 #define XE_COLOR(color)		"\x1b[38;5;" #color "m"
 #define XE_COLOR_RESET		"\x1b[0m"
 
+#define XE_COLOR_ERROR XE_COLOR(1)
+#define XE_COLOR_WARN XE_COLOR(3)
+#define XE_COLOR_INFO XE_COLOR(122)
+#define XE_COLOR_VERBOSE XE_COLOR(224)
+#define XE_COLOR_DEBUG XE_COLOR(14)
+#define XE_COLOR_TRACE XE_COLOR(244)
+
 #define XE_FORMAT(color) color "%-6s" XE_COLOR(252) " %12s:%-4u " XE_COLOR_RESET
 #define XE_LOG_FORMAT(color) color "[%s @ %#x] " XE_COLOR_RESET
 
@@ -32,40 +40,43 @@ static void xe__print(uint type, xe_cstr file, uint line, xe_cstr str, va_list a
 	if(type > level)
 		return;
 	switch(type){
-		case XE_LOG_WARN:
-			format = XE_FORMAT(XE_COLOR(208));
-			typestr = "WARN";
+		case XE_LOG_ABORT:
+			format = XE_FORMAT(XE_COLOR_ERROR);
+			typestr = "ABORT";
 
 			break;
 		case XE_LOG_ERROR:
-			format = XE_FORMAT(XE_COLOR(196));
+			format = XE_FORMAT(XE_COLOR_ERROR);
 			typestr = "ERROR";
 
 			break;
+		case XE_LOG_WARN:
+			format = XE_FORMAT(XE_COLOR_WARN);
+			typestr = "WARN";
+
+			break;
+		case XE_LOG_INFO:
+			format = XE_FORMAT(XE_COLOR_INFO);
+			typestr = "INFO";
+
+			break;
 		case XE_LOG_VERBOSE:
-			format = XE_FORMAT(XE_COLOR(223));
+			format = XE_FORMAT(XE_COLOR_VERBOSE);
 			typestr = "VERBOSE";
 
 			break;
 		case XE_LOG_DEBUG:
-			format = XE_FORMAT(XE_COLOR(177));
+			format = XE_FORMAT(XE_COLOR_DEBUG);
 			typestr = "DEBUG";
 
 			break;
 		case XE_LOG_TRACE:
-			format = XE_FORMAT(XE_COLOR(244));
+			format = XE_FORMAT(XE_COLOR_TRACE);
 			typestr = "TRACE";
 
 			break;
-		case XE_LOG_ABORT:
-			format = XE_FORMAT(XE_COLOR(196));
-			typestr = "ABORT";
-
-			break;
-		case XE_LOG_INFO:
 		default:
-			format = XE_FORMAT(XE_COLOR(122));
-			typestr = "INFO";
+			xe_notreached();
 
 			break;
 	}
@@ -90,33 +101,36 @@ static void xe__log(uint type, xe_cstr name, xe_cptr addr, xe_cstr str, va_list 
 	if(type > level)
 		return;
 	switch(type){
-		case XE_LOG_WARN:
-			format = XE_LOG_FORMAT(XE_COLOR(208));
+		case XE_LOG_ABORT:
+			format = XE_LOG_FORMAT(XE_COLOR_ERROR);
 
 			break;
 		case XE_LOG_ERROR:
-			format = XE_LOG_FORMAT(XE_COLOR(196));
+			format = XE_LOG_FORMAT(XE_COLOR_ERROR);
 
 			break;
-		case XE_LOG_VERBOSE:
-			format = XE_LOG_FORMAT(XE_COLOR(223));
-
-			break;
-		case XE_LOG_DEBUG:
-			format = XE_LOG_FORMAT(XE_COLOR(177));
-
-			break;
-		case XE_LOG_TRACE:
-			format = XE_LOG_FORMAT(XE_COLOR(244));
-
-			break;
-		case XE_LOG_ABORT:
-			format = XE_LOG_FORMAT(XE_COLOR(196));
+		case XE_LOG_WARN:
+			format = XE_LOG_FORMAT(XE_COLOR_WARN);
 
 			break;
 		case XE_LOG_INFO:
+			format = XE_LOG_FORMAT(XE_COLOR_INFO);
+
+			break;
+		case XE_LOG_VERBOSE:
+			format = XE_LOG_FORMAT(XE_COLOR_VERBOSE);
+
+			break;
+		case XE_LOG_DEBUG:
+			format = XE_LOG_FORMAT(XE_COLOR_DEBUG);
+
+			break;
+		case XE_LOG_TRACE:
+			format = XE_LOG_FORMAT(XE_COLOR_TRACE);
+
+			break;
 		default:
-			format = XE_LOG_FORMAT(XE_COLOR(122));
+			xe_notreached();
 
 			break;
 	}

@@ -342,7 +342,7 @@ int xe_http::internal_redirect(xe_request_internal& request, xe_string&& url){
 	xe_return_error(parser.parse());
 
 	if(!matches(parser.scheme())){
-		data.url = std::move(url);
+		data.url = std::move(parser);
 
 		return XE_EXTERNAL_REDIRECT;
 	}

@@ -80,7 +80,8 @@ enum{
 };
 
 enum{
-	MAX_MESSAGE_SIZE = 100 * 1024 * 1024
+	MAX_MESSAGE_SIZE = 100 * 1024 * 1024,
+	CLOSE_TIMEOUT = 30 * 1000
 };
 
 struct message_queue{
@@ -130,6 +131,14 @@ protected:
 		auto callback = options().callbacks.*field;
 
 		return callback && callback(std::forward<Args>(args)...) ? true : false;
+	}
+
+	static int timeout(xe_loop& loop, xe_timer& timer){
+		xe_websocket_connection& conn = (xe_websocket_connection&)xe_containerof(timer, &xe_websocket_connection::timer);
+
+		conn.close(0);
+
+		return XE_ABORTED;
 	}
 
 	bool readable(){
@@ -474,8 +483,14 @@ public:
 
 		if(result < len)
 			goto queue;
-		if(closing && close_received)
-			return finish_close();
+		if(closing){
+			if(close_received)
+				return finish_close();
+			start_timer(CLOSE_TIMEOUT);
+
+			timer.callback = timeout;
+		}
+
 		return 0;
 	queue:
 		message_queue* node;
@@ -673,7 +688,7 @@ int xe_websocket::internal_redirect(xe_request_internal& request, xe_string&& ur
 	xe_return_error(parser.parse());
 
 	if(!matches(parser.scheme())){
-		data.url = std::move(url);
+		data.url = std::move(parser);
 
 		return XE_EXTERNAL_REDIRECT;
 	}

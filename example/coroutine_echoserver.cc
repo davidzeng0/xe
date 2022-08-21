@@ -95,8 +95,7 @@ static task echo(xe_loop& loop, int fd){
 
 static task accept_connections(xe_loop& loop, int fd){
 	while(true){
-		xe_promise promise = loop.accept(fd, null, null, 0);
-		int client = co_await promise;
+		int client = co_await loop.accept(fd, null, null, 0);
 
 		if(client < 0){
 			if(client == XE_TOOMANYHANDLES)

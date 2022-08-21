@@ -135,7 +135,7 @@ int xe_connection::socket_read(xe_connection& conn){
 int xe_connection::timeout(xe_loop& loop, xe_timer& timer){
 	xe_connection& conn = xe_containerof(timer, &xe_connection::timer);
 
-	conn.close(XE_ECONNREFUSED);
+	conn.close(conn.state == XE_CONNECTION_STATE_HANDSHAKE ? XE_SSL : XE_ECONNREFUSED);
 
 	return XE_ABORTED;
 }
@@ -467,6 +467,8 @@ void xe_connection::close(int error){
 		::close(fd);
 	if(buf != ctx -> loop().iobuf())
 		xe_dealloc(buf);
+	if(timer.active())
+		xe_assertz(stop_timer());
 	if(state == XE_CONNECTION_STATE_RESOLVING)
 		ctx -> resolve_remove(*this);
 	else if(state > XE_CONNECTION_STATE_RESOLVING){

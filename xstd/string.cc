@@ -59,6 +59,8 @@ xe_string::xe_string(xe_string&& src){
 }
 
 xe_string& xe_string::operator=(xe_string&& src){
+	free();
+
 	data_ = src.data_;
 	size_ = src.size_;
 	src.data_ = null;

@@ -146,7 +146,13 @@ private:
 	}
 
 	void rotate_swap(rbnode* node, rbnode* parent, rbnode* gparent, rbcolor node_color, rbcolor gparent_color, rbnode* rbnode::*a, rbnode* rbnode::*b){
+		/*
+		 * move node from the bottom to the top
+		 * grandparent moves down to node's side
+		 */
 		rotate(node, gparent, node_color, gparent_color, a, b);
+
+		/* move down node's parent */
 		shift_down(node, parent, a, b);
 	}
 
@@ -206,6 +212,7 @@ private:
 				}
 			}
 
+			/* perform rotations */
 			if(parent == gparent -> left){
 				if(node == parent -> left){
 					/* left - left */
@@ -235,31 +242,86 @@ private:
 	}
 
 	bool balance(rbnode*& sibling, rbnode* parent, rbnode* rbnode::*a, rbnode* rbnode::*b){
-		rbnode* child;
+		rbnode* child, *tmp;
 
 		if(sibling -> color == RED){
-			rotate(sibling, parent, BLACK, RED, a, b);
+			/*
+			 * red sibling case
+			 * sibling becomes the new parent
+			 * look for red children in sibling's opposite child (new sibling)
+			 * and perform optimized rotations
+			 */
+			tmp = parent -> parent;
+			sibling -> parent = tmp;
+			sibling -> color = BLACK;
 
-			sibling = parent -> right;
+			change_child(tmp, parent, sibling);
+
+			child = sibling ->* b;
+			tmp = child ->* a;
+
+			if(tmp && tmp -> color == RED){
+				/* left - left & right - right */
+				sibling ->* b = child;
+				child -> parent = sibling;
+
+				shift_down(child, parent, b, a);
+
+				child -> color = RED;
+				tmp -> color = BLACK;
+
+				return true;
+			}
+
+			tmp = child ->* b;
+
+			if(tmp && tmp -> color == RED){
+				/* left - right & right - left */
+				sibling ->* b = tmp;
+				tmp -> parent = sibling;
+
+				shift_down(tmp, parent, b, a);
+				shift_down(tmp, child, a, b);
+
+				tmp -> color = RED;
+
+				return true;
+			}
+
+			/* no red children, finish initial rotation */
+			shift_down(sibling, parent, b, a);
+
+			parent -> color = RED;
+			sibling = parent ->* a;
+
+			return false;
 		}
 
 		child = sibling -> left;
 
 		if(child && child -> color == RED){
-			if(a == &rbnode::left)
+			if(a == &rbnode::left){
+				/* left - left */
 				balance_rotate(child, sibling, parent, a, b);
-			else
+			}else{
+				/* right - left */
 				rotate_swap(child, sibling, parent, parent -> color, BLACK, a, b);
+			}
+
 			return true;
 		}
 
 		child = sibling -> right;
 
 		if(child && child -> color == RED){
-			if(a == &rbnode::left)
+			if(a == &rbnode::left){
+				/* left - right */
 				rotate_swap(child, sibling, parent, parent -> color, BLACK, a, b);
-			else
+			}else{
+				/* right - right */
 				balance_rotate(child, sibling, parent, a, b);
+			}
+
 			return true;
 		}
 
@@ -283,6 +345,7 @@ private:
 				break;
 			}
 
+			/* no red children */
 			sibling -> color = RED;
 
 			if(parent -> color == RED){
@@ -296,9 +359,7 @@ private:
 		}
 	}
 
-	void move_child(rbnode* to, rbnode* from, rbnode* rbnode::*side){
-		rbnode* child = from ->* side;
-
+	void move_child(rbnode* to, rbnode* child, rbnode* rbnode::*side){
 		to ->* side = child;
 
 		if(child) child -> parent = to;
@@ -342,8 +403,9 @@ private:
 				tmp = successor -> right;
 
 				move_child(parent, tmp, &rbnode::left);
-				move_child(successor, node, &rbnode::right);
+				move_child(successor, node -> right, &rbnode::right);
 			}else{
+				parent = successor;
 				tmp = successor -> right;
 			}
 
@@ -351,7 +413,7 @@ private:
 				tmp -> color = BLACK;
 			else if(successor -> color == BLACK)
 				double_black = parent;
-			move_child(successor, node, &rbnode::left);
+			move_child(successor, node -> left, &rbnode::left);
 			change_child(node -> parent, node, successor);
 
 			successor -> parent = node -> parent;
