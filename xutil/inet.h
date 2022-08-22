@@ -27,3 +27,15 @@ static inline ulong xe_htonll(ulong value){
 	return value;
 }
 #endif
+
+static inline ushort xe_ntohs(ushort value){
+	return xe_htons(value);
+}
+
+static inline uint xe_ntohl(uint value){
+	return xe_htonl(value);
+}
+
+static inline ulong xe_ntohll(ulong value){
+	return xe_htonll(value);
+}

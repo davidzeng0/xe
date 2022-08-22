@@ -140,7 +140,7 @@ public:
 	}
 
 	constexpr operator bool() const{
-		return data_ != null;
+		return !empty();
 	}
 
 	constexpr bool empty() const{

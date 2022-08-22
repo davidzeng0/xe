@@ -78,11 +78,9 @@ int xurl_ctx::resolve(xe_connection& conn, const xe_string_view& host, xe_endpoi
 		xe_unique_ptr<resolve_entry> data;
 		int err;
 
-		if(!host_copy.copy(host))
-			return XE_ENOMEM;
 		data.own(xe_zalloc<resolve_entry>());
 
-		if(!data)
+		if(!data || !host_copy.copy(host))
 			return XE_ENOMEM;
 		entry = endpoints.insert(std::move(host_copy));
 

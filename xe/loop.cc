@@ -9,8 +9,7 @@
 #include "xutil/mem.h"
 #include "io/socket.h"
 #include "io/file.h"
-#include "xurl/conn.h"
-#include "xurl/resolve.h"
+#include "xurl/ctx.h"
 #include "error.h"
 
 #define XE_IO_ARGS xe_ptr user_data, xe_loop_handle::xe_callback callback, ulong u1, ulong u2, xe_loop_handle_type handle_type

@@ -28,7 +28,7 @@ int xe_connection::io(xe_connection& conn, int res){
 				return XE_ECONNREFUSED;
 			}
 
-			xe_log_verbose(&conn, "connected to %.*s:%u after %zu tries in %f ms", conn.host.length(), conn.host.c_str(), xe_htons(conn.port), (size_t)conn.endpoint_index + 1, (xe_time_ns() - conn.time) / (float)XE_NANOS_PER_MS);
+			xe_log_verbose(&conn, "connected to %.*s:%u after %zu tries in %f ms", conn.host.length(), conn.host.c_str(), xe_ntohs(conn.port), (size_t)conn.endpoint_index + 1, (xe_time_ns() - conn.time) / (float)XE_NANOS_PER_MS);
 			xe_return_error(conn.init_socket());
 
 			if(conn.ssl_enabled){
@@ -252,7 +252,7 @@ int xe_connection::try_connect(xe_connection& conn){
 	char ip[INET6_ADDRSTRLEN];
 
 	inet_ntop(family, family == AF_INET ? (xe_ptr)&in.sin_addr : (xe_ptr)&in6.sin6_addr, ip, address_size);
-	xe_log_debug(&conn, "connecting to %.*s:%u - trying %s", conn.host.length(), conn.host.c_str(), xe_htons(conn.port), ip);
+	xe_log_debug(&conn, "connecting to %.*s:%u - trying %s", conn.host.length(), conn.host.c_str(), xe_ntohs(conn.port), ip);
 #endif
 	return 0;
 }

@@ -223,7 +223,7 @@ int xe_http::start(xe_request_internal& request){
 	if(!port){
 		port = secure ? 443 : 80;
 
-		xe_log_debug(this, "using default port %u", port);
+		xe_log_verbose(this, "using default port %u", port);
 	}
 
 	xe_host host;

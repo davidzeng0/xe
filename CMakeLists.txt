@@ -4,10 +4,7 @@ cmake_policy(SET CMP0069 NEW)
 include(CheckIPOSupported)
 check_ipo_supported()
 
-list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
-include(simd)
-include(cpu)
-
+set(XE_FLTO TRUE)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++20")
 
 if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
@@ -18,7 +15,6 @@ else()
 	message(SEND_ERROR "Unsupported Compiler")
 endif()
 
-set(XE_FLTO TRUE)
 if(${CMAKE_BUILD_TYPE} STREQUAL "Debug")
 	set(XE_DEBUG TRUE)
 elseif(${CMAKE_BUILD_TYPE} STREQUAL "Release")
@@ -28,9 +24,11 @@ elseif(${CMAKE_BUILD_TYPE} STREQUAL "Release")
 	endif()
 endif()
 
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
+include(simd)
+include(cpu)
 include(debug)
 
-include_directories(".")
 include_directories("include")
 
 set(SOURCES "")

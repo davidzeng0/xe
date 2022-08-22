@@ -3,8 +3,8 @@
 #include "http_internal.h"
 #include "xutil/inet.h"
 #include "xutil/encoding.h"
-#include "xutil/writer.h"
 #include "xstd/localarray.h"
+#include "../writer.h"
 #include "../random.h"
 
 using namespace xurl;
@@ -266,14 +266,18 @@ protected:
 		if(is_control){
 			if(opcode == WS_CLOSE){
 				ushort code;
+				uint start = 0;
 
 				close_received = true;
 
-				if(control_frame_length >= 2)
-					code = xe_htons(*(ushort*)control_frame_data.data());
-				else
+				if(control_frame_length >= 2){
+					start = 2;
+					code = xe_ntohs(*(ushort*)control_frame_data.data());
+				}else{
 					code = 1005;
-				if(call(&xe_websocket_callbacks::close, *request, code, control_frame_data.slice(0, control_frame_length)))
+				}
+
+				if(call(&xe_websocket_callbacks::close, *request, code, control_frame_data.slice(start, control_frame_length)))
 					return XE_ABORTED;
 				if(closing && !message_head)
 					return finish_close();
@@ -577,7 +581,7 @@ int xe_websocket::start(xe_request_internal& request){
 	if(!port){
 		port = secure ? 443 : 80;
 
-		xe_log_debug(this, "using default port %u", port);
+		xe_log_verbose(this, "using default port %u", port);
 	}
 
 	xe_websocket_connection* connection = xe_znew<xe_websocket_connection>(*this);
