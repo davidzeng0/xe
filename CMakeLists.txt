@@ -28,6 +28,7 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 include(simd)
 include(cpu)
 include(debug)
+include(ssl)
 
 include_directories("include")
 

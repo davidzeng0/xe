@@ -34,10 +34,6 @@ public:
 	xe_string_view(const xe_string_view& src) = default;
 	xe_string_view& operator=(const xe_string_view& src) = default;
 
-	constexpr xe_cstr c_str() const{
-		return data_;
-	}
-
 	constexpr size_t length() const{
 		return size_;
 	}

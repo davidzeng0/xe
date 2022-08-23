@@ -3,6 +3,7 @@
 #include "xurl.h"
 #include "proto/http.h"
 #include "proto/ws.h"
+#include "ssl.h"
 
 namespace xurl{
 
@@ -40,6 +41,7 @@ public:
 
 	void set_port(ushort port);
 	void set_connect_timeout(uint timeout_ms);
+	void set_ssl_ctx(xe_ssl_ctx& ctx);
 	void set_ssl_verify(bool verify);
 	void set_ip_mode(xe_ip_mode mode);
 	void set_recvbuf_size(uint size);

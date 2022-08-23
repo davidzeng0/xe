@@ -15,11 +15,11 @@ private:
 	xe_resolve_ctx resolve;
 	xe_ptr protocol_data[XE_PROTOCOL_LAST];
 	xe_map<xe_string, xe_endpoint> endpoints;
-	xe_ssl_ctx* ssl_ctx;
+	xe_ssl_ctx ssl_ctx;
 
 	friend class xurl_ctx;
 public:
-	int init(xe_ssl_ctx& ssl);
+	int init();
 
 	xe_ssl_ctx& ssl();
 

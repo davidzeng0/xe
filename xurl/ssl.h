@@ -11,6 +11,7 @@ private:
 	friend class xe_ssl;
 public:
 	int init();
+	int load_default_verify_locations();
 	int load_verify_locations(xe_cstr cafile, xe_cstr capath);
 	void close();
 };

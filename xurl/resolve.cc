@@ -252,7 +252,7 @@ void xe_resolve::resolved(xe_ptr data, int status, int timeouts, xe_ptr ptr){
 	}
 #ifdef XE_DEBUG
 	if(status != XE_ECANCELED){
-		xe_log_verbose(query.resolve, "resolved %s in %f ms, status: %s", query.host.c_str(), (xe_time_ns() - query.start) / (float)XE_NANOS_PER_MS, xe_strerror(status));
+		xe_log_verbose(query.resolve, "resolved %s in %f ms, status: %s", query.host.data(), (xe_time_ns() - query.start) / (float)XE_NANOS_PER_MS, xe_strerror(status));
 
 		char ip[INET6_ADDRSTRLEN];
 
@@ -404,7 +404,7 @@ int xe_resolve::resolve(const xe_string& host, xe_endpoint& endpoint){
 #ifdef XE_DEBUG
 	query -> start = xe_time_ns();
 #endif
-	ares_getaddrinfo((ares_channel)resolver, query -> host.c_str(), null, &hints, (ares_addrinfo_callback)resolved, query);
+	ares_getaddrinfo((ares_channel)resolver, query -> host.data(), null, &hints, (ares_addrinfo_callback)resolved, query);
 
 	if(query -> done){
 		/* finished synchronously */

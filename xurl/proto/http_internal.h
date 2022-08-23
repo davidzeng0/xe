@@ -41,6 +41,7 @@ class xe_http_internal_data{
 
 	struct xe_http_lowercase_hash{
 		size_t operator()(const xe_string_view& str) const{
+			// todo
 			return str.hash();
 		}
 	};

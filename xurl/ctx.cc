@@ -19,21 +19,36 @@ enum{
 	MAX_EVENTS = 256
 };
 
-int xurl_shared::init(xe_ssl_ctx& ssl){
-	xe_return_error(resolve.init());
+int xurl_shared::init(){
+	int err;
 
-	ssl_ctx = &ssl;
+	if((err = resolve.init()))
+		return err;
+	if((err = ssl_ctx.init())){
+		resolve.close();
+
+		return err;
+	}
+
+	if((err = ssl_ctx.load_default_verify_locations())){
+		resolve.close();
+		ssl_ctx.close();
+
+		return err;
+	}
+
 	endpoints.init();
 
 	return 0;
 }
 
 xe_ssl_ctx& xurl_shared::ssl(){
-	return *ssl_ctx;
+	return ssl_ctx;
 }
 
 void xurl_shared::close(){
 	resolve.close();
+	ssl_ctx.close();
 }
 
 void xurl_ctx::poll(){

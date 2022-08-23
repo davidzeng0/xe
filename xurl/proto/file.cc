@@ -166,7 +166,7 @@ int xe_file::open(xe_request_internal& request, xe_url&& url){
 		return err;
 	}
 
-	xe_log_verbose(this, "opened file request for: %s", url.href().c_str());
+	xe_log_verbose(this, "opened file request for: %s", url.href().data());
 
 	request.data = data;
 

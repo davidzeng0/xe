@@ -1,5 +1,6 @@
 #pragma once
 #include "xstd/types.h"
+#include "../ssl.h"
 #include "../protocol.h"
 
 namespace xurl{
@@ -10,6 +11,7 @@ protected:
 	uint recvbuf_size;
 	ushort port;
 	xe_ip_mode ip_mode;
+	xe_ssl_ctx* ssl_ctx;
 
 	bool ssl_verify: 1;
 
@@ -18,6 +20,7 @@ protected:
 		recvbuf_size = 0;
 		port = 0;
 		ip_mode = XE_IP_ANY;
+		ssl_ctx = null;
 		ssl_verify = true;
 	}
 public:
@@ -51,6 +54,14 @@ public:
 
 	xe_ip_mode get_ip_mode(){
 		return ip_mode;
+	}
+
+	void set_ssl_ctx(xe_ssl_ctx& ssl_ctx_){
+		ssl_ctx = &ssl_ctx_;
+	}
+
+	xe_ssl_ctx* get_ssl_ctx(){
+		return ssl_ctx;
 	}
 
 	void set_ssl_verify(bool ssl_verify_){

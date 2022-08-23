@@ -592,7 +592,7 @@ int xe_websocket::start(xe_request_internal& request){
 	connection -> set_ip_mode(data.ip_mode);
 
 	if((err = connection -> init(*ctx)) ||
-		(secure && (err = connection -> init_ssl(ctx -> ssl()))) ||
+		(secure && (err = connection -> init_ssl(data.get_ssl_ctx() ? *data.get_ssl_ctx() : ctx -> ssl()))) ||
 		(err = connection -> connect(data.url.hostname(), port))){
 		connection -> close(err);
 
@@ -637,7 +637,7 @@ int xe_websocket::open(xe_request_internal& request, xe_url&& url){
 		return err;
 	}
 
-	xe_log_verbose(this, "opened ws request for: %s", data -> url.href().c_str());
+	xe_log_verbose(this, "opened ws request for: %s", data -> url.href().data());
 
 	request.data = data;
 
@@ -658,7 +658,7 @@ int xe_websocket::open(xe_websocket_data_internal& data, xe_url&& url, bool redi
 
 	wc_InitSha(&sha);
 	wc_ShaUpdate(&sha, data.key.data(), data.key.size());
-	wc_ShaUpdate(&sha, (byte*)accept.c_str(), accept.length());
+	wc_ShaUpdate(&sha, (byte*)accept.data(), accept.length());
 	wc_ShaFinal(&sha, sum.data());
 
 	xe_base64_encode(XE_BASE64_PAD, data.accept.data(), data.accept.size(), sum.data(), sum.size());

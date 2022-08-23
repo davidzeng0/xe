@@ -2,27 +2,32 @@
 #include <wolfssl/ssl.h>
 #include <wolfssl/error-ssl.h>
 #include "xe/error.h"
+#include "xconfig/ssl.h"
 #include "ssl.h"
 
 using namespace xurl;
 
 int xe_ssl_ctx::init(){
-	data = wolfSSL_CTX_new(wolfTLS_client_method());
+	WOLFSSL_CTX* ctx = wolfSSL_CTX_new(wolfTLS_client_method());
 
-	if(!data)
+	if(!ctx)
 		return XE_ENOMEM;
+	wolfSSL_CTX_set_verify(ctx, SSL_VERIFY_NONE, null);
+
+	data = ctx;
+
 	return 0;
+}
+
+int xe_ssl_ctx::load_default_verify_locations(){
+	return load_verify_locations(XE_SSL_CAFILE, XE_SSL_CAPATH);
 }
 
 int xe_ssl_ctx::load_verify_locations(xe_cstr cafile, xe_cstr capath){
 	WOLFSSL_CTX* ctx = (WOLFSSL_CTX*)data;
 
-	if(wolfSSL_CTX_load_verify_locations(ctx, cafile, capath) != WOLFSSL_SUCCESS){
-		wolfSSL_CTX_free(ctx);
-
+	if(wolfSSL_CTX_load_verify_locations(ctx, cafile, capath) != WOLFSSL_SUCCESS)
 		return XE_SSL_BADCERTS;
-	}
-
 	return 0;
 }
 
@@ -36,16 +41,13 @@ int xe_ssl::init(xe_ssl_ctx& ctx){
 
 	if(!ssl)
 		return XE_ENOMEM;
-	wolfSSL_set_verify(ssl, SSL_VERIFY_NONE, null);
-
 	data = ssl;
 
 	return 0;
 }
 
 void xe_ssl::close(){
-	if(data)
-		wolfSSL_free((WOLFSSL*)data);
+	if(data) wolfSSL_free((WOLFSSL*)data);
 }
 
 void xe_ssl::set_fd(int fd){
@@ -56,19 +58,15 @@ int xe_ssl::verify_host(const xe_string_view& host){
 	WOLFSSL* ssl = (WOLFSSL*)data;
 	xe_string host_copy;
 
-	int err = 0;
-
 	wolfSSL_set_verify(ssl, SSL_VERIFY_PEER, null);
 
-	if(wolfSSL_UseSNI(ssl, WOLFSSL_SNI_HOST_NAME, host.c_str(), host.length()) != WOLFSSL_SUCCESS)
+	if(wolfSSL_UseSNI(ssl, WOLFSSL_SNI_HOST_NAME, host.data(), host.length()) != WOLFSSL_SUCCESS)
 		return XE_ENOMEM;
 	if(!host_copy.copy(host))
 		return XE_ENOMEM;
 	if(wolfSSL_check_domain_name(ssl, host_copy.c_str()) != WOLFSSL_SUCCESS)
-		err = XE_ENOMEM;
-	host_copy.free();
-
-	return err;
+		return XE_ENOMEM;
+	return 0;
 }
 
 int xe_ssl::set_alpn(const xe_string_view& protocols){
@@ -100,7 +98,7 @@ int xe_ssl::connect(int flags){
 		case SOCKET_ERROR_E:
 			err = xe_errno();
 
-			return err ? err : XE_ECONNRESET;
+			return err ? err : XE_SSL; /* recv error if err == 0 */
 	}
 
 	return XE_SSL;

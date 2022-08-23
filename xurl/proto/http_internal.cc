@@ -495,12 +495,12 @@ int xe_http_singleconnection::start(){
 	if(!path.size()) path = "/";
 
 	if(version != XE_HTTP_VERSION_0_9){
-		xe_log_trace(this, "%.*s %.*s %s", specific -> method.length(), specific -> method.c_str(), path.length(), path.c_str(), http_version_to_string(version));
+		xe_log_trace(this, "%.*s %.*s %s", specific -> method.length(), specific -> method.c_str(), path.length(), path.data(), http_version_to_string(version));
 
 		for(auto& t : specific -> headers)
 			xe_log_trace(this, "%.*s: %.*s", t.first.length(), t.first.c_str(), xe_min<size_t>(100, t.second.length()), t.second.c_str());
 	}else{
-		xe_log_trace(this, "GET %.*s", path.length(), path.c_str());
+		xe_log_trace(this, "GET %.*s", path.length(), path.data());
 	}
 #endif
 	return 0;
@@ -648,7 +648,7 @@ ssize_t xe_http_singleconnection::parse_headers(byte* buf, size_t len){
 				}
 
 				xe_return_error(handle_status_line(version, status, reason));
-				xe_log_trace(this, "HTTP/%u.%u %u %.*s", version / 10, version % 10, status, reason.length(), reason.c_str());
+				xe_log_trace(this, "HTTP/%u.%u %u %.*s", version / 10, version % 10, status, reason.length(), reason.data());
 
 				if((status >= 100 && status < 200) || status == 204 || status == 304) bodyless = true;
 			}else{
@@ -658,7 +658,7 @@ ssize_t xe_http_singleconnection::parse_headers(byte* buf, size_t len){
 
 				if(!value)
 					xe_log_warn(this, "header separator not found");
-				xe_log_trace(this, "%.*s: %.*s", key.length(), key.c_str(), value.length(), value.c_str());
+				xe_log_trace(this, "%.*s: %.*s", key.length(), key.data(), value.length(), value.data());
 				xe_return_error(handle_header(key, value));
 			}
 		}

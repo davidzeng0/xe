@@ -269,7 +269,7 @@ int xe_http::start(xe_request_internal& request){
 	node -> connection.set_ip_mode(data.ip_mode);
 
 	if((err = node -> connection.init(*ctx)) ||
-		(secure && (err = node -> connection.init_ssl(ctx -> ssl()))) ||
+		(secure && (err = node -> connection.init_ssl(data.get_ssl_ctx() ? *data.get_ssl_ctx() : ctx -> ssl()))) ||
 		(err = node -> connection.connect(data.url.hostname(), port))){
 		node -> connection.close(err);
 
@@ -314,7 +314,7 @@ int xe_http::open(xe_request_internal& request, xe_url&& url){
 		return err;
 	}
 
-	xe_log_verbose(this, "opened http request for: %s", data -> url.href().c_str());
+	xe_log_verbose(this, "opened http request for: %s", data -> url.href().data());
 
 	request.data = data;
 

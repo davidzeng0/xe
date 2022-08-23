@@ -286,9 +286,12 @@ public:
 	}
 
 	void trim(){
-		if(capacity_ <= size_) return;
-		if(size_) reserve(size_);
-		else free();
+		if(capacity_ <= size_)
+			return;
+		if(size_)
+			reserve(size_);
+		else
+			free();
 	}
 
 	void free(){
