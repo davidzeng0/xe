@@ -17,12 +17,12 @@ enum xe_request_state{
 
 class xe_request{
 public:
-	xe_protocol_specific* data;
-protected:
 	typedef void (*state_cb)(xe_request& request, xe_request_state state);
 	typedef int (*write_cb)(xe_request& request, xe_ptr buf, size_t size);
 	typedef void (*done_cb)(xe_request& request, int error);
 
+	xe_protocol_specific* data;
+protected:
 	struct xe_callbacks{
 		state_cb state;
 		write_cb write;

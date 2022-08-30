@@ -1,4 +1,5 @@
 #pragma once
+#include <type_traits>
 #include "cpu.h"
 #include "xstd/types.h"
 #include "xutil/util.h"
@@ -77,4 +78,28 @@ static constexpr int xe_strncmpz(xe_cptr s1, xe_cptr s2, size_t n){
 	if(std::is_constant_evaluated())
 		return __builtin_strncmp((xe_cstr)s1, (xe_cstr)s2, n);
 	return xe_arch_strncmpz(s1, s2, n);
+}
+
+static constexpr uint xe_ctz(uint x){
+	if(std::is_constant_evaluated())
+		return __builtin_ctz(x);
+	return xe_arch_ctz(x);
+}
+
+static constexpr uint xe_clz(uint x){
+	if(std::is_constant_evaluated())
+		return __builtin_clz(x);
+	return xe_arch_clz(x);
+}
+
+static constexpr uint xe_ctzl(ulong x){
+	if(std::is_constant_evaluated())
+		return __builtin_ctzl(x);
+	return xe_arch_ctzl(x);
+}
+
+static constexpr uint xe_clzl(ulong x){
+	if(std::is_constant_evaluated())
+		return __builtin_clzl(x);
+	return xe_arch_clzl(x);
 }
