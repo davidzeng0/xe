@@ -9,3 +9,5 @@ enum xe_time_constants{
 
 ulong xe_time_ns(); /* system time in nanoseconds */
 ulong xe_time_ms(); /* system time in milliseconds */
+ulong xe_realtime_ns(); /* time since epoch in nanoseconds */
+ulong xe_realtime_ms(); /* time since epoch in milliseconds */

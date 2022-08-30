@@ -1,6 +1,7 @@
 #include <wolfssl/wolfcrypt/sha.h>
 #include "ws.h"
 #include "http_internal.h"
+#include "xe/clock.h"
 #include "xutil/inet.h"
 #include "xutil/encoding.h"
 #include "xstd/localarray.h"
@@ -565,7 +566,7 @@ xe_websocket::xe_websocket(xurl_ctx& ctx): xe_http_protocol(ctx, XE_PROTOCOL_WEB
 	if(xe_crypto_random(&seed, sizeof(seed)) == sizeof(seed))
 		random.seed(seed);
 	else
-		random.seed();
+		random.seed(xe_realtime_ms());
 }
 
 int xe_websocket::start(xe_request_internal& request){

@@ -1,18 +1,34 @@
 #include <time.h>
 #include "clock.h"
 
+static ulong xe_nstime(clockid_t clock){
+	timespec time;
+
+	clock_gettime(clock, &time);
+
+	return time.tv_nsec + time.tv_sec * XE_NANOS_PER_SEC;
+}
+
+static ulong xe_mstime(clockid_t clock){
+	timespec time;
+
+	clock_gettime(clock, &time);
+
+	return time.tv_nsec / XE_NANOS_PER_MS + time.tv_sec * XE_MILLIS_PER_SEC;
+}
+
 ulong xe_time_ns(){
-	timespec spec;
-
-	clock_gettime(CLOCK_MONOTONIC, &spec);
-
-	return spec.tv_nsec + spec.tv_sec * XE_NANOS_PER_SEC;
+	return xe_nstime(CLOCK_MONOTONIC);
 }
 
 ulong xe_time_ms(){
-	timespec spec;
+	return xe_mstime(CLOCK_MONOTONIC);
+}
 
-	clock_gettime(CLOCK_MONOTONIC, &spec);
+ulong xe_realtime_ns(){
+	return xe_nstime(CLOCK_REALTIME);
+}
 
-	return spec.tv_nsec / XE_NANOS_PER_MS + spec.tv_sec * XE_MILLIS_PER_SEC;
+ulong xe_realtime_ms(){
+	return xe_mstime(CLOCK_REALTIME);
 }
