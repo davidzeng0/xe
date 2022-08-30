@@ -82,8 +82,8 @@ public:
 	xe_string(xe_string&& src);
 	xe_string& operator=(xe_string&& other);
 
-	xe_string(const xe_string_view& other) = delete;
-	xe_string& operator=(const xe_string_view& other) = delete;
+	xe_string(const xe_string& other) = delete;
+	xe_string& operator=(const xe_string& other) = delete;
 
 	constexpr char* data(){
 		return data_;
