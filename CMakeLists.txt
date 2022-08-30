@@ -8,11 +8,27 @@ set(XE_FLTO TRUE)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++20")
 
 if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
-	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fcoroutines -fno-pie -no-pie")
+	if(CMAKE_CXX_COMPILER_VERSION VERSION_LESS "10")
+		message(SEND_ERROR "gcc must be atleast version 10")
+	endif()
+
+	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-pie -no-pie")
+
+	if(CMAKE_CXX_COMPILER_VERSION VERSION_LESS "11")
+		set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fcoroutines")
+	endif()
 elseif(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
-	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fcoroutines-ts -stdlib=libc++")
+	if(CMAKE_CXX_COMPILER_VERSION VERSION_LESS "12")
+		message(SEND_ERROR "clang must be atleast version 12")
+	endif()
+
+	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -stdlib=libc++")
+
+	if(CMAKE_CXX_COMPILER_VERSION VERSION_LESS "14")
+		set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fcoroutines-ts")
+	endif()
 else()
-	message(SEND_ERROR "Unsupported Compiler")
+	message(SEND_ERROR "Compile with gcc10, clang12, or newer")
 endif()
 
 if(${CMAKE_BUILD_TYPE} STREQUAL "Debug")
