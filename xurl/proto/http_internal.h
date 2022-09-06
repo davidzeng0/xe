@@ -1,4 +1,5 @@
 #pragma once
+#include "xarch/arch.h"
 #include "xstd/string.h"
 #include "xutil/encoding.h"
 #include "xe/error.h"
@@ -23,7 +24,7 @@ public:
 
 	bool copy(const xe_string_view& src);
 	void own(const xe_string_view& src);
-	void free();
+	void clear();
 
 	xe_http_string& operator=(const xe_string_view& src);
 	bool operator==(const xe_http_string& other) const;
@@ -41,8 +42,7 @@ class xe_http_internal_data{
 
 	struct xe_http_lowercase_hash{
 		size_t operator()(const xe_string_view& str) const{
-			// todo
-			return str.hash();
+			return xe_arch_hash_lowercase(str.data(), str.length());
 		}
 	};
 public:
@@ -60,7 +60,7 @@ public:
 
 	bool internal_set_method(const xe_string_view& method, uint flags);
 	bool internal_set_header(const xe_string_view& key, const xe_string_view& value, uint flags);
-	void free();
+	void clear();
 
 	~xe_http_internal_data();
 };

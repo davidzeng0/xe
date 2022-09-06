@@ -1,7 +1,6 @@
 #pragma once
 #include <new>
 #include "xstd/types.h"
-#include "xarch/arch.h"
 #include "util.h"
 
 xe_ptr xe_malloc(size_t elem_size, size_t bytes);

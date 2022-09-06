@@ -2,14 +2,14 @@
 #include <liburing.h>
 
 #if !defined XE_COROUTINE_EXPERIMENTAL && defined __clang__ && __clang_major__ < 14
-#define XE_COROUTINE_EXPERIMENTAL 1
+	#define XE_COROUTINE_EXPERIMENTAL 1
 #endif
 
 #if XE_COROUTINE_EXPERIMENTAL == 1
 #include <experimental/coroutine>
 
 namespace std{
-	using namespace std::experimental;
+	using experimental::coroutine_handle;
 };
 
 #else
@@ -52,7 +52,8 @@ enum xe_timer_flags{
 	XE_TIMER_NONE = 0x0,
 	XE_TIMER_REPEAT = 0x1,
 	XE_TIMER_ABS = 0x2,
-	XE_TIMER_ALIGN = 0x4 /* set next timeout to expire time + repeat instead of now + repeat */
+	XE_TIMER_ALIGN = 0x4, /* set next timeout to expire time + repeat instead of now + repeat */
+	XE_TIMER_PASSIVE = 0x8 /* timer does not prevent loop from exiting */
 };
 
 class xe_timer{
@@ -63,6 +64,7 @@ private:
 	bool active_: 1;
 	bool repeat_: 1;
 	bool align_: 1;
+	bool passive_: 1;
 	bool in_callback: 1;
 
 	friend class xe_loop;
@@ -77,6 +79,7 @@ public:
 	bool active() const;
 	bool repeat() const;
 	bool align() const;
+	bool passive() const;
 };
 
 struct xe_loop_options{
@@ -130,6 +133,7 @@ private:
 	xe_loop_handle* handles;
 
 	xe_rbtree<ulong> timers;
+	size_t active_timers;
 
 	bool handle_invalid(int);
 	int enter(uint, uint, uint, ulong);

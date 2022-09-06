@@ -110,9 +110,7 @@ int xe_ssl::get_alpn_protocol(xe_string_view& proto){
 	char* name;
 	ushort size;
 
-	int err = wolfSSL_ALPN_GetProtocol(ssl, &name, &size);
-
-	switch(err){
+	switch(wolfSSL_ALPN_GetProtocol(ssl, &name, &size)){
 		case WOLFSSL_SUCCESS:
 			proto = xe_string_view(name, size);
 

@@ -14,7 +14,7 @@ xe_http_string::xe_http_string(xe_http_string&& other): xe_string(std::move(othe
 }
 
 xe_http_string& xe_http_string::operator=(xe_http_string&& other){
-	free();
+	clear();
 
 	xe_string::operator=(std::move(other));
 
@@ -25,7 +25,7 @@ xe_http_string& xe_http_string::operator=(xe_http_string&& other){
 }
 
 bool xe_http_string::copy(const xe_string_view& src){
-	free();
+	clear();
 
 	if(!xe_string::copy(src))
 		return false;
@@ -40,16 +40,16 @@ void xe_http_string::own(const xe_string_view& src){
 	owner = true;
 }
 
-void xe_http_string::free(){
+void xe_http_string::clear(){
 	if(owner)
-		xe_string::free();
+		xe_string::clear();
 	owner = false;
 	data_ = null;
 	size_ = 0;
 }
 
 xe_http_string& xe_http_string::operator=(const xe_string_view& src){
-	free();
+	clear();
 
 	data_ = (char*)src.data();
 	size_ = src.size();
@@ -62,7 +62,7 @@ bool xe_http_string::operator==(const xe_http_string& other) const{
 }
 
 xe_http_string::~xe_http_string(){
-	free();
+	clear();
 }
 
 void xe_http_connection::close(int error){
@@ -86,9 +86,9 @@ void xe_http_protocol::closed(xe_http_connection& connection){
 
 int xe_http_protocol::open(xe_http_internal_data& data, xe_url&& url, bool redirect){
 	if(redirect)
-		data.url.free();
+		data.url.clear();
 	else{
-		data.free();
+		data.clear();
 		data.method = "GET";
 	}
 
@@ -133,14 +133,14 @@ bool xe_http_internal_data::internal_set_header(const xe_string_view& rkey, cons
 	return headers.insert(std::move(key), std::move(value));
 }
 
-void xe_http_internal_data::free(){
-	url.free();
-	headers.free();
-	method.free();
+void xe_http_internal_data::clear(){
+	url.clear();
+	headers.clear();
+	method.clear();
 }
 
 xe_http_internal_data::~xe_http_internal_data(){
-	free();
+	clear();
 }
 
 xe_string_view xe_http_common_data::location() const{
@@ -395,8 +395,10 @@ ssize_t xe_http_singleconnection::data(xe_ptr buf, size_t size){
 	if(request_active)
 		complete(0);
 	if(!request_active){
-		transferctl(XE_PAUSE_ALL);
-		// start_timer(HTTP_KEEPALIVE_TIMEOUT); todo idle timeout
+		timer.callback = timeout;
+
+		xe_return_error(transferctl(XE_PAUSE_ALL));
+		start_timer(HTTP_KEEPALIVE_TIMEOUT, XE_TIMER_PASSIVE);
 	}
 
 	return error ? error : in;
@@ -407,7 +409,7 @@ void xe_http_singleconnection::close(int error){
 
 	if(request)
 		complete(error);
-	client_headers.free();
+	client_headers.clear();
 
 	xe_dealloc(header_buffer);
 
@@ -425,9 +427,9 @@ void xe_http_singleconnection::complete(int error){
 	if(!error && follow){
 		follow = false;
 		proto.redirect(req, std::move(location));
-		location.free();
+		location.clear();
 	}else{
-		location.free();
+		location.clear();
 		req.complete(error);
 	}
 }
@@ -455,7 +457,7 @@ int xe_http_singleconnection::send_headers(){
 		client_headers.resize(0);
 		send_offset = 0;
 	}else{
-		transferctl(XE_RESUME_SEND);
+		return transferctl(XE_RESUME_SEND);
 	}
 
 	return 0;
@@ -475,7 +477,7 @@ int xe_http_singleconnection::start(){
 	send_offset = 0;
 	data_len = 0;
 	follow = false;
-	location.free();
+	location.clear();
 
 	if(version == XE_HTTP_VERSION_0_9){
 		read_state = READ_BODY;
@@ -550,7 +552,7 @@ int xe_http_singleconnection::handle_header(xe_string_view& key, xe_string_view&
 		if(value.equal_case("keep-alive"))
 			connection_close = false;
 	}else if(specific -> get_follow_location() && key.equal_case("Location")){
-		location.free();
+		location.clear();
 
 		if(!location.copy(value))
 			return XE_ENOMEM;
@@ -566,7 +568,7 @@ inline int xe_http_singleconnection::read_line(byte*& buf, size_t& len, xe_strin
 	size_t next, line_end;
 	byte* line_buf;
 
-	next = xe_string_view(buf, len).index_of('\n');
+	next = xe_string_view((char*)buf, len).index_of('\n');
 
 	if(next == -1){
 		if(len >= HEADERBUFFER_SIZE - header_offset || len >= MAXIMUM_HEADER_SIZE - header_total) /* would fill the buffer and have no space for newline */
@@ -612,7 +614,7 @@ inline int xe_http_singleconnection::read_line(byte*& buf, size_t& len, xe_strin
 
 	if(line_end > 0 && line_buf[line_end - 1] == '\r')
 		line_end--;
-	line = xe_string_view(line_buf, line_end);
+	line = xe_string_view((char*)line_buf, line_end);
 
 	return 0;
 }
@@ -732,7 +734,7 @@ int xe_http_singleconnection::chunked_body(byte* buf, size_t len){
 					chunked_state = CHUNKED_READ_EXTENSION;
 				break;
 			case CHUNKED_READ_EXTENSION:
-				result = xe_string_view(buf, len).index_of('\n');
+				result = xe_string_view((char*)buf, len).index_of('\n');
 
 				if(result == -1)
 					len = 0;
@@ -770,7 +772,7 @@ int xe_http_singleconnection::chunked_body(byte* buf, size_t len){
 
 				break;
 			case CHUNKED_READ_END:
-				result = xe_string_view(buf, len).index_of('\n');
+				result = xe_string_view((char*)buf, len).index_of('\n');
 
 				if(result == -1)
 					len = 0;
@@ -898,7 +900,9 @@ int xe_http_singleconnection::open(xe_request_internal& req){
 		return 0;
 	}
 
-	transferctl(XE_RESUME_RECV);
+	if(timer.active())
+		stop_timer();
+	xe_return_error(transferctl(XE_RESUME_RECV));
 
 	return start();
 }

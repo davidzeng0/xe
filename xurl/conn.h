@@ -26,7 +26,6 @@ private:
 	static int try_connect(xe_connection&);
 	static int ready(xe_connection&);
 	static int socket_read(xe_connection&);
-	static int timeout(xe_loop&, xe_timer&);
 
 	friend class xurl_ctx;
 
@@ -59,11 +58,13 @@ protected:
 	xe_connection_state state;
 	xe_timer timer;
 
+	static int timeout(xe_loop&, xe_timer&);
+
 	int set_nodelay(bool nodelay);
 	int set_recvbuf_size(int size);
 	int set_keepalive(bool enable, int idle);
 	int shutdown(uint flags);
-	int start_timer(ulong ms);
+	int start_timer(ulong ms, uint flags = 0);
 	int stop_timer();
 
 	virtual int init_socket();

@@ -2,7 +2,7 @@
 #include <netdb.h>
 #include "xe/loop.h"
 #include "xstd/types.h"
-#include "xstd/slice.h"
+#include "xstd/list.h"
 #include "xstd/string.h"
 #include "xurl.h"
 
@@ -38,7 +38,7 @@ public:
 	const xe_slice<in_addr>& inet() const;
 	const xe_slice<in6_addr>& inet6() const;
 
-	void free();
+	void clear();
 
 	~xe_endpoint();
 };

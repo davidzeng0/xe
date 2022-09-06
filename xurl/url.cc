@@ -403,10 +403,10 @@ uint xe_url::port() const{
 	return v_port;
 }
 
-void xe_url::free(){
-	string.free();
+void xe_url::clear(){
+	string.clear();
 }
 
 xe_url::~xe_url(){
-	free();
+	clear();
 }

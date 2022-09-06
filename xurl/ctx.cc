@@ -337,7 +337,7 @@ void xurl_ctx::close(){
 	}
 
 	resolver.close();
-	endpoints.free();
+	endpoints.clear();
 
 	for(uint i = 0; i < XE_PROTOCOL_LAST; i++)
 		xe_delete(protocols[i]);

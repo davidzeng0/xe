@@ -4,31 +4,27 @@ cmake_policy(SET CMP0069 NEW)
 include(CheckIPOSupported)
 check_ipo_supported()
 
-set(XE_FLTO TRUE)
+option(XE_FLTO "Enable flto optimization on release mode" ON)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++20")
 
 if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
 	if(CMAKE_CXX_COMPILER_VERSION VERSION_LESS "10")
 		message(SEND_ERROR "gcc must be atleast version 10")
-	endif()
-
-	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-pie -no-pie")
-
-	if(CMAKE_CXX_COMPILER_VERSION VERSION_LESS "11")
+	elseif(CMAKE_CXX_COMPILER_VERSION VERSION_LESS "11")
 		set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fcoroutines")
 	endif()
+
+	add_definitions(-U_FORTIFY_SOURCE)
 elseif(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
 	if(CMAKE_CXX_COMPILER_VERSION VERSION_LESS "12")
 		message(SEND_ERROR "clang must be atleast version 12")
+	elseif(CMAKE_CXX_COMPILER_VERSION VERSION_LESS "14")
+		set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fcoroutines-ts")
 	endif()
 
 	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -stdlib=libc++")
-
-	if(CMAKE_CXX_COMPILER_VERSION VERSION_LESS "14")
-		set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fcoroutines-ts")
-	endif()
 else()
-	message(SEND_ERROR "Compile with gcc10, clang12, or newer")
+	message(SEND_ERROR "Compile with gcc 10, clang 12, or newer")
 endif()
 
 if(${CMAKE_BUILD_TYPE} STREQUAL "Debug")

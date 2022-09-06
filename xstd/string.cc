@@ -31,7 +31,7 @@ bool xe_string_view::operator==(const xe_string_view& o) const{
 	return equal(o);
 }
 
-bool xe_string_view::operator==(xe_cptr o) const{
+bool xe_string_view::operator==(xe_cstr o) const{
 	return equal(o);
 }
 
@@ -43,11 +43,11 @@ bool xe_string_view::equal_case(const xe_string_view& o) const{
 	return equal_case(o, *this);
 }
 
-bool xe_string_view::equal(xe_cptr o) const{
+bool xe_string_view::equal(xe_cstr o) const{
 	return xe_string_view(o).equal(*this);
 }
 
-bool xe_string_view::equal_case(xe_cptr o) const{
+bool xe_string_view::equal_case(xe_cstr o) const{
 	return xe_string_view(o).equal_case(*this);
 }
 
@@ -59,7 +59,7 @@ xe_string::xe_string(xe_string&& src){
 }
 
 xe_string& xe_string::operator=(xe_string&& src){
-	free();
+	clear();
 
 	data_ = src.data_;
 	size_ = src.size_;
@@ -81,7 +81,7 @@ bool xe_string::operator==(const xe_string_view& o) const{
 	return equal(o);
 }
 
-bool xe_string::operator==(xe_cptr o) const{
+bool xe_string::operator==(xe_cstr o) const{
 	return equal(o);
 }
 
@@ -93,20 +93,20 @@ bool xe_string::equal_case(const xe_string_view& o) const{
 	return o.equal_case(*this);
 }
 
-bool xe_string::equal(xe_cptr o) const{
+bool xe_string::equal(xe_cstr o) const{
 	return xe_string_view(o).equal(*this);
 }
 
-bool xe_string::equal_case(xe_cptr o) const{
+bool xe_string::equal_case(xe_cstr o) const{
 	return xe_string_view(o).equal_case(*this);
 }
 
-bool xe_string::copy(xe_cptr src, size_t n){
+bool xe_string::copy(xe_cstr src, size_t n){
 	char* data = xe_alloc<char>(n + 1);
 
 	if(!data)
 		return false;
-	free();
+	clear();
 	xe_tmemcpy<char>(data, src, n);
 
 	data[n] = 0;
@@ -116,7 +116,7 @@ bool xe_string::copy(xe_cptr src, size_t n){
 	return true;
 }
 
-bool xe_string::copy(xe_cptr src){
+bool xe_string::copy(xe_cstr src){
 	return copy(src, xe_strlen(src));
 }
 

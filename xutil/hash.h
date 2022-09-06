@@ -1,69 +1,48 @@
 #pragma once
+#include <type_traits>
 #include "xstd/types.h"
-#include "xarch/common.h"
+#include "xarch/arch.h"
 
-static inline constexpr size_t xe_hash_bytes(xe_cptr data, size_t len){
-	ulong seed = 0xe17a1465,
+namespace xe_murmur_constants{
+	enum xe_murmur_constants : ulong{
 		m = 0xc6a4a7935bd1e995,
-		r = 47;
-	ulong h = seed ^ (len * m);
-	ulong k;
+		r = 47,
+		i = 0xff51afd7ed558ccd,
+		seed = 0xe17a1465
+	};
+}
 
-	if(std::is_constant_evaluated()){
-		ulong count = 0;
-		xe_cstr bytes = (xe_cstr)data;
+static inline constexpr size_t xe_hash_bytes(xe_cstr data, size_t len){
+	using namespace xe_murmur_constants;
 
+	if(!std::is_constant_evaluated())
+		return xe_arch_hash_bytes(data, len);
+	ulong k, h;
+
+	h = seed ^ (len * m);
+
+	while(len >= 8){
 		k = 0;
 
-		for(size_t i = 0; i < len; i++){
-			k |= (ulong)bytes[i] << (count * 8);
-
-			if(++count >= 8){
-				k *= m;
-				k ^= k >> r;
-				k *= m;
-
-				h ^= k;
-				h *= m;
-				k = 0;
-				count = 0;
-			}
-		}
-
+		for(size_t i = 0; i < 8; i++)
+			k |= (ulong)data[i] << (i * 8);
 		k *= m;
 		k ^= k >> r;
 		k *= m;
 
 		h ^= k;
 		h *= m;
-	}else{
-		ulong* p = (ulong*)data;
+		len -= 8;
+		data += 8;
+	}
 
-		for(size_t i = 0; i < len >> 3; i++){
-			k = *p++;
+	if(len){
+		k = 0;
 
-			k *= m;
-			k ^= k >> r;
-			k *= m;
-
-			h ^= k;
-			h *= m;
-		}
-
-		len = xe_arch_alignof(len, sizeof(ulong));
-
-		if(len){
-			k = 0;
-
-			xe_memcpy(&k, p, len);
-
-			k *= m;
-			k ^= k >> r;
-			k *= m;
-
-			h ^= k;
-			h *= m;
-		}
+		for(size_t i = 0; i < 8; i++)
+			k |= (ulong)data[i] << (i * 8);
+		h ^= k;
+		h *= m;
 	}
 
 	h ^= h >> r;
@@ -71,18 +50,27 @@ static inline constexpr size_t xe_hash_bytes(xe_cptr data, size_t len){
 	return h;
 }
 
+static inline size_t xe_hash_bytes(xe_cptr data, size_t len){
+	return xe_arch_hash_bytes(data, len);
+}
+
 static inline constexpr size_t xe_hash_int(ulong x){
 	x ^= x >> 33;
-	x *= 0xff51afd7ed558ccd;
+	x *= xe_murmur_constants::i;
 	x ^= x >> 33;
 
 	return x;
 }
 
-static inline constexpr size_t xe_hash_combine(size_t h1, size_t h2){
-	h1 ^= h2 + 0x9e3779b9 + (h1 << 6) + (h1 >> 2);
+static inline constexpr size_t xe_hash_combine(size_t a, size_t b){
+	b *= xe_murmur_constants::m;
+	b ^= b >> xe_murmur_constants::r;
+	b *= xe_murmur_constants::m;
 
-	return h1;
+	a ^= b;
+	a *= xe_murmur_constants::m;
+
+	return a + 0xe6546b64;
 }
 
 template<class T>

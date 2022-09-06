@@ -118,7 +118,7 @@ protected:
 		if(follow)
 			return 0;
 		err = call(&xe_http_callbacks::response, *request, response);
-		response.headers.free();
+		response.headers.clear();
 
 		return err;
 	}
@@ -369,7 +369,7 @@ void xe_http::closed(xe_http_connection& connection){
 }
 
 xe_http::~xe_http(){
-	connections.free();
+	connections.clear();
 }
 
 xe_cstr xe_http::class_name(){

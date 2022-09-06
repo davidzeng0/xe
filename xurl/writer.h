@@ -1,5 +1,5 @@
 #pragma once
-#include "xstd/slice.h"
+#include "xstd/list.h"
 
 class xe_writer{
 protected:

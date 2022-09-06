@@ -97,10 +97,6 @@ public:
 		return map.size();
 	}
 
-	void clear(){
-		map.clear();
-	}
-
 	iterator begin(){
 		return map.begin();
 	}
@@ -125,12 +121,12 @@ public:
 		return map.cend();
 	}
 
-	void free(){
+	void clear(){
 		xe_deconstruct(&map);
 		init();
 	}
 
 	~xe_map(){
-		free();
+		clear();
 	}
 };

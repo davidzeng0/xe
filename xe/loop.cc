@@ -132,6 +132,10 @@ bool xe_timer::align() const{
 	return align_;
 }
 
+bool xe_timer::passive() const{
+	return passive_;
+}
+
 xe_loop_options::xe_loop_options(){
 	capacity = 0;
 	sq_thread_cpu = 0;
@@ -171,6 +175,8 @@ xe_loop::xe_loop(){
 
 	io_buf = null;
 	handles = null;
+
+	active_timers = 0;
 }
 
 int xe_loop::init(){
@@ -270,6 +276,7 @@ int xe_loop::timer_ns(xe_timer& timer, ulong nanos, ulong repeat, uint flags){
 	timer.delay = repeat;
 	timer.repeat_ = flags & XE_TIMER_REPEAT ? true : false;
 	timer.align_ = flags & XE_TIMER_ALIGN ? true : false;
+	timer.passive_ = flags & XE_TIMER_PASSIVE ? true : false;
 	timer.expire.key = nanos;
 
 	queue_timer(timer);
@@ -288,6 +295,9 @@ int xe_loop::timer_cancel(xe_timer& timer){
 		return XE_ENOENT;
 	timer.repeat_ = false;
 	timer.active_= false;
+
+	if(!timer.passive_)
+		active_timers--;
 	timers.erase(timer.expire);
 
 	return 0;
@@ -690,6 +700,8 @@ void xe_loop::run_timer(xe_timer& timer, ulong now){
 	ulong align, delay;
 	int ret;
 
+	if(!timer.passive_)
+		active_timers--;
 	timer.active_ = false;
 	timer.in_callback = true;
 	ret = timer.callback(*this, timer);
@@ -733,6 +745,9 @@ void xe_loop::run_timer(xe_timer& timer, ulong now){
 
 void xe_loop::queue_timer(xe_timer& timer){
 	timer.active_ = true;
+
+	if(!timer.passive_)
+		active_timers++;
 	timers.insert(timer.expire);
 }
 
@@ -864,7 +879,7 @@ int xe_loop::run(){
 				res = waitsingle(timeout);
 				cqe_tail = io_uring_smp_load_acquire(ring.cq.ktail);
 			}
-		}else if(it != timers.end()){
+		}else if(active_timers){
 			/* no handles, but we have a timer to run */
 			res = wait ? waitsingle(timeout) : 0;
 		}else{

@@ -1,7 +1,7 @@
 #pragma once
 #include "types.h"
 #include "array.h"
-#include "xarch/arch.h"
+#include "xutil/util.h"
 #include "xutil/hash.h"
 
 class xe_string_view : public xe_slice<char>{
@@ -13,18 +13,18 @@ protected:
 public:
 	constexpr xe_string_view(){}
 
-	constexpr xe_string_view(xe_cptr string){
+	constexpr xe_string_view(xe_cstr string){
 		operator=(string);
 	}
 
-	constexpr xe_string_view(xe_cptr string, size_t len){
+	constexpr xe_string_view(xe_cstr string, size_t len){
 		data_ = (char*)string;
 		size_ = len;
 	}
 
-	constexpr xe_string_view& operator=(xe_cptr string){
+	constexpr xe_string_view& operator=(xe_cstr string){
 		data_ = (char*)string;
-		size_ = xe_strlen(data_);
+		size_ = xe_strlen(string);
 
 		return *this;
 	}
@@ -42,13 +42,13 @@ public:
 	size_t index_of(char c, size_t off) const;
 
 	bool operator==(const xe_string_view& o) const;
-	bool operator==(xe_cptr o) const;
+	bool operator==(xe_cstr o) const;
 
 	bool equal(const xe_string_view& o) const;
 	bool equal_case(const xe_string_view& o) const;
 
-	bool equal(xe_cptr o) const;
-	bool equal_case(xe_cptr o) const;
+	bool equal(xe_cstr o) const;
+	bool equal_case(xe_cstr o) const;
 
 	constexpr size_t hash() const{
 		return xe_hash_bytes(data_, size_);
@@ -82,8 +82,8 @@ public:
 	xe_string(xe_string&& src);
 	xe_string& operator=(xe_string&& other);
 
-	xe_string(const xe_string& other) = delete;
-	xe_string& operator=(const xe_string& other) = delete;
+	xe_string(const xe_string_view& other) = delete;
+	xe_string& operator=(const xe_string_view& other) = delete;
 
 	constexpr char* data(){
 		return data_;
@@ -105,16 +105,16 @@ public:
 	size_t index_of(char c, size_t off) const;
 
 	bool operator==(const xe_string_view& o) const;
-	bool operator==(xe_cptr o) const;
+	bool operator==(xe_cstr o) const;
 
 	bool equal(const xe_string_view& o) const;
 	bool equal_case(const xe_string_view& o) const;
 
-	bool equal(xe_cptr o) const;
-	bool equal_case(xe_cptr o) const;
+	bool equal(xe_cstr o) const;
+	bool equal_case(xe_cstr o) const;
 
-	bool copy(xe_cptr src, size_t n);
-	bool copy(xe_cptr src);
+	bool copy(xe_cstr src, size_t n);
+	bool copy(xe_cstr src);
 	bool copy(const xe_string_view& src);
 
 	constexpr size_t hash() const{

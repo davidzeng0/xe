@@ -10,11 +10,11 @@ static constexpr inline int xe_unsyserror(int err){
 	return -err;
 }
 
-static int xe_errno(){
+static inline int xe_errno(){
 	return xe_syserror(errno);
 }
 
-enum xe_error{
+enum xe_error : int{
 	XE_FIRST = -1100,
 
 	XE_TOOMANYHANDLES,

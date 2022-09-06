@@ -3,7 +3,7 @@
 #include "xutil/assert.h"
 #include "../error.h"
 
-enum XE_SOCKET_iotype{
+enum xe_socket_iotype{
 	XE_SOCKET_CONNECT = 0,
 	XE_SOCKET_ACCEPT,
 	XE_SOCKET_RECV,

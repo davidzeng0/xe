@@ -93,7 +93,7 @@ xe_endpoint::xe_endpoint(xe_endpoint&& other){
 }
 
 xe_endpoint& xe_endpoint::operator=(xe_endpoint&& other){
-	free();
+	clear();
 
 	inet_ = std::move(other.inet_);
 	inet6_ = std::move(other.inet6_);
@@ -109,12 +109,12 @@ const xe_slice<in6_addr>& xe_endpoint::inet6() const{
 	return inet6_;
 }
 
-void xe_endpoint::free(){
+void xe_endpoint::clear(){
 	xe_dealloc(inet_.data());
 }
 
 xe_endpoint::~xe_endpoint(){
-	free();
+	clear();
 }
 
 void xe_resolve::sockstate(xe_ptr data, int fd, int read, int write){

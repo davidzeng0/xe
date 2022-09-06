@@ -36,7 +36,7 @@ public:
 	xe_string_view path() const;
 
 	uint port() const;
-	void free();
+	void clear();
 
 	~xe_url();
 };

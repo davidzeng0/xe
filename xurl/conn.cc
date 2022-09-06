@@ -289,8 +289,8 @@ int xe_connection::shutdown(uint flags){
 	return ::shutdown(fd, flags) < 0 ? xe_errno() : 0;
 }
 
-int xe_connection::start_timer(ulong ms){
-	return ctx -> loop().timer_ms(timer, ms, 0, 0);
+int xe_connection::start_timer(ulong ms, uint flags){
+	return ctx -> loop().timer_ms(timer, ms, 0, flags);
 }
 
 int xe_connection::stop_timer(){

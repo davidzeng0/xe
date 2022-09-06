@@ -16,7 +16,7 @@ public:
 	}
 
 	xe_unique_ptr& operator=(xe_unique_ptr&& other){
-		free();
+		clear();
 
 		ptr = other.ptr;
 		other.ptr = null;
@@ -28,7 +28,7 @@ public:
 	xe_unique_ptr& operator=(const xe_unique_ptr& src) = delete;
 
 	void own(T* t){
-		free();
+		clear();
 
 		ptr = t;
 	}
@@ -41,13 +41,13 @@ public:
 		return tmp;
 	}
 
-	void free(){
+	void clear(){
 		xe_delete(ptr);
 
 		ptr = null;
 	}
 
-	operator bool(){
+	operator bool() const{
 		return ptr != null;
 	}
 
@@ -68,6 +68,6 @@ public:
 	}
 
 	~xe_unique_ptr(){
-		free();
+		clear();
 	}
 };

@@ -1,10 +1,11 @@
+#include <wolfssl/options.h>
 #include <wolfssl/wolfcrypt/sha.h>
 #include "ws.h"
 #include "http_internal.h"
 #include "xe/clock.h"
 #include "xutil/inet.h"
 #include "xutil/encoding.h"
-#include "xstd/localarray.h"
+#include "xstd/fla.h"
 #include "../writer.h"
 #include "../random.h"
 
@@ -51,8 +52,8 @@ protected:
 public:
 	xe_websocket_callbacks callbacks;
 
-	xe_localarray<byte, 24> key;
-	xe_localarray<byte, 28> accept;
+	xe_fla<byte, 24> key;
+	xe_fla<byte, 28> accept;
 };
 
 enum xe_websocket_opcode{
@@ -111,7 +112,7 @@ protected:
 	ulong payload_len;
 	xe_websocket_opcode opcode;
 
-	xe_localarray<byte, CONTROL_FRAME_MAX_LENGTH> control_frame_data;
+	xe_fla<byte, CONTROL_FRAME_MAX_LENGTH> control_frame_data;
 	size_t control_frame_length;
 
 	xe_websocket_opcode current_message_opcode;
@@ -207,7 +208,7 @@ protected:
 		}else if(key.equal_case("Sec-WebSocket-Accept")){
 			websocket_accept_seen = true;
 
-			if(value != xe_string_view(options().accept.data(), options().accept.size()))
+			if(value != xe_string_view((char*)options().accept.data(), options().accept.size()))
 				failure = true;
 		}
 
@@ -434,7 +435,7 @@ public:
 	}
 
 	int send(xe_websocket_opcode opcode, xe_cptr buf, size_t len, bool priority = false){
-		xe_localarray<byte, 14> header;
+		xe_fla<byte, 14> header;
 		xe_writer writer(header);
 		byte payload_len = len;
 		ssize_t sent = 0, result;
@@ -491,9 +492,9 @@ public:
 		if(closing){
 			if(close_received)
 				return finish_close();
-			start_timer(CLOSE_TIMEOUT);
-
 			timer.callback = timeout;
+
+			start_timer(CLOSE_TIMEOUT);
 		}
 
 		return 0;
@@ -532,13 +533,13 @@ public:
 			node = next;
 		}
 
-		current_message_data.free();
+		current_message_data.clear();
 
 		xe_http_singleconnection::close(error);
 	}
 
 	int close(ushort code, xe_cptr data, size_t size){
-		xe_localarray<byte, CONTROL_FRAME_MAX_LENGTH> body;
+		xe_fla<byte, CONTROL_FRAME_MAX_LENGTH> body;
 		xe_writer writer(body);
 
 		if(size > CONTROL_FRAME_MAX_LENGTH - 2)
@@ -647,8 +648,8 @@ int xe_websocket::open(xe_request_internal& request, xe_url&& url){
 
 int xe_websocket::open(xe_websocket_data_internal& data, xe_url&& url, bool redirect){
 	xe_string_view accept = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
-	xe_localarray<byte, 16> rng;
-	xe_localarray<byte, SHA_DIGEST_SIZE> sum;
+	xe_fla<byte, 16> rng;
+	xe_fla<byte, SHA_DIGEST_SIZE> sum;
 	Sha sha;
 
 	xe_return_error(xe_http_protocol::open(data, std::move(url), redirect));
@@ -667,7 +668,7 @@ int xe_websocket::open(xe_websocket_data_internal& data, xe_url&& url, bool redi
 	if(!data.internal_set_header("Connection", "Upgrade", 0) ||
 		!data.internal_set_header("Upgrade", "websocket", 0) ||
 		!data.internal_set_header("Sec-WebSocket-Version", "13", 0) ||
-		!data.internal_set_header("Sec-WebSocket-Key", xe_string_view(data.key.data(), data.key.size()), 0))
+		!data.internal_set_header("Sec-WebSocket-Key", xe_string_view((char*)data.key.data(), data.key.size()), 0))
 		return XE_ENOMEM;
 	return 0;
 }
