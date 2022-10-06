@@ -1,13 +1,14 @@
 #pragma once
 #include "xstd/types.h"
 #include "xstd/unique_ptr.h"
-#include "xe/loop.h"
 #include "xstd/map.h"
-#include "resolve.h"
+#include "xstd/fla.h"
+#include "xutil/util.h"
+#include "xe/loop.h"
 #include "protocol.h"
+#include "resolve.h"
 #include "xurl.h"
 #include "ssl.h"
-#include "xstd/fla.h"
 
 namespace xurl{
 

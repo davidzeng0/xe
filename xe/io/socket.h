@@ -1,4 +1,7 @@
 #pragma once
+#include <netdb.h>
+#include "xstd/types.h"
+#include "xutil/util.h"
 #include "../loop.h"
 
 class xe_socket;

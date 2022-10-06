@@ -2,6 +2,7 @@
 #include "xe/error.h"
 #include "xe/io/file.h"
 #include "xutil/log.h"
+#include "../url.h"
 #include "../ctx.h"
 #include "../request.h"
 #include "../request_internal.h"

@@ -26,6 +26,8 @@ class xe_protocol;
 class xe_protocol_specific;
 class xe_request;
 class xe_request_internal;
+class xe_ssl_ctx;
+class xe_url;
 
 int xurl_init();
 void xurl_cleanup();

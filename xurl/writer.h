@@ -1,8 +1,8 @@
 #pragma once
-#include "xutil/endian.h"
 #include "xstd/list.h"
 #include "xstd/fla.h"
 #include "xstd/string.h"
+#include "xutil/endian.h"
 
 template<class xe_container, typename = std::enable_if<std::is_same_v<typename xe_container::value_type, byte>>>
 class xe_writer{

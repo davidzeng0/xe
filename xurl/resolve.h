@@ -2,9 +2,11 @@
 #include <netdb.h>
 #include "xe/loop.h"
 #include "xe/io/poll.h"
+#include "xstd/types.h"
 #include "xstd/list.h"
 #include "xstd/string.h"
 #include "xstd/rbtree.h"
+#include "xutil/util.h"
 
 namespace xurl{
 

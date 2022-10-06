@@ -1,6 +1,6 @@
 #include <unistd.h>
-#include <ares.h>
 #include <arpa/inet.h>
+#include <ares.h>
 #include "xutil/overflow.h"
 #include "xutil/endian.h"
 #include "xutil/mem.h"

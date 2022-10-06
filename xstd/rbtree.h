@@ -1,4 +1,5 @@
 #pragma once
+#include "types.h"
 #include "xutil/util.h"
 
 template<typename T>

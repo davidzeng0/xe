@@ -1,8 +1,8 @@
 #include <wolfssl/options.h>
 #include <wolfssl/ssl.h>
 #include <wolfssl/error-ssl.h>
-#include "xe/error.h"
 #include "xconfig/ssl.h"
+#include "xe/error.h"
 #include "ssl.h"
 
 using namespace xurl;

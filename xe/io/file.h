@@ -1,4 +1,6 @@
 #pragma once
+#include "xstd/types.h"
+#include "xutil/util.h"
 #include "../loop.h"
 
 class xe_file;

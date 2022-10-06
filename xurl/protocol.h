@@ -1,7 +1,8 @@
 #pragma once
 #include "xstd/types.h"
+#include "xstd/string.h"
+#include "xutil/util.h"
 #include "xurl.h"
-#include "url.h"
 
 namespace xurl{
 

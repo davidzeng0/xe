@@ -1,7 +1,9 @@
 #pragma once
-#include "../loop.h"
 #include <sys/poll.h>
 #include <sys/epoll.h>
+#include "xstd/types.h"
+#include "xutil/util.h"
+#include "../loop.h"
 
 enum{
 	XE_POLL_NONE = 0x0,

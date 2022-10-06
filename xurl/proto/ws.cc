@@ -1,13 +1,13 @@
 #include <wolfssl/options.h>
 #include <wolfssl/wolfcrypt/sha.h>
-#include "ws.h"
 #include "http_internal.h"
 #include "net_internal.h"
-#include "xe/clock.h"
 #include "xutil/endian.h"
 #include "xutil/encoding.h"
 #include "xutil/log.h"
 #include "xstd/fla.h"
+#include "xe/clock.h"
+#include "ws.h"
 #include "../writer.h"
 #include "../random.h"
 

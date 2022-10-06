@@ -1,7 +1,6 @@
 #pragma once
-#include "xarch/arch.h"
-#include "xstd/string.h"
 #include "xutil/encoding.h"
+#include "xstd/string.h"
 #include "xe/error.h"
 #include "http_base.h"
 #include "../url.h"

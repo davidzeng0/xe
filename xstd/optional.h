@@ -1,6 +1,5 @@
 #pragma once
-#include "types.h"
-#include "traits.h"
+#include "std.h"
 #include "xutil/mem.h"
 
 template<typename T>

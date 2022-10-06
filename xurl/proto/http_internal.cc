@@ -1,3 +1,4 @@
+#include "xarch/arch.h"
 #include "xutil/log.h"
 #include "http_internal.h"
 #include "../writer.h"

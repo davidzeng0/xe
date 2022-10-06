@@ -1,6 +1,5 @@
 #pragma once
 #include <byteswap.h>
-#include "xstd/traits.h"
 #include "xstd/types.h"
 
 enum xe_byte_order{

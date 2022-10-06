@@ -1,6 +1,6 @@
-#include "xstd/hash.h"
 #include "xconfig/cpu.h"
 #include "xutil/encoding.h"
+#include "xstd/hash.h"
 #include "../arch.h"
 #include "../common.h"
 

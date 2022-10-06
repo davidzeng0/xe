@@ -1,8 +1,9 @@
 #pragma once
 #include <robin_hood.h>
+#include "std.h"
+#include "hash.h"
 #include "xutil/mem.h"
 #include "xutil/util.h"
-#include "hash.h"
 
 template<typename key_t, typename value_t, class hash = xe_hash<key_t>, class equal = std::equal_to<key_t>>
 class xe_map{

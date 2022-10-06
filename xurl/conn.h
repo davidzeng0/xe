@@ -1,7 +1,7 @@
 #pragma once
-#include "xstd/types.h"
 #include "xconfig/config.h"
-#include "protocol.h"
+#include "xstd/types.h"
+#include "xutil/util.h"
 #include "ssl.h"
 #include "ctx.h"
 

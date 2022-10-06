@@ -1,4 +1,5 @@
 #pragma once
+#include "types.h"
 #include "xutil/mem.h"
 #include "xutil/util.h"
 

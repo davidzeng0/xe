@@ -1,6 +1,5 @@
+#include "xutil/mem.h"
 #include "request.h"
-#include "xstd/types.h"
-#include "xutil/util.h"
 
 using namespace xurl;
 
@@ -28,7 +27,7 @@ void xe_request::set_connect_timeout(uint timeout_ms){
 	((xe_net_common_data*)data) -> set_connect_timeout(timeout_ms);
 }
 
-void xe_request::set_ssl_ctx(xe_ssl_ctx& ctx){
+void xe_request::set_ssl_ctx(const xe_ssl_ctx& ctx){
 	((xe_net_common_data*)data) -> set_ssl_ctx(ctx);
 }
 

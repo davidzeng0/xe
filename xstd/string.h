@@ -1,8 +1,8 @@
 #pragma once
 #include "types.h"
 #include "array.h"
+#include "hash.h"
 #include "xutil/util.h"
-#include "xstd/hash.h"
 
 class xe_string_view : public xe_slice<char>{
 public:

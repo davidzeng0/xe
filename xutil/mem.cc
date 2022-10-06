@@ -1,8 +1,8 @@
 #include <malloc.h>
 #include <stdlib.h>
-#include "mem.h"
-#include "overflow.h"
 #include "xconfig/cpu.h"
+#include "overflow.h"
+#include "mem.h"
 
 xe_ptr xe_malloc(size_t elem_size, size_t elem_count){
 	ptrdiff_t total;

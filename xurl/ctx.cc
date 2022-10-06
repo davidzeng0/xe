@@ -1,8 +1,6 @@
-#include <sys/epoll.h>
-#include <sys/eventfd.h>
-#include <unistd.h>
 #include "ctx.h"
 #include "url.h"
+#include "ssl.h"
 #include "conn.h"
 #include "request.h"
 #include "protocol.h"

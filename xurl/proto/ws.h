@@ -1,6 +1,7 @@
 #pragma once
-#include "http_base.h"
+#include "xstd/types.h"
 #include "xstd/vector.h"
+#include "http_base.h"
 
 namespace xurl{
 
