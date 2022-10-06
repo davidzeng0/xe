@@ -22,7 +22,7 @@ protocols:
 - http
 - websocket*
 
-# compiling
+# using
 
 ## limitations
 - linux kernel 5.19 or later
@@ -34,7 +34,19 @@ protocols:
 4. cmake <code>apt install cmake</code>
 5. g++ 11 or newer, or clang 12 or newer <code>apt install g++-11/clang++-12</code>
 
-## build
+## use with cmake
+```cmake
+project(sample CXX)
+
+FetchContent_Declare(xe GIT_REPOSITORY https://github.com/ilikdoge/xe.git GIT_TAG master)
+FetchContent_MakeAvailable(xe)
+
+...
+
+target_link_libraries(sample xe)
+```
+
+## build xe
 ```bash
 mkdir build; cd build
 
