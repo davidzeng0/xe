@@ -8,22 +8,24 @@ class xe_url{
 private:
 	xe_string string;
 
-	uint n_scheme;
-	uint n_authl;
-	uint n_user;
-	uint n_host;
-	uint n_port;
-	uint n_path;
-	uint v_port;
+	struct{
+		uint scheme;
+		uint authl;
+		uint user;
+		uint host;
+		uint port;
+		uint path;
+	} offsets;
+
+	ushort port_;
 public:
-	xe_url(){}
+	xe_url() = default;
 	xe_url(xe_string&& url);
 
 	xe_url(xe_url&& other);
 	xe_url& operator=(xe_url&& other);
 
-	xe_url(const xe_url& other) = delete;
-	xe_url& operator=(const xe_url& other) = delete;
+	xe_disallow_copy(xe_url)
 
 	xe_string_view href() const;
 
@@ -35,7 +37,7 @@ public:
 	xe_string_view hostname() const;
 	xe_string_view path() const;
 
-	uint port() const;
+	ushort port() const;
 	void clear();
 
 	~xe_url();

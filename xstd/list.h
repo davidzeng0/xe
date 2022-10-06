@@ -1,8 +1,8 @@
 #pragma once
-#include "traits.h"
-#include "types.h"
+#include "std.h"
 #include "xutil/mem.h"
 #include "xutil/assert.h"
+#include "xutil/util.h"
 
 template<class traits, typename iterator>
 static void xe_construct_range(iterator start, iterator end){
@@ -13,11 +13,11 @@ static void xe_construct_range(iterator start, iterator end){
 }
 
 template<class traits, typename iterator>
-static void xe_deconstruct_range(iterator start, iterator end){
+static void xe_destruct_range(iterator start, iterator end){
 	if(traits::trivially_destructible)
 		return;
 	while(start != end)
-		xe_deconstruct(start++);
+		xe_destruct(start++);
 }
 
 template<class traits, typename iterator, typename const_iterator>
@@ -70,7 +70,7 @@ static T* xe_realloc_range(T* old_data, size_t old_size, size_t new_size){
 
 		xe_move_range<traits>(data, old_data, old_data + move);
 		xe_construct_range<traits>(data + move, data + new_size);
-		xe_deconstruct_range<traits>(old_data, old_data + old_size);
+		xe_destruct_range<traits>(old_data, old_data + old_size);
 		xe_dealloc(old_data);
 	}
 
@@ -80,38 +80,39 @@ static T* xe_realloc_range(T* old_data, size_t old_size, size_t new_size){
 template<typename T, class traits = xe_traits<T>>
 class xe_list{
 public:
-	using iterator = T*;
-	using const_iterator = const T*;
+	typedef T* iterator;
+	typedef const T* const_iterator;
+	typedef T value_type;
 
 	static consteval size_t max_size(){
 		return xe_max_value<size_t>() / sizeof(T);
 	}
 protected:
-	void construct_range(iterator start, iterator end){
+	static void construct_range(iterator start, iterator end){
 		xe_construct_range<traits>(start, end);
 	}
 
-	void deconstruct_range(iterator start, iterator end){
-		xe_deconstruct_range<traits>(start, end);
+	static void destruct_range(iterator start, iterator end){
+		xe_destruct_range<traits>(start, end);
 	}
 
-	void copy_range(iterator dest, const_iterator start, const_iterator end){
+	static void copy_range(iterator dest, const_iterator start, const_iterator end){
 		xe_copy_range<traits>(dest, start, end);
 	}
 
-	void move_range(iterator dest, iterator start, iterator end){
+	static void move_range(iterator dest, iterator start, iterator end){
 		xe_move_range<traits>(dest, start, end);
 	}
 
-	void copy_assign_range(iterator dest, const_iterator start, const_iterator end){
+	static void copy_assign_range(iterator dest, const_iterator start, const_iterator end){
 		xe_copy_assign_range<traits>(dest, start, end);
 	}
 
-	void move_assign_range(iterator dest, iterator start, iterator end){
+	static void move_assign_range(iterator dest, iterator start, iterator end){
 		xe_move_assign_range<traits>(dest, start, end);
 	}
 
-	T* realloc_range(T* old_data, size_t old_size, size_t new_size){
+	static T* realloc_range(T* old_data, size_t old_size, size_t new_size){
 		return xe_realloc_range<T, traits>(old_data, old_size, new_size);
 	}
 };
@@ -283,10 +284,11 @@ protected:
 	using base::data_;
 	using base::size_;
 	using base::data_move;
-	using base::deconstruct_range;
+	using base::destruct_range;
 public:
 	typedef typename base::iterator iterator;
 	typedef typename base::const_iterator const_iterator;
+	typedef typename base::value_type value_type;
 	using base::max_size;
 	using base::at;
 	using base::operator[];
@@ -302,9 +304,6 @@ public:
 	using base::empty;
 
 	xe_vla() = default;
-	xe_vla(const xe_vla<T>& other) = delete;
-	xe_vla& operator=(const xe_vla<T>& other) = delete;
-
 	xe_vla(xe_vla<T>&& other): base(std::move(other)){}
 
 	xe_vla& operator=(xe_vla<T>&& other){
@@ -314,16 +313,17 @@ public:
 		return *this;
 	}
 
+	xe_disallow_copy(xe_vla)
+
 	operator bool() const{
 		return size_ > 0;
 	}
 
 	void clear(){
-		deconstruct_range(begin(), end());
+		destruct_range(begin(), end());
 		xe_dealloc(data_);
 
-		data_ = null;
-		size_ = 0;
+		base::clear();
 	}
 
 	~xe_vla(){

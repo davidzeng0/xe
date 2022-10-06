@@ -26,13 +26,13 @@ public:
 		return id_;
 	}
 
-	virtual ~xe_protocol_specific(){}
+	virtual ~xe_protocol_specific() = default;
 };
 
 class xe_protocol{
 protected:
-	xe_protocol_id id_;
 	xurl_ctx* ctx;
+	xe_protocol_id id_;
 
 	xe_protocol(xurl_ctx& ctx_, xe_protocol_id id){
 		ctx = &ctx_;
@@ -43,14 +43,16 @@ public:
 		return id_;
 	}
 
-	virtual int start(xe_request_internal& request) = 0;
-	virtual int transferctl(xe_request_internal& request, uint flags) = 0;
-	virtual void end(xe_request_internal& request) = 0;
+	xe_disallow_copy_move(xe_protocol)
 
 	virtual bool matches(const xe_string_view& scheme) const = 0;
 	virtual int open(xe_request_internal& request, xe_url&& url) = 0;
 
-	virtual ~xe_protocol(){}
+	virtual int start(xe_request_internal& request) = 0;
+	virtual int transferctl(xe_request_internal& request, uint flags) = 0;
+	virtual void end(xe_request_internal& request) = 0;
+
+	virtual ~xe_protocol() = default;
 };
 
 }

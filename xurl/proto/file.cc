@@ -1,108 +1,115 @@
-#include <unistd.h>
-#include <fcntl.h>
 #include "file.h"
 #include "xe/error.h"
 #include "xe/io/file.h"
-#include "../request.h"
 #include "../ctx.h"
+#include "../request.h"
 #include "../request_internal.h"
 
 namespace xurl{
 
-class xe_file_data : public xe_protocol_specific{
-private:
-	xe_url url;
-
-	friend class xe_file_reader;
-public:
-	xe_file_data();
-
-	int open(xe_url&& url);
-
-	~xe_file_data();
+enum{
+	XE_FILE_STREAM_BUFFER_SIZE = XE_LOOP_IOBUF_SIZE
 };
 
-class xe_file_reader{
-	::xe_file file;
+class xe_file_stream;
+class xe_file_data : public xe_protocol_specific{
+public:
+	xe_url url;
+	xe_file_stream* stream;
+
+	xe_file_data(): xe_protocol_specific(XE_PROTOCOL_FILE){}
+
+	~xe_file_data() = default;
+};
+
+class xe_file_stream{
+public:
+	xe_file file;
 	xe_file_data* data;
 	xe_request_internal* request;
-	xe_ptr buf;
-	size_t len;
 
-	static void open_callback(::xe_file& file, ulong unused, int result){
-		xe_file_reader& reader = *(xe_file_reader*)&file;
+	xe_string path;
+	xe_open_req open;
+	xe_req read;
+	long offset;
 
-		if(result){
-			reader.request -> complete(result);
+	byte* buf;
 
-			return;
-		}
+	static void open_callback(xe_open_req& req, int result){
+		xe_file_stream& stream = xe_containerof(req, &xe_file_stream::open);
 
-		int handle = file.read(reader.buf, reader.len, file.offset);
-
-		xe_assert(handle >= 0);
+		if(!result)
+			result = stream.file.read(stream.read, stream.buf, XE_FILE_STREAM_BUFFER_SIZE, stream.offset);
+		if(result)
+			stream.complete(result);
+		else
+			stream.request -> set_state(XE_REQUEST_STATE_ACTIVE);
 	}
 
-	static void read_callback(::xe_file& file, ulong unused, int result){
-		xe_file_reader& reader = *(xe_file_reader*)&file;
+	static void read_callback(xe_req& req, int result){
+		xe_file_stream& stream = xe_containerof(req, &xe_file_stream::read);
 
-		if(result <= 0){
-			reader.request -> complete(result);
+		do{
+			if(result <= 0)
+				break;
+			if(stream.request -> write(stream.buf, result)){
+				result = XE_ABORTED;
 
+				break;
+			}
+
+			stream.offset += result;
+			result = stream.file.read(stream.read, stream.buf, XE_FILE_STREAM_BUFFER_SIZE, stream.offset);
+
+			if(result)
+				break;
 			return;
-		}
+		}while(false);
 
-		reader.request -> write(reader.buf, result);
-		file.offset += result;
-
-		int handle = file.read(reader.buf, reader.len, file.offset);
-
-		xe_assert(handle >= 0);
+		stream.complete(result);
 	}
-public:
-	xe_file_reader(xe_loop& loop, xe_request_internal* request_) : file(loop){
+
+	xe_file_stream(xe_loop& loop, xe_request_internal* request_){
+		file.set_loop(loop);
 		request = request_;
 		data = (xe_file_data*)request -> data;
-		file.open_callback = open_callback;
-		file.read_callback = read_callback;
 
-		len = 16384;
-		buf = xe_alloc<byte>(len);
+		open.callback = open_callback;
+		read.callback = read_callback;
 	}
 
 	int start(){
-		xe_string_view path = data -> url.path();
-		xe_string path_copy;
+		int err;
 
-		if(!path_copy.copy(path))
+		buf = xe_alloc<byte>(XE_FILE_STREAM_BUFFER_SIZE);
+
+		if(!buf)
 			return XE_ENOMEM;
-		int err = file.open(path_copy.c_str(), O_RDONLY);
+		if(!path.copy(data -> url.path()))
+			return XE_ENOMEM;
+		err = file.open(open, path.c_str(), O_RDONLY);
 
-		if(err < 0)
-			return err;
-		request -> set_state(XE_REQUEST_STATE_ACTIVE);
+		if(!err)
+			request -> set_state(XE_REQUEST_STATE_CONNECTING);
+		return err;
+	}
 
-		return 0;
+	void end(){
+
+	}
+
+	void complete(int res){
+		request -> complete(res);
+	}
+
+	~xe_file_stream(){
+		xe_dealloc(buf);
 	}
 };
 
-xe_file_data::xe_file_data(): xe_protocol_specific(XE_PROTOCOL_FILE){
-
-}
-
-int xe_file_data::open(xe_url&& url_){
-	url = std::move(url_);
-
-	return 0;
-}
-
-xe_file_data::~xe_file_data(){
-
-}
-
-class xe_file : public xe_protocol{
+class xe_file_protocol : public xe_protocol{
 public:
-	xe_file(xurl_ctx& ctx);
+	xe_file_protocol(xurl_ctx& ctx): xe_protocol(ctx, XE_PROTOCOL_FILE){}
 
 	int start(xe_request_internal& request);
 
@@ -113,40 +120,35 @@ public:
 
 	bool matches(const xe_string_view& scheme) const;
 
-	~xe_file();
+	~xe_file_protocol() = default;
 
 	static xe_cstr class_name();
 };
 
-xe_file::xe_file(xurl_ctx& ctx) : xe_protocol(ctx, XE_PROTOCOL_FILE){
+int xe_file_protocol::start(xe_request_internal& request){
+	xe_file_stream* stream = xe_znew<xe_file_stream>(ctx -> loop(), &request);
+	int err;
 
-}
-
-int xe_file::start(xe_request_internal& request){
-	xe_file_reader* reader = xe_znew<xe_file_reader>(ctx -> loop(), &request);
-
-	if(!reader)
+	if(!stream)
 		return XE_ENOMEM;
-	int err = reader -> start();
+	err = stream -> start();
 
-	if(err){
-		xe_delete(reader);
+	if(err)
+		xe_delete(stream);
+	return err;
+}
 
-		return err;
-	}
-
+int xe_file_protocol::transferctl(xe_request_internal& request, uint flags){
 	return 0;
 }
 
-int xe_file::transferctl(xe_request_internal& request, uint flags){
-	return 0;
+void xe_file_protocol::end(xe_request_internal& request){
+	auto& data = *(xe_file_data*)request.data;
+
+	data.stream -> end();
 }
 
-void xe_file::end(xe_request_internal& request){
-
-}
-
-int xe_file::open(xe_request_internal& request, xe_url&& url){
+int xe_file_protocol::open(xe_request_internal& request, xe_url&& url){
 	xe_file_data* data;
 
 	if(request.data && request.data -> id() == XE_PROTOCOL_FILE){
@@ -154,39 +156,28 @@ int xe_file::open(xe_request_internal& request, xe_url&& url){
 	}else{
 		data = xe_new<xe_file_data>();
 
-		if(!data)
-			return XE_ENOMEM;
+		if(!data) return XE_ENOMEM;
 	}
 
-	int err = data -> open(std::move(url));
-
-	if(err){
-		xe_delete(data);
-
-		return err;
-	}
-
-	xe_log_verbose(this, "opened file request for: %s", url.href().data());
-
+	data -> url = std::move(url);
+	data -> stream = null;
 	request.data = data;
+
+	xe_log_verbose(this, "opened file request for: %s", data -> url.href().data());
 
 	return 0;
 }
 
-bool xe_file::matches(const xe_string_view& scheme) const{
+bool xe_file_protocol::matches(const xe_string_view& scheme) const{
 	return scheme == "file";
 }
 
-xe_file::~xe_file(){
-
-}
-
-xe_cstr xe_file::class_name(){
+xe_cstr xe_file_protocol::class_name(){
 	return "xe_file";
 }
 
 xe_protocol* xe_file_new(xurl_ctx& ctx){
-	return xe_new<xe_file>(ctx);
+	return xe_new<xe_file_protocol>(ctx);
 }
 
 }

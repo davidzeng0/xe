@@ -14,44 +14,50 @@ static byte* buf = xe_alloc<byte>(len);
 
 static xe_string_view msg = "Hello World!";
 
-void recv_callback(xe_socket& socket, ulong unused, int result){
+struct client{
+	xe_socket socket;
+	xe_connect_req conn;
+	xe_req recv;
+	xe_req send;
+};
+
+void connect_callback(xe_connect_req& req, int result){
+	client& client = xe_containerof(req, &client::conn);
+
+	xe_print("connect status: %s", xe_strerror(result));
+
+	if(!result)
+		client.socket.send(client.send, msg.data(), msg.length(), 0);
+}
+
+void recv_callback(xe_req& req, int result){
+	xe_print("recv status: %s", xe_strerror(xe_min(result, 0)));
+
 	if(result > 0)
-		xe_print("%.*s", result, buf);
+		xe_print("incoming message: %.*s", result, buf);
 }
 
-void send_callback(xe_socket& socket, ulong unused, int result){
-	if(result > 0){
-		xe_print("sent %d bytes", result);
+void send_callback(xe_req& req, int result){
+	client& client = xe_containerof(req, &client::send);
 
-		socket.recv(buf, len, 0);
-	}
+	xe_print("send status: %s", xe_strerror(xe_min(result, 0)));
+
+	if(result > 0)
+		client.socket.recv(client.recv, buf, len, 0);
 }
 
-void connect_callback(xe_socket& socket, ulong unused, int result){
-	if(!result){
-		xe_print("connected");
-
-		socket.send(msg.data(), msg.size(), MSG_NOSIGNAL);
-	}
-}
 
 int main(){
 	xe_loop loop;
 	xe_loop_options options;
-	xe_socket socket(loop);
+	client c{loop};
 
 	int ret;
 
-	options.capacity = 8; /* sqes and cqes */
+	options.entries = 8; /* sqes and cqes */
 
 	/* init */
-	ret = loop.init_options(options);
-
-	if(ret){
-		xe_print("loop_init %s", xe_strerror(ret));
-
-		return -1;
-	}
+	loop.init_options(options);
 
 	/* connect address */
 	sockaddr_in addr;
@@ -62,21 +68,15 @@ int main(){
 	addr.sin_family = AF_INET;
 	addr.sin_port = htons(8080);
 
-	/* nonzero ret is a negative system error */
-	ret = socket.init(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-	ret = socket.connect((sockaddr*)&addr, sizeof(addr));
+	c.conn.callback = connect_callback;
+	c.recv.callback = recv_callback;
+	c.send.callback = send_callback;
 
-	socket.connect_callback = connect_callback;
-	socket.recv_callback = recv_callback;
-	socket.send_callback = send_callback;
+	/* connect */
+	c.socket.init(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+	c.socket.connect(c.conn, (sockaddr*)&addr, sizeof(addr));
 
-	ret = loop.run();
-
-	if(ret){
-		xe_print("loop_run %s", xe_strerror(ret));
-
-		return -1;
-	}
+	loop.run();
 
 	loop.close();
 

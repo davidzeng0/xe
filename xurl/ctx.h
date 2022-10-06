@@ -7,28 +7,47 @@
 #include "protocol.h"
 #include "xurl.h"
 #include "ssl.h"
+#include "xstd/fla.h"
 
 namespace xurl{
 
 class xurl_shared{
 private:
-	xe_resolve_ctx resolve;
-	xe_ptr protocol_data[XE_PROTOCOL_LAST];
 	xe_map<xe_string, xe_endpoint> endpoints;
-	xe_ssl_ctx ssl_ctx;
+	xe_fla<xe_ptr, XE_PROTOCOL_LAST> protocol_data;
 
-	friend class xurl_ctx;
+	xe_resolve_ctx resolve_ctx_;
+	xe_ssl_ctx ssl_ctx_;
 public:
+	xurl_shared(){
+		for(xe_ptr& ptr : protocol_data)
+			ptr = null;
+	}
+
+	xe_disallow_copy_move(xurl_shared)
+
 	int init();
-
-	xe_ssl_ctx& ssl();
-
 	void close();
+
+	const xe_resolve_ctx& resolve_ctx();
+	const xe_ssl_ctx& ssl_ctx();
+
+	~xurl_shared() = default;
 };
 
 class xurl_ctx{
 private:
-	struct resolve_entry{
+	static void resolved(xe_ptr, const xe_string_view&, xe_endpoint&&, int);
+
+	int resolve(xe_connection&, const xe_string_view&, xe_endpoint*&);
+
+	void add(xe_connection&);
+	void resolve_remove(xe_connection&);
+	void remove(xe_connection&);
+	void count();
+	void uncount();
+
+	struct xe_resolve_entry{
 		xe_connection* null;
 		xe_connection* pending;
 		xe_endpoint endpoint;
@@ -37,59 +56,56 @@ private:
 	xe_loop* loop_;
 	xurl_shared* shared;
 
+	xe_fla<xe_protocol*, XE_PROTOCOL_LAST> protocols;
+	xe_map<xe_string, xe_unique_ptr<xe_resolve_entry>> endpoints;
+
 	xe_resolve resolver;
-	xe_protocol* protocols[XE_PROTOCOL_LAST];
 
 	xe_connection* connections;
-	size_t conn_count;
+	size_t active_connections_;
+	size_t active_resolves_;
 
-	uint active: 1;
-	uint closing: 1;
-	uint flags: 30;
+	bool closing: 1;
 
-	int pollfd;
-	int eventfd;
-	int handle;
-
-	xe_map<xe_string, xe_unique_ptr<resolve_entry>> endpoints;
-
-	int resolve(xe_connection&, const xe_string_view&, xe_endpoint*&);
-	void resolver_active(bool);
-
-	int poll(xe_connection&, int, int, int);
-
-	bool count(xe_connection&);
-	void uncount(xe_connection&);
-	void add(xe_connection&);
-	void resolve_remove(xe_connection&);
-	void remove(xe_connection&);
-
-	void resolved(const xe_string_view&, xe_endpoint&&, int);
-	void poll();
-
-	static void io(xe_loop_handle&, int);
-
-	friend class ::xe_loop;
-	friend class xe_resolve;
 	friend class xe_connection;
 public:
-	xurl_ctx();
+	xurl_ctx(){
+		for(auto& protocol : protocols)
+			protocol = null;
+		connections = null;
+		active_connections_ = 0;
+		active_resolves_ = 0;
+
+		closing = false;
+	}
+
+	xe_disallow_copy_move(xurl_ctx)
 
 	int init(xe_loop& loop, xurl_shared& shared);
 	void close();
-
-	int start();
-	void stop();
 
 	int open(xe_request& request, const xe_string_view& url);
 	int start(xe_request& request);
 	int transferctl(xe_request& request, uint flags);
 	int end(xe_request& request);
 
-	xe_loop& loop();
-	xe_ssl_ctx& ssl();
+	xe_loop& loop() const{
+		return *loop_;
+	}
 
-	size_t connection_count();
+	const xe_ssl_ctx& ssl_ctx() const{
+		return shared -> ssl_ctx();
+	}
+
+	size_t active_connections() const{
+		return active_connections_;
+	}
+
+	size_t active_resolves() const{
+		return active_resolves_;
+	}
+
+	~xurl_ctx() = default;
 
 	static xe_cstr class_name();
 };

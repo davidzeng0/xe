@@ -1,15 +1,13 @@
-#include <unistd.h>
 #include <netdb.h>
 #include <netinet/tcp.h>
-#include <string.h>
-#include "xutil/util.h"
-#include "xstd/types.h"
+#include <arpa/inet.h>
 #include "xutil/log.h"
 #include "xutil/mem.h"
-#include "xe/error.h"
+#include "xutil/endian.h"
 #include "xe/loop.h"
 #include "xe/clock.h"
 #include "xe/error.h"
+#include "xe/io/socket.h"
 
 /* coroutine task structure */
 struct task{
@@ -37,79 +35,90 @@ struct task{
 		handle = h;
 	}
 
-	~task(){}
+	~task(){
+		/* don't kill the coroutine, nothing to do */
+	}
 };
 
-static ulong t, reqs = 0, sends = 0, clients = 0;
-
-int timer_callback(xe_loop& loop, xe_timer& timer){
+static ulong last_time, recvs = 0, sends = 0, clients = 0;
+static int timer_callback(xe_loop& loop, xe_timer& timer){
 	ulong now = xe_time_ns();
 
-	xe_print("%lu reqs %lu sends in %f ms", reqs, sends, (now - t) / 1e6);
+	xe_print("%lu recvs %lu sends in %f ms", recvs, sends, (now - last_time) / 1e6);
 
-	t = now;
-	reqs = 0;
+	last_time = now;
+	recvs = 0;
 	sends = 0;
 
 	return 0;
 }
 
 static task echo(xe_loop& loop, int fd){
-	uint len = 16384;
-	byte* buf = xe_alloc_aligned<byte>(0, len); /* 0 = page size */
+	const int len = 16384;
 
-	int yes = 1;
+	byte* buf = xe_alloc_aligned<byte>(0, len); /* page size aligned */
+	int result;
 
-	setsockopt(fd, SOL_SOCKET, TCP_NODELAY, &yes, sizeof(yes));
+	xe_socket socket(loop);
+
+	socket.accept(fd);
 
 	while(true){
-		int bytes_recvd = co_await loop.recv(fd, buf, len, 0);
+		result = co_await socket.recv(buf, len, 0);
 
-		if(bytes_recvd <= 0){
-			if(bytes_recvd == 0)
-				break;
-			if(bytes_recvd == XE_TOOMANYHANDLES)
-				xe_print("loop reached io limit");
-			else
-				xe_print("could not recv");
+		if(result <= 0)
 			break;
-		}
+		recvs++;
+		result = co_await socket.send(buf, result, 0);
 
-		reqs++;
-
-		int bytes_sent = co_await loop.send(fd, buf, bytes_recvd, MSG_NOSIGNAL);
-
-		if(bytes_sent <= 0){
-			xe_print("could not send");
-
+		if(result < 0)
 			break;
-		}
-
 		sends++;
 	}
 
-	xe_print("closing a client, %lu still open", --clients);
+	socket.close();
+
 	xe_dealloc(buf);
-	close(fd);
+	xe_print("client closed with error: %s, %lu still open", xe_strerror(result), --clients);
 }
 
-static task accept_connections(xe_loop& loop, int fd){
+static task start_server(xe_loop& loop){
+	/* create a socket */
+	/* listen addr */
+	sockaddr_in addr;
+	int yes = 1;
+
+	xe_zero(&addr);
+
+	addr.sin_family = AF_INET;
+	addr.sin_addr.s_addr = inet_addr("127.0.0.1");
+	addr.sin_port = xe_htons(8080);
+
+	xe_socket server(loop);
+
+	co_await server.init_async(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+
+	setsockopt(server.fd(), SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes));
+
+	server.bind((sockaddr*)&addr, sizeof(sockaddr));
+	server.listen(SOMAXCONN);
+
+	int client;
+
+	/* accept clients */
 	while(true){
-		int client = co_await loop.accept(fd, null, null, 0);
+		client = co_await server.accept(null, null, 0);
 
-		if(client < 0){
-			if(client == XE_TOOMANYHANDLES)
-				xe_print("loop reached io limit");
-			else
-				xe_print("could not accept client");
+		if(client < 0)
 			break;
-		}
-
-		xe_print("accepted a client. %lu clients open", ++clients);
+		setsockopt(client, SOL_SOCKET, TCP_NODELAY, &yes, sizeof(yes));
 		echo(loop, client);
+		xe_print("accepted a client. %lu clients open", ++clients);
 	}
 
-	close(fd);
+	server.close();
+
+	xe_print("could not accept client: %s", xe_strerror(client));
 }
 
 int main(){
@@ -117,85 +126,26 @@ int main(){
 	xe_loop_options options;
 	xe_timer timer;
 
-	int ret;
-
-	options.capacity = 2048; /* sqes and cqes */
+	options.entries = 256; /* number of sqes, seems to work the best */
+	options.cq_entries = 65536;
+	options.flag_cqsize = true;
 
 	/* init */
-	ret = loop.init_options(options);
+	loop.init_options(options);
 
-	if(ret){
-		xe_print("loop_init %s", xe_strerror(ret));
+	xe_print("initialized with %u sqes and %u cqes", loop.sqe_count(), loop.cqe_count());
 
-		return -1;
-	}
-
-	/* listen addr */
-	sockaddr_in addr;
-
-	xe_zero(&addr);
-
-	addr.sin_addr.s_addr = htonl(0x7f000001); /* 127.0.0.1 */
-	addr.sin_family = AF_INET;
-	addr.sin_port = htons(8080);
-
-	/* create a socket */
-
-	int fd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-	int yes = 1;
-
-	if(fd < 0){
-		xe_print("socket %s", xe_strerror(xe_errno()));
-
-		return -1;
-	}
-
-	ret = setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes));
-
-	if(ret){
-		xe_print("setsockopt %s", xe_strerror(xe_errno()));
-
-		return -1;
-	}
-
-	ret = bind(fd, (sockaddr*)&addr, sizeof(sockaddr));
-
-	if(ret){
-		xe_print("bind %s", xe_strerror(xe_errno()));
-
-		return -1;
-	}
-
-	ret = listen(fd, SOMAXCONN);
-
-	if(ret){
-		xe_print("listen %s", xe_strerror(xe_errno()));
-
-		return -1;
-	}
-
-	task tsk = accept_connections(loop, fd); /* accept clients */
+	/* start */
+	start_server(loop);
 
 	/* stats */
 	timer.callback = timer_callback;
-	t = xe_time_ns();
+	loop.timer_ms(timer, 1000, 1000, XE_TIMER_REPEAT | XE_TIMER_ALIGN);
+	last_time = xe_time_ns();
 
-	ret = loop.timer_ms(timer, 1000, 1000, XE_TIMER_REPEAT);
+	loop.run();
 
-	if(ret){
-		xe_print("loop timer_ms %s", xe_strerror(xe_errno()));
-
-		return -1;
-	}
-
-	ret = loop.run();
-
-	if(ret){
-		xe_print("loop_run %s", xe_strerror(ret));
-
-		return -1;
-	}
-
+	/* cleanup */
 	loop.close();
 
 	return 0;

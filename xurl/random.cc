@@ -1,5 +1,6 @@
 #include <sys/random.h>
 #include "random.h"
+#include "xstd/std.h"
 #include "xutil/mem.h"
 
 using namespace xurl;

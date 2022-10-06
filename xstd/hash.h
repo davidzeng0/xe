@@ -1,7 +1,5 @@
 #pragma once
-#include <type_traits>
-#include "xstd/types.h"
-#include "xarch/arch.h"
+#include "std.h"
 
 namespace xe_murmur_constants{
 	enum xe_murmur_constants : ulong{

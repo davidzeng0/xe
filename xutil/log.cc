@@ -4,12 +4,6 @@
 #include "log.h"
 #include "assert.h"
 
-static xe_loglevel level = XE_LOG_INFO;
-
-enum{
-	XE_LOG_ABORT = XE_LOG_NONE
-};
-
 #define XE_COLOR_RED		XE_COLOR(1)
 #define XE_COLOR_GREEN		XE_COLOR(2)
 #define XE_COLOR_YELLOW		XE_COLOR(3)
@@ -29,7 +23,13 @@ enum{
 #define XE_FORMAT(color) color "%-6s" XE_COLOR(252) " %12s:%-4u " XE_COLOR_RESET
 #define XE_LOG_FORMAT(color) color "[%s @ %#x] " XE_COLOR_RESET
 
-void xe_log_setlevel(xe_loglevel level_){
+enum{
+	XE_LOG_ABORT = XE_LOG_NONE
+};
+
+static xe_log_level level = XE_LOG_INFO;
+
+void xe_log_set_level(xe_log_level level_){
 	level = level_;
 }
 
@@ -81,10 +81,10 @@ static void xe__print(uint type, xe_cstr file, uint line, xe_cstr str, va_list a
 			break;
 	}
 
-	printf(format, typestr, file, line);
-	vprintf(str, args);
-	printf("\n");
-	fflush(stdout);
+	fprintf(stderr, format, typestr, file, line);
+	vfprintf(stderr, str, args);
+	fprintf(stderr, "\n");
+	fflush(stderr);
 }
 
 void xe__print(uint type, xe_cstr file, uint line, xe_cstr str, ...){
@@ -135,10 +135,10 @@ static void xe__log(uint type, xe_cstr name, xe_cptr addr, xe_cstr str, va_list 
 			break;
 	}
 
-	printf(format, name, addr);
-	vprintf(str, args);
-	printf("\n");
-	fflush(stdout);
+	fprintf(stderr, format, name, addr);
+	vfprintf(stderr, str, args);
+	fprintf(stderr, "\n");
+	fflush(stderr);
 }
 
 void xe__log(uint type, xe_cstr name, xe_cptr addr, xe_cstr str, ...){

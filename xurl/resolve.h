@@ -1,12 +1,15 @@
 #pragma once
 #include <netdb.h>
 #include "xe/loop.h"
-#include "xstd/types.h"
+#include "xe/io/poll.h"
 #include "xstd/list.h"
 #include "xstd/string.h"
-#include "xurl.h"
+#include "xstd/rbtree.h"
 
 namespace xurl{
+
+class xe_endpoint;
+typedef void (*xe_resolve_cb)(xe_ptr user, const xe_string_view& host, xe_endpoint&& endpoint, int status);
 
 class xe_resolve_ctx{
 private:
@@ -16,8 +19,12 @@ private:
 
 	friend class xe_resolve;
 public:
+	xe_resolve_ctx() = default;
+
 	int init();
 	void close();
+
+	~xe_resolve_ctx() = default;
 };
 
 class xe_endpoint{
@@ -29,8 +36,7 @@ private:
 public:
 	xe_endpoint(){}
 
-	xe_endpoint(const xe_endpoint& other) = delete;
-	xe_endpoint& operator=(const xe_endpoint& other) = delete;
+	xe_disallow_copy(xe_endpoint)
 
 	xe_endpoint(xe_endpoint&& other);
 	xe_endpoint& operator=(xe_endpoint&& other);
@@ -45,30 +51,50 @@ public:
 
 class xe_resolve{
 private:
-	xurl_ctx* ctx;
-	xe_timer timer;
-	xe_ptr resolver;
-
-	int pollfd;
-	size_t count;
-
-	void io();
+	static void poll_cb(xe_poll&, int);
+	static void close_cb(xe_poll&);
 
 	static void sockstate(xe_ptr, int, int, int);
 	static int sockcreate(int, int, xe_ptr);
 	static void resolved(xe_ptr, int, int, xe_ptr);
-
-	static int ip_resolve(const xe_string&, xe_endpoint&);
 	static int timeout(xe_loop&, xe_timer&);
 
-	friend class xurl_ctx;
+	int ip_resolve(const xe_string&, xe_endpoint&);
+
+	struct xe_resolve_handle{
+		xe_rbtree<int>::node node;
+		xe_poll poll;
+		xe_resolve* resolve;
+	};
+
+	xe_loop* loop_;
+	xe_timer timer;
+	xe_ptr resolver;
+
+	xe_rbtree<int> handles;
+
+	bool closing: 1;
 public:
-	xe_resolve();
+	void (*close_callback)(xe_resolve& resolve);
 
-	int init(xurl_ctx& xurl_ctx, xe_resolve_ctx& ctx);
-	void close();
+	xe_resolve(){
+		timer.callback = timeout;
+		closing = false;
+		close_callback = null;
+	}
 
-	int resolve(const xe_string& host, xe_endpoint& endpoint);
+	xe_disallow_copy_move(xe_resolve)
+
+	xe_loop& loop() const{
+		return *loop_;
+	}
+
+	int init(xe_loop& loop, const xe_resolve_ctx& ctx);
+	int close();
+
+	int resolve(const xe_string& host, xe_endpoint& endpoint, xe_resolve_cb callback, xe_ptr user);
+
+	~xe_resolve() = default;
 
 	static xe_cstr class_name();
 };

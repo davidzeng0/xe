@@ -1,5 +1,5 @@
 #pragma once
-#include "types.h"
+#include "xutil/util.h"
 
 template<typename T>
 class xe_rbtree{
@@ -16,7 +16,6 @@ private:
 		rbnode* parent;
 		rbcolor color;
 
-		template<typename U>
 		friend class xe_rbtree;
 	public:
 		T key;
@@ -392,6 +391,10 @@ private:
 		else if(!node -> right)
 			double_black = replace(node, node -> left);
 		else{
+			/*
+			 * two children
+			 * find successor, delete successor, replace node with successor
+			 */
 			successor = node -> right;
 
 			if(successor -> left){
@@ -427,15 +430,13 @@ private:
 	rbnode* begin_;
 	size_t size_;
 public:
-	using iterator = rbiterator<rbnode>;
-	using const_iterator = rbiterator<const rbnode>;
-	using node = rbnode;
+	typedef rbiterator<rbnode> iterator;
+	typedef rbiterator<const rbnode> const_iterator;
+	typedef rbnode node;
 
-	xe_rbtree(){
-		root = null;
-		begin_ = null;
-		size_ = 0;
-	}
+	xe_rbtree(): root(), begin_(), size_(){}
+
+	xe_disallow_copy_move(xe_rbtree)
 
 	iterator insert(rbnode& node){
 		insert(&node);

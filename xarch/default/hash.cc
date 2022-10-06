@@ -1,4 +1,4 @@
-#include "xutil/hash.h"
+#include "xstd/hash.h"
 #include "xconfig/cpu.h"
 #include "xutil/encoding.h"
 #include "../arch.h"

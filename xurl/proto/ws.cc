@@ -2,8 +2,9 @@
 #include <wolfssl/wolfcrypt/sha.h>
 #include "ws.h"
 #include "http_internal.h"
+#include "net_internal.h"
 #include "xe/clock.h"
-#include "xutil/inet.h"
+#include "xutil/endian.h"
 #include "xutil/encoding.h"
 #include "xstd/fla.h"
 #include "../writer.h"
@@ -31,7 +32,7 @@ public:
 	int internal_redirect(xe_request_internal& request, xe_string&& url);
 	int open(xe_websocket_data_internal& data, xe_url&& url, bool redirect);
 
-	~xe_websocket();
+	~xe_websocket() = default;
 
 	static xe_cstr class_name(){
 		return "xe_websocket";
@@ -184,13 +185,13 @@ protected:
 		return 0;
 	}
 
-	int handle_status_line(xe_http_version version, uint status, xe_string_view& reason){
+	int handle_status_line(xe_http_version version, uint status, const xe_string_view& reason){
 		if(status != 101)
 			failure = true;
 		return 0;
 	}
 
-	int handle_header(xe_string_view& key, xe_string_view& value){
+	int handle_header(const xe_string_view& key, const xe_string_view& value){
 		xe_return_error(xe_http_singleconnection::handle_header(key, value));
 
 		if(failure)
@@ -436,7 +437,7 @@ public:
 
 	int send(xe_websocket_opcode opcode, xe_cptr buf, size_t len, bool priority = false){
 		xe_fla<byte, 14> header;
-		xe_writer writer(header);
+		auto writer = xe_writer(header);
 		byte payload_len = len;
 		ssize_t sent = 0, result;
 
@@ -448,18 +449,18 @@ public:
 			payload_len = LONG_FRAME_LENGTH;
 		else if(len >= SHORT_FRAME_MIN_LENGTH)
 			payload_len = SHORT_FRAME_LENGTH;
-		writer.write<byte>(0x80 | opcode);
-		writer.write<byte>(0x80 | payload_len);
+		writer.w8(0x80 | opcode);
+		writer.w8(0x80 | payload_len);
 
 		if(payload_len == SHORT_FRAME_LENGTH)
-			writer.write(xe_htons(len));
+			writer.w16be(len);
 		else if(payload_len == LONG_FRAME_LENGTH)
-			writer.write(xe_htonll(len));
-		writer.write<uint>(0); /* mask */
+			writer.w64be(len);
+		writer.w32be(0); /* mask */
 
 		if(message_head)
 			goto queue;
-		result = xe_connection::send(&header, writer.count());
+		result = xe_connection::send(header.data(), writer.pos());
 
 		if(result <= 0){
 			if(!result) return XE_SEND_ERROR;
@@ -472,7 +473,7 @@ public:
 
 		xe_log_trace(this, "sent %zi bytes", result);
 
-		if(result < writer.count())
+		if(result < writer.pos())
 			goto queue;
 		result = xe_connection::send(buf, len);
 
@@ -503,15 +504,15 @@ public:
 
 		if(!message_head)
 			transferctl(XE_RESUME_SEND);
-		node = make_send_node(len + writer.count() - sent, priority);
+		node = make_send_node(len + writer.pos() - sent, priority);
 
 		if(!node)
 			return XE_ENOMEM;
-		if(sent < writer.count()){
-			xe_memcpy(node -> data, header.data() + sent, writer.count() - sent);
-			xe_memcpy(node -> data + writer.count() - sent, buf, len);
+		if(sent < writer.pos()){
+			xe_memcpy(node -> data, header.data() + sent, writer.pos() - sent);
+			xe_memcpy(node -> data + writer.pos() - sent, buf, len);
 		}else{
-			xe_memcpy(node -> data, buf, len + writer.count() - sent);
+			xe_memcpy(node -> data, buf, len + writer.pos() - sent);
 		}
 
 		return 0;
@@ -540,16 +541,16 @@ public:
 
 	int close(ushort code, xe_cptr data, size_t size){
 		xe_fla<byte, CONTROL_FRAME_MAX_LENGTH> body;
-		xe_writer writer(body);
+		auto writer = xe_writer(body);
 
 		if(size > CONTROL_FRAME_MAX_LENGTH - 2)
 			return XE_EINVAL;
 		if(closing)
 			return XE_EALREADY;
-		writer.write(xe_htons(code));
-		writer.write((const byte*)data, size);
+		writer.w16be(code);
+		writer.write(data, size);
 
-		return send(WS_CLOSE, body.data(), writer.count(), false);
+		return send(WS_CLOSE, body.data(), writer.pos(), false);
 	}
 
 	void end(xe_request& req){
@@ -590,22 +591,13 @@ int xe_websocket::start(xe_request_internal& request){
 
 	if(!connection)
 		return XE_ENOMEM;
-	connection -> set_ssl_verify(data.ssl_verify);
-	connection -> set_ip_mode(data.ip_mode);
+	err = xe_start_connection(*ctx, *connection, data, secure, data.url.hostname(), port);
 
-	if((err = connection -> init(*ctx)) ||
-		(secure && (err = connection -> init_ssl(data.get_ssl_ctx() ? *data.get_ssl_ctx() : ctx -> ssl()))) ||
-		(err = connection -> connect(data.url.hostname(), port))){
+	if(err)
 		connection -> close(err);
-
-		return err;
-	}
-
-	if(data.connect_timeout)
-		connection -> start_connect_timeout(data.connect_timeout);
-	connection -> open(request);
-
-	return 0;
+	else
+		connection -> open(request);
+	return err;
 }
 
 int xe_websocket::transferctl(xe_request_internal& request, uint flags){
@@ -622,7 +614,6 @@ void xe_websocket::end(xe_request_internal& request){
 
 int xe_websocket::open(xe_request_internal& request, xe_url&& url){
 	xe_websocket_data_internal* data;
-
 	int err;
 
 	if(request.data && request.data -> id() == XE_PROTOCOL_WEBSOCKET)
@@ -630,7 +621,9 @@ int xe_websocket::open(xe_request_internal& request, xe_url&& url){
 	else{
 		data = xe_znew<xe_websocket_data_internal>();
 
-		if(!data) return XE_ENOMEM;
+		if(!data)
+			return XE_ENOMEM;
+		data -> ssl_ctx = &ctx -> ssl_ctx();
 	}
 
 	if((err = open(*data, std::move(url), false))){
@@ -639,9 +632,9 @@ int xe_websocket::open(xe_request_internal& request, xe_url&& url){
 		return err;
 	}
 
-	xe_log_verbose(this, "opened ws request for: %s", data -> url.href().data());
-
 	request.data = data;
+
+	xe_log_verbose(this, "opened ws request for: %s", data -> url.href().data());
 
 	return 0;
 }
@@ -703,8 +696,6 @@ int xe_websocket::internal_redirect(xe_request_internal& request, xe_string&& ur
 
 	return start(request);
 }
-
-xe_websocket::~xe_websocket(){}
 
 xe_websocket_data::xe_websocket_data(): xe_http_common_data(XE_PROTOCOL_WEBSOCKET){}
 

@@ -22,42 +22,33 @@ enum{
 int xurl_shared::init(){
 	int err;
 
-	if((err = resolve.init()))
-		return err;
-	if((err = ssl_ctx.init())){
-		resolve.close();
-
-		return err;
-	}
-
-	if((err = ssl_ctx.load_default_verify_locations())){
-		resolve.close();
-		ssl_ctx.close();
-
-		return err;
-	}
-
-	endpoints.init();
-
+	if((err = resolve_ctx_.init()))
+		goto err_out;
+	if((err = ssl_ctx_.init()))
+		goto err_ssl;
+	if((err = ssl_ctx_.load_default_verify_locations()))
+		goto err_load;
 	return 0;
+err_load:
+	ssl_ctx_.close();
+err_ssl:
+	resolve_ctx_.close();
+err_out:
+	return err;
 }
 
-xe_ssl_ctx& xurl_shared::ssl(){
-	return ssl_ctx;
+const xe_resolve_ctx& xurl_shared::resolve_ctx(){
+	return resolve_ctx_;
+}
+
+const xe_ssl_ctx& xurl_shared::ssl_ctx(){
+	return ssl_ctx_;
 }
 
 void xurl_shared::close(){
-	resolve.close();
-	ssl_ctx.close();
-}
-
-void xurl_ctx::poll(){
-	if(handle != -1 || !active)
-		return;
-	loop_ -> release(1);
-	handle = loop_ -> poll(pollfd, EPOLLIN, this, null, 0, 0, XURL_CTX);
-
-	xe_assert(handle >= 0);
+	resolve_ctx_.close();
+	ssl_ctx_.close();
+	endpoints.clear();
 }
 
 static xe_protocol* allocate_protocol(xurl_ctx& ctx, int id){
@@ -90,10 +81,10 @@ int xurl_ctx::resolve(xe_connection& conn, const xe_string_view& host, xe_endpoi
 		}
 	}else{
 		xe_string host_copy;
-		xe_unique_ptr<resolve_entry> data;
+		xe_unique_ptr<xe_resolve_entry> data;
 		int err;
 
-		data.own(xe_zalloc<resolve_entry>());
+		data.own(xe_zalloc<xe_resolve_entry>());
 
 		if(!data || !host_copy.copy(host))
 			return XE_ENOMEM;
@@ -102,7 +93,7 @@ int xurl_ctx::resolve(xe_connection& conn, const xe_string_view& host, xe_endpoi
 		if(entry == endpoints.end())
 			return XE_ENOMEM;
 		entry -> second = std::move(data);
-		err = resolver.resolve(entry -> first, entry -> second -> endpoint);
+		err = resolver.resolve(entry -> first, entry -> second -> endpoint, resolved, this);
 
 		if(err != XE_EINPROGRESS){
 			if(err)
@@ -113,6 +104,7 @@ int xurl_ctx::resolve(xe_connection& conn, const xe_string_view& host, xe_endpoi
 		}
 
 		conn.next = null;
+		active_resolves_++;
 	}
 
 	entry -> second -> pending = &conn;
@@ -122,80 +114,35 @@ int xurl_ctx::resolve(xe_connection& conn, const xe_string_view& host, xe_endpoi
 	return XE_EINPROGRESS;
 }
 
-void xurl_ctx::resolved(const xe_string_view& host, xe_endpoint&& endpoint, int status){
+void xurl_ctx::resolved(xe_ptr data, const xe_string_view& host, xe_endpoint&& endpoint, int status){
+	xurl_ctx& ctx = *(xurl_ctx*)data;
 	xe_connection* conn;
 	xe_connection* next;
 
-	auto entry = endpoints.find((xe_string&)host);
+	auto entry = ctx.endpoints.find((xe_string&)host);
 
-	xe_assert(entry != endpoints.end());
+	xe_assert(entry != ctx.endpoints.end());
 
+	ctx.active_resolves_--;
 	conn = entry -> second -> pending;
 	entry -> second -> pending = null;
 
+	if(!status && ctx.closing)
+		status = XE_ECANCELED;
 	if(!status)
 		entry -> second -> endpoint = std::move(endpoint);
 	else
-		endpoints.erase(entry);
-	if(!status && closing)
-		status = XE_ECANCELED;
+		ctx.endpoints.erase(entry);
 	while(conn){
 		next = conn -> next;
 		conn -> next = null;
 		conn -> prev = null;
-		conn -> start_connect(entry -> second -> endpoint, status);
+
+		if(status)
+			conn -> close(status);
+		else
+			conn -> start_connect(entry -> second -> endpoint);
 		conn = next;
-	}
-}
-
-void xurl_ctx::resolver_active(bool active){
-	if(active)
-		poll();
-	else if(!conn_count && handle != -1){
-		ulong val = 1;
-		/* cancel the poll request */
-		xe_asserteq(write(eventfd, &val, sizeof(val)), sizeof(val));
-	}
-}
-
-int xurl_ctx::poll(xe_connection& conn, int mode, int fd, int flags){
-	epoll_event event;
-
-	event.events = flags;
-	event.data.ptr = &conn;
-
-	return epoll_ctl(pollfd, mode, fd, &event) < 0 ? xe_errno() : 0;
-}
-
-bool xurl_ctx::count(xe_connection& conn){
-	/* refcount */
-	if(conn_count == xe_max_value(conn_count))
-		return false;
-#ifdef XE_DEBUG
-	xe_assert(!conn.refcounted);
-
-	conn.refcounted = true;
-#endif
-	if(!conn_count && !resolver.count)
-		poll();
-	conn_count++;
-
-	return true;
-}
-
-void xurl_ctx::uncount(xe_connection& conn){
-	/* refcount */
-#ifdef XE_DEBUG
-	xe_assert(conn.refcounted);
-
-	conn.refcounted = false;
-#endif
-	conn_count--;
-
-	if(!conn_count && !resolver.count && handle != -1){
-		ulong val = 1;
-		/* cancel the poll request */
-		xe_asserteq(write(eventfd, &val, sizeof(val)), sizeof(val));
 	}
 }
 
@@ -228,85 +175,36 @@ void xurl_ctx::remove(xe_connection& conn){
 		connections = conn.next;
 }
 
-xurl_ctx::xurl_ctx(){
-	for(uint i = 0; i < XE_PROTOCOL_LAST; i++)
-		protocols[i] = null;
-	connections = null;
-	active = false;
-	closing = false;
-	flags = 0;
-	conn_count = 0;
+void xurl_ctx::count(){
+	active_connections_++;
+}
+
+void xurl_ctx::uncount(){
+	active_connections_--;
 }
 
 int xurl_ctx::init(xe_loop& loop, xurl_shared& shared_){
-	int err = XE_ENOMEM;
-	int epfd = -1, evfd = -1;
-	epoll_event event;
+	size_t i;
+	int err;
 
 	loop_ = &loop;
 	shared = &shared_;
-	pollfd = -1;
-	handle = -1;
-	eventfd = -1;
-	endpoints.init();
+	err = XE_ENOMEM;
 
-	for(uint i = 0; i < XE_PROTOCOL_LAST; i++){
+	for(i = 0; i < protocols.size(); i++){
 		protocols[i] = allocate_protocol(*this, i);
 
-		if(!protocols[i])
-			goto fail;
+		if(!protocols[i]) goto fail;
 	}
 
-	epfd = epoll_create(MAX_EVENTS);
+	err = resolver.init(loop, shared_.resolve_ctx());
 
-	if(epfd < 0){
-		err = xe_errno();
-
+	if(err)
 		goto fail;
-	}
-
-	evfd = ::eventfd(0, 0);
-
-	if(evfd < 0){
-		err = xe_errno();
-
-		goto fail;
-	}
-
-	event.events = EPOLLIN;
-	event.data.ptr = this;
-
-	if(epoll_ctl(epfd, EPOLL_CTL_ADD, evfd, &event) < 0){
-		err = xe_errno();
-
-		goto fail;
-	}
-
-	if((err = resolver.init(*this, shared_.resolve)))
-		goto fail;
-	event.data.ptr = &resolver;
-
-	if(epoll_ctl(epfd, EPOLL_CTL_ADD, resolver.pollfd, &event) < 0){
-		err = xe_errno();
-
-		goto fail;
-	}
-
-	pollfd = epfd;
-	eventfd = evfd;
-
 	return 0;
 fail:
-	for(uint i = 0; i < XE_PROTOCOL_LAST; i++){
-		if(!protocols[i])
-			break;
+	while(i--)
 		xe_delete(protocols[i]);
-	}
-
-	if(epfd != -1)
-		::close(epfd);
-	if(evfd != -1)
-		::close(evfd);
 	return err;
 }
 
@@ -314,9 +212,11 @@ void xurl_ctx::close(){
 	xe_connection* conn;
 	xe_connection* next;
 
-	closing = true;
 	conn = connections;
 	connections = null;
+
+	resolver.close();
+	endpoints.clear();
 
 	while(conn){
 		next = conn -> next;
@@ -326,56 +226,14 @@ void xurl_ctx::close(){
 		conn = next;
 	}
 
-	if(active)
-		stop();
-	if(handle != -1){
-		/* make the loop close our handle */
-		loop_ -> modify_handle(handle, null, null, pollfd, 0);
-		handle = -1;
-	}else if(pollfd != -1){
-		::close(pollfd);
-	}
-
-	resolver.close();
-	endpoints.clear();
-
-	for(uint i = 0; i < XE_PROTOCOL_LAST; i++)
-		xe_delete(protocols[i]);
-}
-
-int xurl_ctx::start(){
-	if(active)
-		return 0;
-	if(!loop_ -> reserve(2))
-		return XE_TOOMANYHANDLES;
-	active = true;
-
-	return 0;
-}
-
-void xurl_ctx::stop(){
-	if(!active)
-		return;
-	active = false;
-
-	if(handle == -1){
-		loop_ -> release(2);
-
-		return;
-	}
-
-	int ret;
-
-	loop_ -> release(1);
-	ret = loop_ -> poll_cancel(handle, null, null, 0, 0, XE_LOOP_HANDLE_DISCARD);
-
-	xe_assert(ret >= 0);
+	for(auto protocol : protocols)
+		xe_delete(protocol);
 }
 
 int xurl_ctx::open(xe_request& request, const xe_string_view& url_){
 	xe_string url;
 
-	if(request.state != XE_REQUEST_STATE_COMPLETE && request.state != XE_REQUEST_STATE_IDLE)
+	if(request.state() != XE_REQUEST_STATE_COMPLETE && request.state() != XE_REQUEST_STATE_IDLE)
 		return XE_STATE;
 	if(!url.copy(url_))
 		return XE_ENOMEM;
@@ -384,21 +242,21 @@ int xurl_ctx::open(xe_request& request, const xe_string_view& url_){
 
 	xe_return_error(parser.parse());
 
-	for(uint i = 0; i < XE_PROTOCOL_LAST; i++){
-		if(protocols[i] -> matches(parser.scheme())){
-			xe_return_error(protocols[i] -> open((xe_request_internal&)request, std::move(parser)));
+	for(auto protocol : protocols){
+		if(!protocol -> matches(parser.scheme()))
+			continue;
+		xe_return_error(protocol -> open((xe_request_internal&)request, std::move(parser)));
 
-			if(request.data != data)
-				xe_delete(data);
-			return 0;
-		}
+		if(request.data != data)
+			xe_delete(data);
+		return 0;
 	}
 
 	return XE_EPROTONOSUPPORT;
 }
 
 int xurl_ctx::start(xe_request& request){
-	if(request.state != XE_REQUEST_STATE_COMPLETE && request.state != XE_REQUEST_STATE_IDLE)
+	if(request.state() != XE_REQUEST_STATE_COMPLETE && request.state() != XE_REQUEST_STATE_IDLE)
 		return XE_STATE;
 	xe_protocol* protocol = protocols[request.data -> id()];
 
@@ -406,7 +264,7 @@ int xurl_ctx::start(xe_request& request){
 }
 
 int xurl_ctx::transferctl(xe_request& request, uint flags){
-	if(request.state == XE_REQUEST_STATE_COMPLETE || request.state == XE_REQUEST_STATE_IDLE)
+	if(request.state() == XE_REQUEST_STATE_COMPLETE || request.state() == XE_REQUEST_STATE_IDLE)
 		return XE_STATE;
 	xe_protocol* protocol = protocols[request.data -> id()];
 
@@ -414,71 +272,13 @@ int xurl_ctx::transferctl(xe_request& request, uint flags){
 }
 
 int xurl_ctx::end(xe_request& request){
-	if(request.state == XE_REQUEST_STATE_COMPLETE || request.state == XE_REQUEST_STATE_IDLE)
+	if(request.state() == XE_REQUEST_STATE_COMPLETE || request.state() == XE_REQUEST_STATE_IDLE)
 		return XE_ENOENT;
 	xe_protocol* protocol = protocols[request.data -> id()];
 
 	protocol -> end((xe_request_internal&)request);
 
 	return 0;
-}
-
-xe_loop& xurl_ctx::loop(){
-	return *loop_;
-}
-
-xe_ssl_ctx& xurl_ctx::ssl(){
-	return shared -> ssl();
-}
-
-void xurl_ctx::io(xe_loop_handle& handle, int result){
-	if(!handle.user_data){
-		::close(handle.u1);
-
-		return;
-	}
-
-	xurl_ctx& ctx = *(xurl_ctx*)handle.user_data;
-	epoll_event events[MAX_EVENTS];
-	xe_ptr ptr;
-
-	ctx.handle = -1;
-
-	if(!ctx.active)
-		return;
-	xe_assert(ctx.loop_ -> reserve(1));
-
-	int n = epoll_wait(ctx.pollfd, events, MAX_EVENTS, 0);
-
-	if(n < 0){
-		xe_assert(xe_errno() == XE_EINTR);
-
-		return;
-	}
-
-	xe_log_trace(&ctx, "processing %i events", n);
-
-	for(int i = 0; i < n; i++){
-		ptr = events[i].data.ptr;
-
-		if(ptr == &ctx){
-			ulong val;
-			/* eventfd signal */
-			xe_asserteq(read(ctx.eventfd, &val, sizeof(val)), sizeof(val));
-		}else if(ptr == &ctx.resolver){
-			ctx.resolver.io();
-		}else{
-			xe_connection* conn = (xe_connection*)ptr;
-
-			conn -> io(events[i].events);
-		}
-	}
-
-	if(ctx.conn_count || ctx.resolver.count) ctx.poll();
-}
-
-size_t xurl_ctx::connection_count(){
-	return conn_count;
 }
 
 xe_cstr xurl_ctx::class_name(){

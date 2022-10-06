@@ -1,72 +1,101 @@
-#include <fcntl.h>
 #include <unistd.h>
 #include "file.h"
-#include "xutil/assert.h"
 #include "../error.h"
 
-enum xe_file_iotype{
-	XE_FILE_OPEN = 0,
-	XE_FILE_READ,
-	XE_FILE_WRITE
-};
+void xe_open_req::complete(xe_req& req, int res, uint flags){
+	xe_open_req& open_req = (xe_open_req&)req;
 
-xe_file::xe_file(xe_loop& loop): loop_(loop){
-	fd_ = -1;
-	handle = -1;
-	opening = 0;
-	closing = 0;
-	flags = 0;
+	open_req.file -> open(res);
+
+	if(res > 0)
+		res = 0;
+	if(open_req.callback) open_req.callback(open_req, res);
 }
 
-int xe_file::fd(){
-	return fd_;
+void xe_open_promise::complete(xe_req& req, int res, uint flags){
+	xe_open_promise& promise = (xe_open_promise&)req;
+
+	promise.file -> open(res);
+
+	if(res > 0)
+		res = 0;
+	xe_promise::complete(req, res, flags);
 }
 
-xe_loop& xe_file::loop(){
-	return loop_;
+xe_open_promise::xe_open_promise(){
+	event = complete;
 }
 
-int xe_file::open(xe_cstr path, uint flags){
+void xe_file::open(int res){
+	opening = false;
+
+	if(res >= 0) fd_ = res;
+}
+
+int xe_file::open(xe_open_req& req, xe_cstr path, uint flags){
+	return openat(req, AT_FDCWD, path, flags);
+}
+
+int xe_file::openat(xe_open_req& req, int dfd, xe_cstr path, uint flags){
 	if(opening)
 		return XE_EALREADY;
 	if(fd_ >= 0)
 		return XE_STATE;
-	int ret = loop_.openat(AT_FDCWD, path, flags, 0, this, null, XE_FILE_OPEN, 0, XE_LOOP_HANDLE_FILE);
+	xe_return_error(loop_ -> openat(req, dfd, path, flags, 0));
 
-	if(ret >= 0){
+	req.file = this;
+	opening = true;
+
+	return 0;
+}
+
+xe_open_promise xe_file::open(xe_cstr path, uint flags){
+	return openat(AT_FDCWD, path, flags);
+}
+
+xe_open_promise xe_file::openat(int dfd, xe_cstr path, uint flags){
+	xe_open_promise promise;
+	int res;
+
+	if(opening)
+		res = XE_EALREADY;
+	else if(fd_ >= 0)
+		res = XE_STATE;
+	else
+		res = loop_ -> openat(promise, dfd, path, flags, 0);
+	if(res){
+		promise.result_ = res;
+		promise.ready_ = true;
+	}else{
+		promise.file = this;
 		opening = true;
-		handle = ret;
 	}
 
-	return ret;
+	return promise;
 }
 
-int xe_file::read(xe_ptr buf, uint len, ulong offset, ulong key){
-	if(opening || fd_ < 0)
+int xe_file::read(xe_req& req, xe_ptr buf, uint len, long offset){
+	if(fd_ < 0)
 		return XE_STATE;
-	return loop_.read(fd_, buf, len, offset, this, null, XE_FILE_READ, key, XE_LOOP_HANDLE_FILE);
+	return loop_ -> read(req, fd_, buf, len, offset);
 }
 
-int xe_file::write(xe_cptr buf, uint len, ulong offset, ulong key){
-	if(opening || fd_ < 0)
+int xe_file::write(xe_req& req, xe_cptr buf, uint len, long offset){
+	if(fd_ < 0)
 		return XE_STATE;
-	return loop_.write(fd_, buf, len, offset, this, null, XE_FILE_WRITE, key, XE_LOOP_HANDLE_FILE);
+	return loop_ -> write(req, fd_, buf, len, offset);
 }
 
-int xe_file::cancelopen(){
-	if(!opening)
-		return XE_ENOENT;
-	if(closing)
-		return XE_EALREADY;
-	int ret = loop_.cancel(handle, 0, null, null, 0, 0, XE_LOOP_HANDLE_DISCARD);
+xe_promise xe_file::read(xe_ptr buf, uint len, long offset){
+	if(fd_ < 0)
+		return xe_promise::done(XE_STATE);
+	return loop_ -> read(fd_, buf, len, offset);
+}
 
-	if(ret >= 0){
-		closing = true;
-
-		return 0;
-	}
-
-	return ret;
+xe_promise xe_file::write(xe_cptr buf, uint len, long offset){
+	if(fd_ < 0)
+		return xe_promise::done(XE_STATE);
+	return loop_ -> write(fd_, buf, len, offset);
 }
 
 void xe_file::close(){
@@ -74,38 +103,5 @@ void xe_file::close(){
 		::close(fd_);
 
 		fd_ = -1;
-	}
-}
-
-void xe_file::io(xe_loop_handle& handle, int result){
-	xe_file& file = *(xe_file*)handle.user_data;
-
-	switch(handle.u1){
-		case XE_FILE_OPEN:
-			if(result >= 0){
-				if(file.closing)
-					::close(result);
-				else
-					file.fd_ = result;
-				result = 0;
-			}
-
-			file.opening = false;
-			file.closing = false;
-			file.open_callback(file, 0, result);
-
-			break;
-		case XE_FILE_READ:
-			file.read_callback(file, handle.u2, result);
-
-			break;
-		case XE_FILE_WRITE:
-			file.write_callback(file, handle.u2, result);
-
-			break;
-		default:
-			xe_notreached();
-
-			break;
 	}
 }

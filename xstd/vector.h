@@ -11,7 +11,7 @@ protected:
 	using base::construct_range;
 	using base::copy_range;
 	using base::move_range;
-	using base::deconstruct_range;
+	using base::destruct_range;
 
 	size_t capacity_;
 
@@ -24,6 +24,7 @@ protected:
 public:
 	typedef typename base::iterator iterator;
 	typedef typename base::const_iterator const_iterator;
+	typedef typename base::value_type value_type;
 	using base::max_size;
 	using base::at;
 	using base::operator[];
@@ -60,7 +61,7 @@ public:
 		if(src_size > max_size())
 			return false;
 		if(src_size <= capacity_)
-			deconstruct_range(begin(), end());
+			destruct_range(begin(), end());
 		else{
 			T* data = xe_alloc<T>(src_size);
 
@@ -124,7 +125,7 @@ public:
 
 		T rval = std::move(at(size_ - 1));
 
-		xe_deconstruct(&at(size_ - 1));
+		xe_destruct(&at(size_ - 1));
 
 		size_--;
 
@@ -133,7 +134,7 @@ public:
 
 	bool resize(size_t size){
 		if(size < size_)
-			deconstruct_range(data_ + size, data_ + size_);
+			destruct_range(data_ + size, data_ + size_);
 		else{
 			if(size > capacity_ && !reserve(size))
 				return false;
@@ -162,7 +163,7 @@ public:
 			if(!data)
 				return false;
 			move_range(data, begin(), end());
-			deconstruct_range(begin(), end());
+			destruct_range(begin(), end());
 			xe_dealloc(data_);
 		}
 

@@ -1,23 +1,22 @@
 #pragma once
 #include <robin_hood.h>
-#include "types.h"
 #include "xutil/mem.h"
-#include "xutil/hash.h"
+#include "xutil/util.h"
+#include "hash.h"
 
 template<typename key_t, typename value_t, class hash = xe_hash<key_t>, class equal = std::equal_to<key_t>>
 class xe_map{
 private:
 	typedef robin_hood::unordered_flat_map<key_t, value_t, hash, equal> unordered_map;
 
-	union{
-		unordered_map map;
-		struct{} empty_struct;
-	};
+	unordered_map map;
 public:
-	using iterator = typename unordered_map::iterator;
-	using const_iterator = typename unordered_map::const_iterator;
+	typedef typename unordered_map::iterator iterator;
+	typedef typename unordered_map::const_iterator const_iterator;
+	typedef key_t key_type;
+	typedef value_t value_type;
 
-	xe_map(){}
+	xe_map() = default;
 
 	xe_map(xe_map&& other): map(std::move(other.map)){}
 	xe_map& operator=(xe_map&& other){
@@ -26,12 +25,7 @@ public:
 		return *this;
 	}
 
-	xe_map(const xe_map& src) = delete;
-	xe_map& operator=(const xe_map& src) = delete;
-
-	void init(){
-		xe_construct(&map);
-	}
+	xe_disallow_copy(xe_map)
 
 	template<class K, class V>
 	bool insert(K&& key, V&& value){
@@ -122,11 +116,9 @@ public:
 	}
 
 	void clear(){
-		xe_deconstruct(&map);
-		init();
+		xe_destruct(&map);
+		xe_construct(&map);
 	}
 
-	~xe_map(){
-		clear();
-	}
+	~xe_map() = default;
 };

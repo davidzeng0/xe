@@ -14,6 +14,14 @@ enum xe_http_option_flags{
 	XE_HTTP_FREE = 0xa
 };
 
+struct xe_http_case_insensitive{
+	bool operator()(const xe_string_view& a, const xe_string_view& b) const;
+};
+
+struct xe_http_lowercase_hash{
+	size_t operator()(const xe_string_view& str) const;
+};
+
 class xe_http_common_data : public xe_net_common_data{
 protected:
 	bool follow_location: 1;

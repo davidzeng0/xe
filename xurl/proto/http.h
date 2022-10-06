@@ -1,6 +1,7 @@
 #pragma once
 #include "http_base.h"
 #include "xstd/map.h"
+#include "xstd/vector.h"
 
 namespace xurl{
 
@@ -12,11 +13,66 @@ enum xe_http_version{
 	XE_HTTP_VERSION_3_0 = 30
 };
 
-struct xe_http_response{
+class xe_http_headers : public xe_map<xe_string, xe_vector<xe_string>, xe_http_lowercase_hash, xe_http_case_insensitive>{
+public:
+	xe_http_headers() = default;
+	xe_http_headers(xe_http_headers&& other): xe_map(std::move(other)){}
+	xe_http_headers& operator=(xe_http_headers&& other){
+		xe_map::operator=(std::move(other));
+
+		return *this;
+	}
+
+	xe_disallow_copy(xe_http_headers)
+
+	bool has(const xe_string_view& key){
+		return xe_map::has((xe_string&)key);
+	}
+
+	iterator find(const xe_string_view& key){
+		return xe_map::find((xe_string&)key);
+	}
+
+	~xe_http_headers() = default;
+};
+
+class xe_http_response{
+private:
+	void move(xe_http_response&& other){
+		headers = std::move(other.headers);
+		status_text = std::move(other.status_text);
+		version = other.version;
+		status = other.status;
+	}
+public:
+	typedef typename xe_http_headers::iterator iterator;
+	typedef typename xe_http_headers::const_iterator const_iterator;
+
+	xe_http_headers headers;
+	xe_string status_text;
 	xe_http_version version;
 	uint status;
-	xe_string status_text;
-	xe_map<xe_string, xe_string> headers;
+
+	xe_http_response() = default;
+
+	xe_http_response(xe_http_response&& other){
+		move(std::move(other));
+	}
+
+	xe_http_response& operator=(xe_http_response&& other){
+		move(std::move(other));
+
+		return *this;
+	}
+
+	xe_disallow_copy(xe_http_response)
+
+	void clear(){
+		headers.clear();
+		status_text.clear();
+	}
+
+	~xe_http_response() = default;
 };
 
 class xe_http_input{

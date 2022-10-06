@@ -29,11 +29,19 @@ protected:
 		done_cb done;
 	} callbacks;
 
-	xe_request_state state;
-
-	friend class xurl_ctx;
+	xe_request_state state_;
 public:
-	xe_request();
+	xe_request(){
+		data = null;
+		callbacks.state = null;
+		callbacks.write = null;
+		callbacks.done = null;
+		state_ = XE_REQUEST_STATE_IDLE;
+	}
+
+	xe_disallow_copy_move(xe_request)
+
+	xe_request_state state();
 
 	void set_state_cb(state_cb cb);
 	void set_write_cb(write_cb cb);
@@ -69,7 +77,9 @@ public:
 
 	void close();
 
-	~xe_request();
+	~xe_request(){
+		close();
+	}
 };
 
 }

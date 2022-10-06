@@ -7,16 +7,16 @@ static size_t xe_index_of(const xe_string_view& string, char c, size_t off){
 	return ptr ? (xe_cstr)ptr - string.data() : -1;
 }
 
-bool xe_string_view::equal(const xe_string_view& a, const xe_string_view& b){
+static inline bool xe_string_equal(const xe_string_view& a, const xe_string_view& b){
 	if(a.length() != b.length())
 		return false;
-	return a.data_ == b.data_ || !xe_strncmp(a.data_, b.data_, a.length());
+	return a.data() == b.data() || !xe_strncmp(a.data(), b.data(), a.length());
 }
 
-bool xe_string_view::equal_case(const xe_string_view& a, const xe_string_view& b){
+static inline bool xe_string_equal_case(const xe_string_view& a, const xe_string_view& b){
 	if(a.length() != b.length())
 		return false;
-	return a.data_ == b.data_ || !xe_strncasecmp(a.data_, b.data_, a.length());
+	return a.data() == b.data() || !xe_strncasecmp(a.data(), b.data(), a.length());
 }
 
 size_t xe_string_view::index_of(char c, size_t off) const{
@@ -36,11 +36,11 @@ bool xe_string_view::operator==(xe_cstr o) const{
 }
 
 bool xe_string_view::equal(const xe_string_view& o) const{
-	return equal(o, *this);
+	return xe_string_equal(o, *this);
 }
 
 bool xe_string_view::equal_case(const xe_string_view& o) const{
-	return equal_case(o, *this);
+	return xe_string_equal_case(o, *this);
 }
 
 bool xe_string_view::equal(xe_cstr o) const{

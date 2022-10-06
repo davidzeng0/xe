@@ -2,16 +2,11 @@
 #include "types.h"
 #include "array.h"
 #include "xutil/util.h"
-#include "xutil/hash.h"
+#include "xstd/hash.h"
 
 class xe_string_view : public xe_slice<char>{
-protected:
-	static bool equal(const xe_string_view& a, const xe_string_view& b);
-	static bool equal_case(const xe_string_view& a, const xe_string_view& b);
-
-	friend class xe_string;
 public:
-	constexpr xe_string_view(){}
+	constexpr xe_string_view() = default;
 
 	constexpr xe_string_view(xe_cstr string){
 		operator=(string);
@@ -65,7 +60,7 @@ public:
 		return xe_string_view(data_ + start, end - start);
 	}
 
-	~xe_string_view() = default;
+	constexpr ~xe_string_view() = default;
 };
 
 template<>
@@ -77,13 +72,10 @@ struct xe_hash<xe_string_view>{
 
 class xe_string : public xe_array<char>{
 public:
-	xe_string(){}
+	xe_string() = default;
 
 	xe_string(xe_string&& src);
 	xe_string& operator=(xe_string&& other);
-
-	xe_string(const xe_string_view& other) = delete;
-	xe_string& operator=(const xe_string_view& other) = delete;
 
 	constexpr char* data(){
 		return data_;
@@ -140,7 +132,7 @@ public:
 		return slice(0, size_);
 	}
 
-	~xe_string(){}
+	~xe_string() = default;
 };
 
 template<>

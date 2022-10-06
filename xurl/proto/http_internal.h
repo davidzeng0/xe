@@ -34,32 +34,24 @@ public:
 
 class xe_http_connection;
 class xe_http_internal_data{
-	struct xe_http_case_insensitive{
-		bool operator()(const xe_string_view& a, const xe_string_view& b) const{
-			return a.equal_case(b);
-		}
-	};
-
-	struct xe_http_lowercase_hash{
-		size_t operator()(const xe_string_view& str) const{
-			return xe_arch_hash_lowercase(str.data(), str.length());
-		}
-	};
 public:
 	typedef xe_map<xe_http_string, xe_http_string, xe_http_lowercase_hash, xe_http_case_insensitive> xe_http_headers;
 
 	xe_url url;
-	uint redirects;
-	xe_http_version min_version;
-	xe_http_version max_version;
 	xe_http_string method;
 	xe_http_headers headers;
 	xe_http_connection* connection;
+	xe_http_version min_version;
+	xe_http_version max_version;
+	uint redirects;
 
 	xe_http_internal_data();
 
 	bool internal_set_method(const xe_string_view& method, uint flags);
 	bool internal_set_header(const xe_string_view& key, const xe_string_view& value, uint flags);
+	bool internal_has_header(const xe_string_view& key);
+	xe_string_view internal_get_header(const xe_string_view& key);
+	bool internal_erase_header(const xe_string_view& key);
 	void clear();
 
 	~xe_http_internal_data();
@@ -76,7 +68,7 @@ public:
 	virtual void closed(xe_http_connection& connection);
 	virtual int open(xe_http_internal_data& data, xe_url&& url, bool redirect);
 
-	~xe_http_protocol(){}
+	~xe_http_protocol() = default;
 };
 
 class xe_http_connection : public xe_connection{
@@ -106,7 +98,7 @@ protected:
 	ulong data_len;
 	xe_string location;
 
-	xe_vector<char> client_headers;
+	xe_vector<byte> client_headers;
 	size_t send_offset;
 
 	byte* header_buffer;
@@ -119,6 +111,7 @@ protected:
 	bool bodyless: 1;
 	bool follow: 1;
 	bool connection_close: 1;
+	bool statusline_prefix_checked: 1;
 
 	bool client_write(xe_ptr buf, size_t len);
 
@@ -136,14 +129,14 @@ protected:
 
 	ssize_t data(xe_ptr data, size_t size);
 
-	int read_line(byte*& buf, size_t& len, xe_string_view& line, size_t& read);
-	virtual int handle_status_line(xe_http_version version, uint status, xe_string_view& reason);
-	ssize_t parse_headers(byte* buf, size_t len);
-	virtual int handle_header(xe_string_view& key, xe_string_view& value);
+	int read_line(byte*& buf, size_t& len, xe_string_view& line);
+	virtual int handle_status_line(xe_http_version version, uint status, const xe_string_view& reason);
+	int parse_headers(byte* buf, size_t len);
+	virtual int handle_header(const xe_string_view& key, const xe_string_view& value);
 	int parse_trailers(byte* buf, size_t len);
 	bool chunked_save(byte* buf, size_t len);
 	int chunked_body(byte* buf, size_t len);
-	virtual int handle_trailer(xe_string_view& key, xe_string_view& value);
+	virtual int handle_trailer(const xe_string_view& key, const xe_string_view& value);
 
 	virtual int pretransfer();
 	virtual int posttransfer();

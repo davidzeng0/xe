@@ -1,50 +1,134 @@
 #pragma once
 #include "../loop.h"
 
+class xe_socket;
+class xe_socket_req : public xe_req{
+private:
+	static void complete(xe_req&, int, uint);
+
+	xe_socket* socket;
+
+	friend class xe_socket;
+public:
+	typedef void (*xe_callback)(xe_socket_req& req, int result);
+
+	xe_callback callback;
+
+	xe_socket_req(xe_callback cb){
+		event = complete;
+		callback = cb;
+	}
+
+	xe_socket_req(): xe_socket_req(null){}
+
+	~xe_socket_req() = default;
+};
+
+class xe_socket_promise : public xe_promise{
+private:
+	static void complete(xe_req& req, int, uint);
+
+	xe_socket* socket;
+
+	xe_socket_promise();
+	xe_socket_promise(xe_socket_promise&&) = default;
+
+	friend class xe_socket;
+public:
+	~xe_socket_promise() = default;
+};
+
+class xe_connect_req : public xe_req{
+private:
+	static void complete(xe_req&, int, uint);
+
+	xe_socket* socket;
+
+	friend class xe_socket;
+public:
+	typedef void (*xe_callback)(xe_connect_req& req, int result);
+
+	xe_callback callback;
+
+	xe_connect_req(xe_callback cb = null){
+		event = complete;
+		callback = cb;
+	}
+
+	~xe_connect_req() = default;
+};
+
+class xe_connect_promise : public xe_promise{
+private:
+	static void complete(xe_req& req, int, uint);
+
+	xe_socket* socket;
+
+	xe_connect_promise();
+	xe_connect_promise(xe_connect_promise&&) = default;
+
+	friend class xe_socket;
+public:
+	~xe_connect_promise() = default;
+};
+
 class xe_socket{
 private:
-	xe_loop& loop_;
+	void open(int);
+	void connect(int);
+
+	xe_loop* loop_;
 
 	int fd_;
+	uint state;
 
-	uint accepting: 1;
-	uint connecting: 1;
-	uint connected: 1;
-	uint flags: 29;
-	uint handle;
-
-	static void io(xe_loop_handle& handle, int);
-
-	friend class xe_loop;
+	friend class xe_socket_req;
+	friend class xe_socket_promise;
+	friend class xe_connect_req;
+	friend class xe_connect_promise;
 public:
-	typedef void (*xe_callback)(xe_socket& socket, ulong key, int result);
+	xe_socket(){
+		fd_ = -1;
+		state = 0;
+	}
 
-	union{
-		xe_callback accept_callback;
-		xe_callback recv_callback;
-	};
+	xe_socket(xe_loop& loop): xe_socket(){
+		loop_ = &loop;
+	}
 
-	xe_callback connect_callback;
-	xe_callback send_callback;
+	xe_disallow_copy_move(xe_socket)
 
-	xe_socket(xe_loop& loop);
+	void set_loop(xe_loop& loop){
+		loop_ = &loop;
+	}
+
+	xe_loop& loop() const{
+		return *loop_;
+	}
+
+	int fd() const{
+		return fd_;
+	}
 
 	int init(int af, int type, int proto);
-	void init_fd(int fd);
-	int fd();
+	int init_fd(int fd);
+	int accept(int fd);
 
-	xe_loop& loop();
+	int init_async(xe_socket_req& req, int af, int type, int proto);
+	xe_socket_promise init_async(int af, int type, int proto);
 
-	int connect(sockaddr* addr, socklen_t addrlen, ulong key = 0);
+	int accept(xe_req& req, sockaddr* addr, socklen_t* addrlen, uint flags);
+	int connect(xe_connect_req& req, const sockaddr* addr, socklen_t addrlen);
+	xe_promise accept(sockaddr* addr, socklen_t* addrlen, uint flags);
+	xe_connect_promise connect(const sockaddr* addr, socklen_t addrlen);
 
-	int recv(xe_ptr buf, uint len, uint flags, ulong key = 0);
-	int send(xe_cptr buf, uint len, uint flags, ulong key = 0);
+	int recv(xe_req& req, xe_ptr buf, uint len, uint flags);
+	int send(xe_req& req, xe_cptr buf, uint len, uint flags);
+	xe_promise recv(xe_ptr buf, uint len, uint flags);
+	xe_promise send(xe_cptr buf, uint len, uint flags);
 
-	int listen(int maxqueuesize);
 	int bind(sockaddr* addr, socklen_t addrlen);
-	int accept(sockaddr* addr, socklen_t* addrlen, uint flags);
-
-	int cancel();
+	int listen(int maxqueuesize);
 
 	void close();
 

@@ -11,7 +11,7 @@ protected:
 	uint recvbuf_size;
 	ushort port;
 	xe_ip_mode ip_mode;
-	xe_ssl_ctx* ssl_ctx;
+	const xe_ssl_ctx* ssl_ctx;
 
 	bool ssl_verify: 1;
 
@@ -28,7 +28,7 @@ public:
 		connect_timeout = connect_timeout_;
 	}
 
-	uint get_connect_timeout(){
+	uint get_connect_timeout() const{
 		return connect_timeout;
 	}
 
@@ -36,7 +36,7 @@ public:
 		recvbuf_size = recvbuf_size_;
 	}
 
-	uint get_recvbuf_size(){
+	uint get_recvbuf_size() const{
 		return recvbuf_size;
 	}
 
@@ -44,7 +44,7 @@ public:
 		port = port_;
 	}
 
-	ushort get_port(){
+	ushort get_port() const{
 		return port;
 	}
 
@@ -52,23 +52,23 @@ public:
 		ip_mode = ip_mode_;
 	}
 
-	xe_ip_mode get_ip_mode(){
+	xe_ip_mode get_ip_mode() const{
 		return ip_mode;
 	}
 
-	void set_ssl_ctx(xe_ssl_ctx& ssl_ctx_){
+	void set_ssl_ctx(const xe_ssl_ctx& ssl_ctx_){
 		ssl_ctx = &ssl_ctx_;
 	}
 
-	xe_ssl_ctx* get_ssl_ctx(){
-		return ssl_ctx;
+	const xe_ssl_ctx& get_ssl_ctx() const{
+		return *ssl_ctx;
 	}
 
 	void set_ssl_verify(bool ssl_verify_){
 		ssl_verify = ssl_verify_;
 	}
 
-	bool get_ssl_verify(){
+	bool get_ssl_verify() const{
 		return ssl_verify;
 	}
 };

@@ -17,7 +17,7 @@ int main(){
 
 	int ret;
 
-	options.capacity = 8; /* sqes and cqes */
+	options.entries = 8; /* sqes and cqes */
 
 	/* init */
 	ret = loop.init_options(options);

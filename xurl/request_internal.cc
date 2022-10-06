@@ -2,10 +2,10 @@
 
 using namespace xurl;
 
-void xe_request_internal::set_state(xe_request_state state_){
-	state = state_;
+void xe_request_internal::set_state(xe_request_state state){
+	state_ = state;
 
-	if(callbacks.state) callbacks.state(*this, state_);
+	if(callbacks.state) callbacks.state(*this, state);
 }
 
 int xe_request_internal::write(xe_ptr buf, size_t size){

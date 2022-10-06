@@ -4,16 +4,8 @@
 
 using namespace xurl;
 
-xe_request::xe_request(){
-	data = null;
-	callbacks.state = null;
-	callbacks.write = null;
-	callbacks.done = null;
-	state = XE_REQUEST_STATE_IDLE;
-}
-
-xe_request::~xe_request(){
-	if(data) xe_delete(data);
+xe_request_state xe_request::state(){
+	return state_;
 }
 
 void xe_request::set_state_cb(state_cb cb){
@@ -68,6 +60,14 @@ int xe_request::set_http_method(const xe_string_view& method, uint flags){
 	return ((xe_http_specific*)data) -> set_method(method, flags);
 }
 
+void xe_request::set_http_min_version(xe_http_version version){
+	return ((xe_http_specific*)data) -> set_min_version(version);
+}
+
+void xe_request::set_http_max_version(xe_http_version version){
+	return ((xe_http_specific*)data) -> set_max_version(version);
+}
+
 void xe_request::set_http_statusline_cb(xe_http_statusline_cb cb){
 	((xe_http_specific*)data) -> set_statusline_cb(cb);
 }
@@ -117,9 +117,5 @@ void xe_request::set_ws_close_cb(xe_websocket_close_cb cb){
 }
 
 void xe_request::close(){
-	if(data){
-		xe_delete(data);
-
-		data = null;
-	}
+	xe_deletep(data);
 }

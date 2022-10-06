@@ -1,5 +1,4 @@
 #pragma once
-#include "xstd/types.h"
 #include "xstd/string.h"
 
 namespace xurl{
@@ -10,17 +9,27 @@ private:
 
 	friend class xe_ssl;
 public:
+	xe_ssl_ctx(): data(){}
+
+	xe_disallow_copy_move(xe_ssl_ctx)
+
 	int init();
 	int load_default_verify_locations();
 	int load_verify_locations(xe_cstr cafile, xe_cstr capath);
 	void close();
+
+	~xe_ssl_ctx() = default;
 };
 
 class xe_ssl{
 private:
 	xe_ptr data;
 public:
-	int init(xe_ssl_ctx& ctx);
+	xe_ssl(): data(){}
+
+	xe_disallow_copy_move(xe_ssl)
+
+	int init(const xe_ssl_ctx& ctx);
 	void close();
 
 	void set_fd(int fd);
@@ -32,6 +41,8 @@ public:
 
 	int recv(xe_ptr buffer, size_t len, int flags);
 	int send(xe_cptr buffer, size_t len, int flags);
+
+	~xe_ssl() = default;
 };
 
 int xe_ssl_init();

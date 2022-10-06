@@ -1,5 +1,6 @@
 #pragma once
 #include "list.h"
+#include "optional.h"
 
 template<typename T, size_t N, class traits = xe_traits<T>>
 class xe_fla : public xe_list<T, traits>{
@@ -7,19 +8,17 @@ protected:
 	typedef xe_list<T, traits> base;
 
 	using base::construct_range;
-	using base::deconstruct_range;
+	using base::destruct_range;
 	using base::copy_range;
 	using base::move_range;
 	using base::copy_assign_range;
 	using base::move_assign_range;
 
-	union{
-		T data_[N];
-		struct{} empty_struct;
-	};
+	xe_optional<T [N]> data_;
 public:
 	typedef typename base::iterator iterator;
 	typedef typename base::const_iterator const_iterator;
+	typedef typename base::value_type value_type;
 	using base::max_size;
 
 	constexpr xe_fla(){
@@ -49,13 +48,13 @@ public:
 	constexpr T& at(size_t i){
 		xe_assert(i < N);
 
-		return data_[i];
+		return (*data_)[i];
 	}
 
 	constexpr const T& at(size_t i) const{
 		xe_assert(i < N);
 
-		return data_[i];
+		return (*data_)[i];
 	}
 
 	constexpr T& operator[](size_t i){
@@ -67,11 +66,11 @@ public:
 	}
 
 	constexpr T* data(){
-		return data_;
+		return *data_;
 	}
 
 	constexpr const T* data() const{
-		return data_;
+		return *data_;
 	}
 
 	constexpr size_t size() const{
@@ -79,27 +78,27 @@ public:
 	}
 
 	constexpr iterator begin(){
-		return iterator(data_);
+		return iterator(*data_);
 	}
 
 	constexpr iterator end(){
-		return iterator(data_ + N);
+		return iterator(*data_ + N);
 	}
 
 	constexpr const_iterator begin() const{
-		return const_iterator(data_);
+		return const_iterator(*data_);
 	}
 
 	constexpr const_iterator end() const{
-		return const_iterator(data_ + N);
+		return const_iterator(*data_ + N);
 	}
 
 	constexpr const_iterator cbegin() const{
-		return const_iterator(data_);
+		return const_iterator(*data_);
 	}
 
 	constexpr const_iterator cend() const{
-		return const_iterator(data_ + N);
+		return const_iterator(*data_ + N);
 	}
 
 	constexpr T& front(){
@@ -126,7 +125,7 @@ public:
 		xe_assert(start <= end);
 		xe_assert(end <= N);
 
-		return xe_slice<T, traits>((T*)data_ + start, N - start);
+		return xe_slice<T, traits>((T*)*data_ + start, N - start);
 	}
 
 	constexpr auto slice(size_t start){
@@ -142,7 +141,7 @@ public:
 	}
 
 	constexpr void clear(){
-		deconstruct_range(begin(), end());
+		destruct_range(begin(), end());
 	}
 
 	constexpr ~xe_fla(){

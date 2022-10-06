@@ -57,13 +57,13 @@ xe_url::xe_url(xe_url&& url){
 
 xe_url& xe_url::operator=(xe_url&& url){
 	string = std::move(url.string);
-	n_scheme = url.n_scheme;
-	n_authl = url.n_authl;
-	n_user = url.n_user;
-	n_host = url.n_host;
-	n_port = url.n_port;
-	n_path = url.n_path;
-	v_port = url.v_port;
+	offsets.scheme = url.offsets.scheme;
+	offsets.authl = url.offsets.authl;
+	offsets.user = url.offsets.user;
+	offsets.host = url.offsets.host;
+	offsets.port = url.offsets.port;
+	offsets.path = url.offsets.path;
+	port_ = url.port_;
 
 	return *this;
 }
@@ -358,49 +358,49 @@ finish:
 	if(i < string.length() && string[i] == ':'){
 		ushort port = 0;
 
-		n_host = i;
+		offsets.host = i;
 
 		if(xe_read_integer(XE_DECIMAL, port, string.data() + i + 1, host - i - 1) != host - i - 1)
 			return XE_MALFORMED_URL;
-		v_port = port;
+		port_ = port;
 	}else{
-		n_host = host;
-		v_port = 0;
+		offsets.host = host;
+		port_ = 0;
 	}
 
-	n_scheme = scheme;
-	n_authl = authl;
-	n_user = user;
-	n_port = host;
-	n_path = path;
+	offsets.scheme = scheme;
+	offsets.authl = authl;
+	offsets.user = user;
+	offsets.port = host;
+	offsets.path = path;
 
 	return 0;
 }
 
 xe_string_view xe_url::scheme() const{
-	return string.substring(0, n_scheme);
+	return string.substring(0, offsets.scheme);
 }
 
 xe_string_view xe_url::user_info() const{
-	return string.substring(n_authl, n_user);
+	return string.substring(offsets.authl, offsets.user);
 }
 
 xe_string_view xe_url::host() const{
-	return string.substring(n_user, n_port);
+	return string.substring(offsets.user, offsets.port);
 }
 
 xe_string_view xe_url::hostname() const{
-	if(n_host > 0 && n_user < string.length() && string[n_user] == '[' && string[n_host - 1] == ']')
-		return string.substring(n_user + 1, n_host - 1);
-	return string.substring(n_user, n_host);
+	if(offsets.host > 0 && offsets.user < string.length() && string[offsets.user] == '[' && string[offsets.host - 1] == ']')
+		return string.substring(offsets.user + 1, offsets.host - 1);
+	return string.substring(offsets.user, offsets.host);
 }
 
 xe_string_view xe_url::path() const{
-	return string.substring(n_port, n_path);
+	return string.substring(offsets.port, offsets.path);
 }
 
-uint xe_url::port() const{
-	return v_port;
+ushort xe_url::port() const{
+	return port_;
 }
 
 void xe_url::clear(){

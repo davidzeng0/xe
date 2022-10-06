@@ -1,7 +1,6 @@
 #pragma once
 #include <new>
-#include "xstd/types.h"
-#include "util.h"
+#include "xstd/std.h"
 
 xe_ptr xe_malloc(size_t elem_size, size_t bytes);
 xe_ptr xe_malloc_aligned(size_t alignment, size_t elem_size, size_t bytes);
@@ -81,7 +80,7 @@ static inline void xe_construct(T* ptr, Args&& ...args){
 }
 
 template<class T>
-static inline void xe_deconstruct(T* ptr){
+static inline void xe_destruct(T* ptr){
 	ptr -> ~T();
 }
 
@@ -90,7 +89,7 @@ static inline T* xe_new(Args&& ...args){
 	T* ptr = xe_alloc<T>();
 
 	if(ptr)
-		xe_construct(ptr, args...);
+		xe_construct(ptr, std::forward<Args>(args)...);
 	return ptr;
 }
 
@@ -99,14 +98,31 @@ static inline T* xe_znew(Args&& ...args){
 	T* ptr = xe_zalloc<T>();
 
 	if(ptr)
-		xe_construct(ptr, args...);
+		xe_construct(ptr, std::forward<Args>(args)...);
 	return ptr;
 }
 
 template<class T>
 static inline void xe_delete(T* ptr){
 	if(ptr){
-		xe_deconstruct(ptr);
+		xe_destruct(ptr);
 		xe_dealloc(ptr);
+	}
+}
+
+template<class T>
+static inline void xe_deletep(T*& ptr){
+	if(ptr){
+		xe_delete(ptr);
+
+		ptr = null;
+	}
+}
+
+static inline void xe_deallocp(xe_ptr& ptr){
+	if(ptr){
+		xe_dealloc(ptr);
+
+		ptr = null;
 	}
 }

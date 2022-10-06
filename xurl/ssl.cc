@@ -32,11 +32,10 @@ int xe_ssl_ctx::load_verify_locations(xe_cstr cafile, xe_cstr capath){
 }
 
 void xe_ssl_ctx::close(){
-	if(data)
-		wolfSSL_CTX_free((WOLFSSL_CTX*)data);
+	wolfSSL_CTX_free((WOLFSSL_CTX*)data);
 }
 
-int xe_ssl::init(xe_ssl_ctx& ctx){
+int xe_ssl::init(const xe_ssl_ctx& ctx){
 	WOLFSSL* ssl = wolfSSL_new((WOLFSSL_CTX*)ctx.data);
 
 	if(!ssl)
@@ -47,7 +46,7 @@ int xe_ssl::init(xe_ssl_ctx& ctx){
 }
 
 void xe_ssl::close(){
-	if(data) wolfSSL_free((WOLFSSL*)data);
+	wolfSSL_free((WOLFSSL*)data);
 }
 
 void xe_ssl::set_fd(int fd){
@@ -98,7 +97,7 @@ int xe_ssl::connect(int flags){
 		case SOCKET_ERROR_E:
 			err = xe_errno();
 
-			return err ? err : XE_SSL; /* recv error if err == 0 */
+			return err ?: XE_SSL; // todo: recv error if err == 0
 	}
 
 	return XE_SSL;

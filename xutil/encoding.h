@@ -31,7 +31,7 @@ byte xe_char_tolower(byte c);
 size_t xe_encoding_to_int(xe_integer_encoding encoding, byte c);
 
 template<typename T>
-size_t xe_read_integer(xe_integer_encoding encoding, T& result, xe_cptr vin, size_t in_len){
+static inline size_t xe_read_integer(xe_integer_encoding encoding, T& result, xe_cptr vin, size_t in_len){
 	size_t i;
 	byte* in = (byte*)vin;
 	byte digit;
@@ -39,10 +39,9 @@ size_t xe_read_integer(xe_integer_encoding encoding, T& result, xe_cptr vin, siz
 	for(i = 0; i < in_len; i++){
 		digit = xe_encoding_to_int(encoding, in[i]);
 
-		if(digit > encoding)
+		if(digit >= encoding)
 			break;
-		if(xe_overflow_mul<T>(result, encoding) ||
-			xe_overflow_add<T>(result, digit))
+		if(xe_overflow_mul<T>(result, encoding) || xe_overflow_add<T>(result, digit))
 			return -1;
 	}
 

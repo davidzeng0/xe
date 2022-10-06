@@ -1,12 +1,14 @@
 #pragma once
-#include "types.h"
 #include "xutil/mem.h"
+#include "xutil/util.h"
 
 template<class T>
 class xe_unique_ptr{
 private:
 	T* ptr;
 public:
+	typedef T value_type;
+
 	xe_unique_ptr(): ptr(){}
 	xe_unique_ptr(T* ptr) : ptr(ptr){}
 
@@ -24,8 +26,7 @@ public:
 		return *this;
 	}
 
-	xe_unique_ptr(const xe_unique_ptr& src) = delete;
-	xe_unique_ptr& operator=(const xe_unique_ptr& src) = delete;
+	xe_disallow_copy(xe_unique_ptr)
 
 	void own(T* t){
 		clear();
@@ -42,9 +43,7 @@ public:
 	}
 
 	void clear(){
-		xe_delete(ptr);
-
-		ptr = null;
+		xe_deletep(ptr);
 	}
 
 	operator bool() const{

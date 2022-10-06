@@ -5,8 +5,10 @@ namespace xurl{
 
 ssize_t xe_crypto_random(xe_ptr buf, size_t size);
 
+/* mersenne twister */
 class xe_rng{
-	static const uint w = 32,
+	enum{
+		w = 32,
 		n = 624,
 		m = 397,
 		r = 31,
@@ -18,7 +20,9 @@ class xe_rng{
 		t = 15,
 		c = 0xefc60000,
 		l = 18,
-		f = 1812433253;
+		f = 1812433253
+	};
+
 	uint x[n];
 	size_t i;
 public:

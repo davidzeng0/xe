@@ -13,6 +13,7 @@ protected:
 public:
 	typedef typename base::iterator iterator;
 	typedef typename base::const_iterator const_iterator;
+	typedef typename base::value_type value_type;
 	using base::max_size;
 	using base::at;
 	using base::operator[];
