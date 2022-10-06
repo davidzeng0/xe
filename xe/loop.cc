@@ -476,7 +476,7 @@ int xe_loop::run(){
 
 		if(cqe_tail == cqe_head)
 			continue;
-		xe_log_trace(this, "processing %u handles", cqe_tail - cqe_head);
+		xe_log_trace(this, "processing %u completions", cqe_tail - cqe_head);
 
 		if(sq_ring_full)
 			sq_ring_full = false;

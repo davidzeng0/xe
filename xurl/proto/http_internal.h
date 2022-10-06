@@ -81,7 +81,7 @@ public:
 	virtual int transferctl(xe_request_internal& request, uint flags) = 0;
 	virtual void end(xe_request_internal& request) = 0;
 
-	virtual void close(int error);
+	virtual void closed();
 
 	virtual xe_cstr class_name() = 0;
 };
@@ -149,6 +149,9 @@ public:
 	void end(xe_request_internal& request);
 
 	void close(int error);
+	void closed();
+
+	~xe_http_singleconnection() = default;
 
 	xe_cstr class_name();
 };

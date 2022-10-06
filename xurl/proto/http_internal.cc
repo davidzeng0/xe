@@ -73,8 +73,8 @@ xe_http_string::~xe_http_string(){
 	clear();
 }
 
-void xe_http_connection::close(int error){
-	xe_connection::close(error);
+void xe_http_connection::closed(){
+	xe_connection::closed();
 
 	proto.closed(*this);
 }
@@ -402,11 +402,13 @@ void xe_http_singleconnection::close(int error){
 
 	if(request)
 		complete(error);
-	client_headers.clear();
+	xe_http_connection::close(error);
+}
 
+void xe_http_singleconnection::closed(){
 	xe_dealloc(header_buffer);
 
-	xe_http_connection::close(error);
+	xe_http_connection::closed();
 }
 
 void xe_http_singleconnection::complete(int error){

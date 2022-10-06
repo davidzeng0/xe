@@ -208,9 +208,10 @@ void xe_resolve::close_cb(xe_poll& poll){
 	xe_resolve_handle& handle = xe_containerof(poll, &xe_resolve_handle::poll);
 	xe_resolve& resolve = *handle.resolve;
 
-	::close(poll.fd());
-
 	resolve.handles.erase(handle.node);
+
+	::close(poll.fd());
+	xe_delete(&handle);
 
 	if(resolve.handles.size())
 		return;
