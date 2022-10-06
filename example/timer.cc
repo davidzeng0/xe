@@ -15,36 +15,15 @@ int main(){
 	xe_loop_options options;
 	xe_timer timer;
 
-	int ret;
-
 	options.entries = 8; /* sqes and cqes */
 
 	/* init */
-	ret = loop.init_options(options);
-
-	if(ret){
-		xe_print("loop init %s", xe_strerror(ret));
-
-		return -1;
-	}
+	loop.init_options(options);
 
 	timer.callback = timer_callback;
+	loop.timer_ms(timer, 1000, 0, 0); /* set a timer for 1000 ms without repeating */
 
-	ret = loop.timer_ms(timer, 1000, 0, 0); /* set a timer for 1000 ms without repeating */
-
-	if(ret){
-		xe_print("loop timer_ms %s", xe_strerror(ret));
-
-		return -1;
-	}
-
-	ret = loop.run();
-
-	if(ret){
-		xe_print("loop run %s", xe_strerror(ret));
-
-		return -1;
-	}
+	loop.run();
 
 	loop.close();
 

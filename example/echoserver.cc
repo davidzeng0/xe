@@ -105,8 +105,6 @@ int main(){
 	xe_socket socket(loop);
 	xe_timer timer;
 
-	int ret;
-
 	options.entries = 256; /* number of sqes, seems to work the best */
 	options.cq_entries = 65536;
 	options.flag_cqsize = true;

@@ -1,8 +1,9 @@
-#include <string.h>
 #include <netdb.h>
+#include <arpa/inet.h>
 #include "xutil/mem.h"
 #include "xutil/log.h"
 #include "xutil/util.h"
+#include "xutil/endian.h"
 #include "xstd/types.h"
 #include "xstd/string.h"
 #include "xe/loop.h"
@@ -52,8 +53,6 @@ int main(){
 	xe_loop_options options;
 	client c{loop};
 
-	int ret;
-
 	options.entries = 8; /* sqes and cqes */
 
 	/* init */
@@ -64,9 +63,9 @@ int main(){
 
 	xe_zero(&addr);
 
-	addr.sin_addr.s_addr = htonl(0x7f000001); /* 127.0.0.1 */
 	addr.sin_family = AF_INET;
-	addr.sin_port = htons(8080);
+	addr.sin_addr.s_addr = inet_addr("127.0.0.1");
+	addr.sin_port = xe_htons(8080);
 
 	c.conn.callback = connect_callback;
 	c.recv.callback = recv_callback;

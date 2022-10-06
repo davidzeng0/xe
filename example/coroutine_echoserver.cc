@@ -83,7 +83,6 @@ static task echo(xe_loop& loop, int fd){
 }
 
 static task start_server(xe_loop& loop){
-	/* create a socket */
 	/* listen addr */
 	sockaddr_in addr;
 	int yes = 1;
@@ -96,6 +95,7 @@ static task start_server(xe_loop& loop){
 
 	xe_socket server(loop);
 
+	/* create a socket */
 	co_await server.init_async(AF_INET, SOCK_STREAM, IPPROTO_TCP);
 
 	setsockopt(server.fd(), SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes));
