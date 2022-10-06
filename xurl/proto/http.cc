@@ -2,6 +2,7 @@
 #include "http_internal.h"
 #include "net_internal.h"
 #include "xstd/unique_ptr.h"
+#include "xutil/log.h"
 
 using namespace xurl;
 

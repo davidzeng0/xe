@@ -1,5 +1,7 @@
 #pragma once
-#include "log.h"
+#include "xconfig/config.h"
+#include "xstd/types.h"
+#include "source.h"
 
 void xe__assertfail(xe_cstr file, uint line, xe_cstr expr);
 void xe__assertfailm(xe_cstr file, uint line, xe_cstr expr, xe_cstr message);

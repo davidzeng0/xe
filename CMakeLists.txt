@@ -72,3 +72,6 @@ target_link_libraries(client xe)
 
 add_executable(timer "example/timer.cc")
 target_link_libraries(timer xe)
+
+add_executable(http "example/http.cc")
+target_link_libraries(http xe)

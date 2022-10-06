@@ -217,7 +217,11 @@ void xe_resolve::close_cb(xe_poll& poll){
 		return;
 	xe_assertz(resolve.loop_ -> cancel(resolve.timer));
 
-	if(resolve.closing && resolve.close_callback) resolve.close_callback(resolve);
+	if(!resolve.closing)
+		return;
+	resolve.closing = false;
+
+	if(resolve.close_callback) resolve.close_callback(resolve);
 }
 
 void xe_resolve::sockstate(xe_ptr data, int fd, int read, int write){

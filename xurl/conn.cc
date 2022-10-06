@@ -2,6 +2,7 @@
 #include <arpa/inet.h>
 #include <netinet/tcp.h>
 #include "xutil/endian.h"
+#include "xutil/log.h"
 #include "xe/clock.h"
 #include "xe/error.h"
 #include "conn.h"
@@ -34,7 +35,7 @@ int xe_connection::io(xe_connection& conn, int res){
 			if(getsockopt(conn.fd, SOL_SOCKET, SO_ERROR, &res, &len) < 0)
 				return xe_errno();
 			if(res){
-				xe_log_debug(&conn, "connection failed, try %zu in %f ms, status: %s", conn.ip_index + 1, (xe_time_ns() - conn.time) / (float)XE_NANOS_PER_MS, xe_strerror(xe_syserror(res)));
+				xe_log_verbose(&conn, "connection failed, try %zu in %f ms, status: %s", conn.ip_index + 1, (xe_time_ns() - conn.time) / (float)XE_NANOS_PER_MS, xe_strerror(xe_syserror(res)));
 
 				if(res != XE_ECONNREFUSED)
 					return res;
@@ -268,7 +269,7 @@ int xe_connection::try_connect(xe_connection& conn){
 	char ip[INET6_ADDRSTRLEN];
 
 	inet_ntop(family, family == AF_INET ? (xe_ptr)&in.sin_addr : (xe_ptr)&in6.sin6_addr, ip, address_size);
-	xe_log_debug(&conn, "connecting to %.*s:%u - trying %s", conn.host.length(), conn.host.data(), xe_ntohs(conn.port), ip);
+	xe_log_verbose(&conn, "connecting to %.*s:%u - trying %s", conn.host.length(), conn.host.data(), xe_ntohs(conn.port), ip);
 #endif
 	return 0;
 }
@@ -455,6 +456,7 @@ bool xe_connection::peer_closed(){
 
 void xe_connection::close(int error){
 	xe_assert(state != XE_CONNECTION_STATE_CLOSED);
+	xe_log_trace(this, "close()");
 
 	if(buf != ctx -> loop().iobuf())
 		xe_dealloc(buf);
@@ -472,9 +474,7 @@ void xe_connection::close(int error){
 
 	set_state(XE_CONNECTION_STATE_CLOSED);
 
-	if(!poll.close())
-		closed();
-	xe_log_trace(this, "close()");
+	if(!poll.close()) closed();
 }
 
 xe_cstr xe_connection::class_name(){

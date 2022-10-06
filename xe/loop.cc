@@ -98,12 +98,14 @@ ret:
 	}
 
 	if(!res || res == XE_EAGAIN){
-		xe_log_trace(this, "submission queue full");
+		xe_log_verbose(this, "submission queue full");
 
 		sq_ring_full = true;
 
 		return XE_EAGAIN;
 	}
+
+	xe_log_error(this, "fatal error: %s", xe_strerror(res));
 
 	return res == XE_EBADR ? XE_ENOMEM : XE_FATAL;
 }

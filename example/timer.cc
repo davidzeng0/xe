@@ -1,8 +1,5 @@
-#include <string.h>
-#include "xutil/mem.h"
-#include "xutil/log.h"
-#include "xe/loop.h"
-#include "xe/error.h"
+#include <xe/loop.h>
+#include <xutil/log.h>
 
 int timer_callback(xe_loop& loop, xe_timer& timer){
 	xe_print("timer callback executed");

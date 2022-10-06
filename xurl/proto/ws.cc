@@ -6,6 +6,7 @@
 #include "xe/clock.h"
 #include "xutil/endian.h"
 #include "xutil/encoding.h"
+#include "xutil/log.h"
 #include "xstd/fla.h"
 #include "../writer.h"
 #include "../random.h"

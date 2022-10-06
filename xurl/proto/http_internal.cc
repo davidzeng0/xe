@@ -1,3 +1,4 @@
+#include "xutil/log.h"
 #include "http_internal.h"
 #include "../writer.h"
 #include "../request_internal.h"
@@ -430,11 +431,9 @@ void xe_http_singleconnection::complete(int error){
 }
 
 int xe_http_singleconnection::send_headers(){
-	ssize_t sent;
-
 	xe_assert(client_headers.size());
 
-	sent = send(client_headers.data() + send_offset, client_headers.size() - send_offset);;
+	ssize_t sent = send(client_headers.data() + send_offset, client_headers.size() - send_offset);
 
 	xe_log_trace(this, "sent %zi bytes", sent);
 
@@ -709,6 +708,10 @@ int xe_http_singleconnection::parse_trailers(byte* buf, size_t len){
 			xe_string_view key, value;
 
 			header_parse(line, key, value);
+
+			if(!value)
+				xe_log_warn(this, "header separator not found");
+			xe_log_trace(this, "%.*s: %.*s", key.length(), key.data(), value.length(), value.data());
 			xe_return_error(handle_trailer(key, value));
 		}else{
 			xe_return_error(posttransfer());
@@ -754,8 +757,12 @@ int xe_http_singleconnection::chunked_body(byte* buf, size_t len){
 				buf += result;
 				len -= result;
 
-				if(len)
+				if(len){
+					xe_log_trace(this, "http chunk length %lu", data_len);
+
 					chunked_state = CHUNKED_READ_EXTENSION;
+				}
+
 				break;
 			case CHUNKED_READ_EXTENSION:
 				result = xe_string_view((char*)buf, len).index_of('\n');
