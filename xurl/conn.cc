@@ -16,8 +16,8 @@ enum{
 void xe_connection::poll_cb(xe_poll& poll, int res){
 	xe_connection& conn = xe_containerof(poll, &xe_connection::poll);
 
-	res = io(conn, res);
-
+	if(res >= 0) [[likely]]
+		res = io(conn, res);
 	if(res) conn.close(res);
 }
 
@@ -35,7 +35,7 @@ int xe_connection::io(xe_connection& conn, int res){
 			if(getsockopt(conn.fd, SOL_SOCKET, SO_ERROR, &res, &len) < 0)
 				return xe_errno();
 			if(res){
-				xe_log_verbose(&conn, "connection failed, try %zu in %f ms, status: %s", conn.ip_index + 1, (xe_time_ns() - conn.time) / (float)XE_NANOS_PER_MS, xe_strerror(xe_syserror(res)));
+				xe_log_debug(&conn, "connection failed, try %zu in %f ms, status: %s", conn.ip_index + 1, (xe_time_ns() - conn.time) / (float)XE_NANOS_PER_MS, xe_strerror(xe_syserror(res)));
 
 				if(res != XE_ECONNREFUSED)
 					return res;
@@ -69,7 +69,7 @@ int xe_connection::io(xe_connection& conn, int res){
 		case XE_CONNECTION_STATE_HANDSHAKE:
 			res = conn.ssl.connect(XE_CONNECTION_MSG_FLAGS);
 
-			if(res == 0){
+			if(!res){
 				xe_log_verbose(&conn, "ssl handshake completed in %f ms", (xe_time_ns() - conn.time) / (float)XE_NANOS_PER_MS);
 
 				return ready(conn);
@@ -79,14 +79,16 @@ int xe_connection::io(xe_connection& conn, int res){
 
 			break;
 		case XE_CONNECTION_STATE_ACTIVE:
-			if(res & XE_POLL_OUT){
+			if(res & XE_POLL_OUT) [[unlikely]] {
 				/* send data */
 				xe_return_error(conn.writable());
 
-				if(!conn.readable()) xe_return_error(conn.transferctl(XE_PAUSE_SEND));
+				if(!conn.readable())
+					xe_return_error(conn.transferctl(XE_PAUSE_SEND));
 			}
 
-			return (res & XE_POLL_IN) ? socket_read(conn) : 0;
+			if(res & XE_POLL_IN)
+				return socket_read(conn);
 		default:
 			xe_notreached();
 
@@ -115,9 +117,8 @@ void xe_connection::start_connect(xe_endpoint& endpoint_){
 int xe_connection::socket_read(xe_connection& conn){
 	xe_ptr buf = conn.buf;
 	ssize_t result;
-	uint n = 64;
 
-	while(n--){
+	for(uint n = 0; n < 64; n++){
 		if(conn.ssl_enabled)
 			result = conn.ssl.recv(buf, XE_LOOP_IOBUF_SIZE, 0);
 		else{
@@ -126,7 +127,7 @@ int xe_connection::socket_read(xe_connection& conn){
 			if(result < 0) result = xe_errno();
 		}
 
-		xe_log_trace(&conn, "recv: %zi", result);
+		xe_log_trace(&conn, ">> connection %zi", result);
 
 		if(result < 0)
 			return result != XE_EAGAIN ? result : 0;
@@ -138,8 +139,7 @@ int xe_connection::socket_read(xe_connection& conn){
 			break;
 		}
 
-		if(conn.recv_paused)
-			break;
+		if(conn.recv_paused) break;
 	}
 
 	return 0;
@@ -269,7 +269,7 @@ int xe_connection::try_connect(xe_connection& conn){
 	char ip[INET6_ADDRSTRLEN];
 
 	inet_ntop(family, family == AF_INET ? (xe_ptr)&in.sin_addr : (xe_ptr)&in6.sin6_addr, ip, address_size);
-	xe_log_verbose(&conn, "connecting to %.*s:%u - trying %s", conn.host.length(), conn.host.data(), xe_ntohs(conn.port), ip);
+	xe_log_debug(&conn, "connecting to %.*s:%u - trying %s", conn.host.length(), conn.host.data(), xe_ntohs(conn.port), ip);
 #endif
 	return 0;
 }
@@ -404,9 +404,11 @@ ssize_t xe_connection::send(xe_cptr data, size_t size){
 	ssize_t sent;
 
 	if(ssl_enabled)
-		return ssl.send(data, size, XE_CONNECTION_MSG_FLAGS);
-	if((sent = ::send(fd, data, size, XE_CONNECTION_MSG_FLAGS)) < 0)
-		return xe_errno();
+		sent = ssl.send(data, size, XE_CONNECTION_MSG_FLAGS);
+	else if((sent = ::send(fd, data, size, XE_CONNECTION_MSG_FLAGS)) < 0)
+		sent = xe_errno();
+	xe_log_trace(this, "<< connection %zi", sent);
+
 	return sent;
 }
 

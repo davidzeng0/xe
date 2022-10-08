@@ -1,3 +1,4 @@
+#include <linux/version.h>
 #include "loop.h"
 #include "clock.h"
 #include "error.h"
@@ -98,7 +99,7 @@ ret:
 	}
 
 	if(!res || res == XE_EAGAIN){
-		xe_log_verbose(this, "submission queue full");
+		xe_log_debug(this, "submission queue full");
 
 		sq_ring_full = true;
 
@@ -296,6 +297,8 @@ int xe_loop::queue_pending(){
 	xe_req_info* next;
 	int err;
 
+	if(!reqs) [[likely]]
+		return 0;
 	if(sq_ring_full) [[unlikely]] {
 		/* can't queue any more right now */
 		return 0;
@@ -338,7 +341,18 @@ int xe_loop::init_options(xe_loop_options& options){
 		options.entries = ENTRY_COUNT;
 	xe_zero(&params);
 
-	params.flags = IORING_SETUP_SUBMIT_ALL | IORING_SETUP_COOP_TASKRUN | IORING_SETUP_TASKRUN_FLAG;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 11, 0)
+	#error "Kernel version too low"
+#endif
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 18, 0)
+	params.flags |= IORING_SETUP_SUBMIT_ALL;
+#endif
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 19, 0)
+	params.flags |= IORING_SETUP_COOP_TASKRUN | IORING_SETUP_TASKRUN_FLAG;
+#endif
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 0, 0)
+	params.flags |= IORING_SETUP_SINGLE_ISSUER;
+#endif
 
 	if(options.flag_iopoll)
 		params.flags |= IORING_SETUP_IOPOLL;
@@ -407,12 +421,12 @@ int xe_loop::run(){
 		xe_return_error(error);
 		xe_return_error(queue_pending());
 
-		now = xe_time_ns();
 		it = timers.begin();
 		nwait = 1;
 
 		if(it != timers.end()){
 			/* we have a timer to run some time in the future */
+			now = xe_time_ns();
 			timeout = it -> key;
 
 			if(now < timeout)
@@ -459,21 +473,23 @@ int xe_loop::run(){
 			break;
 		}
 
-		if(!res)
+		if(!res) [[likely]]
 			cqe_tail = io_uring_smp_load_acquire(ring.cq.ktail);
 		else if(res != XE_EBUSY && res != XE_ETIME)
 			return res;
 	runevents:
-		now = xe_time_ns();
+		if(it != timers.end()){
+			now = xe_time_ns();
 
-		while(it != timers.end()){
-			xe_timer& timer = xe_containerof(*it, &xe_timer::expire);
+			do{
+				xe_timer& timer = xe_containerof(*it, &xe_timer::expire);
 
-			if(now < timer.expire.key)
-				break;
-			run_timer(timer, now);
+				if(now < timer.expire.key)
+					break;
+				run_timer(timer, now);
 
-			it = timers.begin();
+				it = timers.begin();
+			}while(it != timers.end());
 		}
 
 		if(cqe_tail == cqe_head)

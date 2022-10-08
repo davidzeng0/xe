@@ -280,13 +280,17 @@ static bool build_headers(xe_vector<byte>& headers, xe_http_common_specific& spe
 
 	size_t len;
 
-	xe_string_view http_ver = http_version_to_string(version);
+	xe_string_view method = specific.method;
 	xe_string_view path = specific.url.path();
+	xe_string_view http_ver = http_version_to_string(version);
+
 	auto writer = xe_writer(headers);
 
+	if(version == XE_HTTP_VERSION_0_9)
+		method = "GET";
 	if(!path.length())
 		path = "/";
-	len = specific.method.length() + ws.length() + path.length();
+	len = method.length() + ws.length() + path.length();
 
 	if(version != XE_HTTP_VERSION_0_9){
 		len += ws.length() + http_ver.length();
@@ -300,7 +304,7 @@ static bool build_headers(xe_vector<byte>& headers, xe_http_common_specific& spe
 
 	if(!headers.resize(len))
 		return false;
-	writer.write(specific.method);
+	writer.write(method);
 	writer.write(ws);
 	writer.write(path);
 
@@ -436,8 +440,6 @@ int xe_http_singleconnection::send_headers(){
 
 	ssize_t sent = send(client_headers.data() + send_offset, client_headers.size() - send_offset);
 
-	xe_log_trace(this, "sent %zi bytes", sent);
-
 	if(sent <= 0){
 		if(sent == 0)
 			return XE_SEND_ERROR;
@@ -458,7 +460,7 @@ int xe_http_singleconnection::send_headers(){
 	return 0;
 }
 
-int xe_http_singleconnection::start(){
+inline int xe_http_singleconnection::start(){
 	xe_http_version version = specific -> max_version;
 
 	request_active = true;
@@ -493,12 +495,12 @@ int xe_http_singleconnection::start(){
 	if(!path.size())
 		path = "/";
 	if(version != XE_HTTP_VERSION_0_9){
-		xe_log_trace(this, "%.*s %.*s %s", specific -> method.length(), specific -> method.c_str(), path.length(), path.data(), http_version_to_string(version));
+		xe_log_trace(this, "<< %.*s %.*s %s", specific -> method.length(), specific -> method.c_str(), path.length(), path.data(), http_version_to_string(version));
 
 		for(auto& t : specific -> headers)
-			xe_log_trace(this, "%.*s: %.*s", t.first.length(), t.first.c_str(), xe_min<size_t>(100, t.second.length()), t.second.c_str());
+			xe_log_trace(this, "<< %.*s: %.*s", t.first.length(), t.first.c_str(), xe_min<size_t>(100, t.second.length()), t.second.c_str());
 	}else{
-		xe_log_trace(this, "GET %.*s", path.length(), path.data());
+		xe_log_trace(this, "<< GET %.*s", path.length(), path.data());
 	}
 #endif
 	return 0;
@@ -567,8 +569,11 @@ inline int xe_http_singleconnection::read_line(byte*& buf, size_t& len, xe_strin
 	next = xe_string_view((char*)buf, len).index_of('\n');
 
 	if(next == -1){
-		if(len >= HEADERBUFFER_SIZE - header_offset || len >= MAXIMUM_HEADER_SIZE - header_total) /* would fill the buffer and have no space for newline */
+		if(len >= HEADERBUFFER_SIZE - header_offset || len >= MAXIMUM_HEADER_SIZE - header_total){
+			/* would fill the buffer and have no space for newline */
 			return XE_HEADERS_TOO_LONG;
+		}
+
 		if(!header_buffer){
 			header_buffer = xe_alloc_aligned<byte>(0, HEADERBUFFER_SIZE);
 
@@ -589,7 +594,7 @@ inline int xe_http_singleconnection::read_line(byte*& buf, size_t& len, xe_strin
 		return XE_HEADERS_TOO_LONG;
 	header_total += next;
 
-	if(header_offset){
+	if(header_offset) [[unlikely]] {
 		if(line_end){
 			if(line_end > HEADERBUFFER_SIZE - header_offset)
 				return XE_HEADERS_TOO_LONG;
@@ -653,7 +658,7 @@ int xe_http_singleconnection::parse_headers(byte* buf, size_t len){
 
 			if(!parse_status_line(line, version, status, reason))
 				goto invalid_status_line;
-			xe_log_trace(this, "HTTP/%u.%u %u %.*s", version / 10, version % 10, status, reason.length(), reason.data());
+			xe_log_trace(this, ">> %s %u %.*s", http_version_to_string(version), status, reason.length(), reason.data());
 			xe_return_error(handle_status_line(version, status, reason));
 
 			if((status >= 100 && status < 200) || status == 204 || status == 304) bodyless = true;
@@ -666,7 +671,7 @@ int xe_http_singleconnection::parse_headers(byte* buf, size_t len){
 
 			if(!value)
 				xe_log_warn(this, "header separator not found");
-			xe_log_trace(this, "%.*s: %.*s", key.length(), key.data(), value.length(), value.data());
+			xe_log_trace(this, ">> %.*s: %.*s", key.length(), key.data(), value.length(), value.data());
 			xe_return_error(handle_header(key, value));
 		}
 	}
@@ -712,7 +717,7 @@ int xe_http_singleconnection::parse_trailers(byte* buf, size_t len){
 
 			if(!value)
 				xe_log_warn(this, "header separator not found");
-			xe_log_trace(this, "%.*s: %.*s", key.length(), key.data(), value.length(), value.data());
+			xe_log_trace(this, ">> %.*s: %.*s", key.length(), key.data(), value.length(), value.data());
 			xe_return_error(handle_trailer(key, value));
 		}else{
 			xe_return_error(posttransfer());
@@ -759,7 +764,7 @@ int xe_http_singleconnection::chunked_body(byte* buf, size_t len){
 				len -= result;
 
 				if(len){
-					xe_log_trace(this, "http chunk length %lu", data_len);
+					xe_log_trace(this, ">> chunk %lu", data_len);
 
 					chunked_state = CHUNKED_READ_EXTENSION;
 				}
@@ -827,7 +832,7 @@ int xe_http_singleconnection::chunked_body(byte* buf, size_t len){
 bool xe_http_singleconnection::client_write(xe_ptr buf, size_t len){
 	if(follow)
 		return true;
-	xe_log_trace(this, "client write %zu bytes", len);
+	xe_log_trace(this, "<< client %zu", len);
 
 	return !request -> write(buf, len);
 }
@@ -919,6 +924,8 @@ int xe_http_singleconnection::handle_trailer(const xe_string_view& key, const xe
 }
 
 int xe_http_singleconnection::open(xe_request_internal& req){
+	int err;
+
 	if(request_active)
 		return XE_STATE;
 	proto.available(*this, false);
@@ -934,9 +941,18 @@ int xe_http_singleconnection::open(xe_request_internal& req){
 
 	if(timer.active())
 		stop_timer();
-	xe_return_error(transferctl(XE_RESUME_RECV));
+	if((err = transferctl(XE_RESUME_RECV)))
+		goto err;
+	if((err = start()))
+		goto err;
+	return 0;
+err:
+	request_active = false;
+	specific -> connection = null;
+	specific = null;
+	request = null;
 
-	return start();
+	return err;
 }
 
 int xe_http_singleconnection::transferctl(xe_request_internal& request, uint flags){

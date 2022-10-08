@@ -36,12 +36,14 @@ xe_cstr xe_strerror(int err){
 			return "CA signer not available for verification";
 		case XE_SSL_PEER_VERIFICATION_FAILED:
 			return "SSL peer verification failed";
-		case XE_PARTIAL_FILE:
-			return "Partial file";
+		case XE_RECV_ERROR:
+			return "Failed to recv data";
 		case XE_SEND_ERROR:
-			return "Socket peer read end closed";
+			return "Failed to send data";
 		case XE_ABORTED:
 			return "Aborted";
+		case XE_PARTIAL_FILE:
+			return "Partial file";
 		case XE_HEADERS_TOO_LONG:
 			return "Headers too long";
 		case XE_INVALID_RESPONSE:

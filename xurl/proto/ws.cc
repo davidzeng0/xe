@@ -159,8 +159,6 @@ protected:
 
 		result = xe_connection::send(data.data + send_offset, data.len - send_offset);
 
-		xe_log_trace(this, "sent %zi bytes", result);
-
 		if(result <= 0){
 			if(!result) return XE_SEND_ERROR;
 			if(result == XE_EAGAIN) return 0;
@@ -472,8 +470,6 @@ public:
 
 		sent += result;
 
-		xe_log_trace(this, "sent %zi bytes", result);
-
 		if(result < writer.pos())
 			goto queue;
 		result = xe_connection::send(buf, len);
@@ -486,8 +482,6 @@ public:
 		}
 
 		sent += result;
-
-		xe_log_trace(this, "sent %zi bytes", result);
 
 		if(result < len)
 			goto queue;

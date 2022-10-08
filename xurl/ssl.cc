@@ -2,6 +2,8 @@
 #include <wolfssl/ssl.h>
 #include <wolfssl/error-ssl.h>
 #include "xconfig/ssl.h"
+#include "xutil/log.h"
+#include "xstd/fla.h"
 #include "xe/error.h"
 #include "ssl.h"
 
@@ -28,11 +30,211 @@ int xe_ssl_ctx::load_verify_locations(xe_cstr cafile, xe_cstr capath){
 
 	if(wolfSSL_CTX_load_verify_locations(ctx, cafile, capath) != WOLFSSL_SUCCESS)
 		return XE_SSL_BADCERTS;
+	xe_log_trace(this, "loaded cafile: %s", cafile);
+	xe_log_trace(this, "loaded capath: %s", capath);
+
 	return 0;
 }
 
 void xe_ssl_ctx::close(){
 	wolfSSL_CTX_free((WOLFSSL_CTX*)data);
+}
+
+xe_cstr xe_ssl_ctx::class_name(){
+	return "xe_ssl_ctx";
+}
+
+static xe_cstr ssl_version_string(int version){
+	switch(version){
+		case SSL2_VERSION:
+			return "SSLv2.0";
+		case SSL3_VERSION:
+			return "SSLv3.0";
+		case TLS1_VERSION:
+			return "TLSv1.0";
+		case TLS1_1_VERSION:
+			return "TLSv1.1";
+		case TLS1_2_VERSION:
+			return "TLSv1.2";
+		case TLS1_3_VERSION:
+			return "TLSv1.3";
+		case DTLS1_VERSION:
+			return "DTLS 1.0";
+		case DTLS1_2_VERSION:
+			return "DTLS 1.2";
+	}
+
+	return "Unknown Version";
+}
+
+static xe_cstr ssl_alert_level(byte v){
+	switch(v){
+		case 1:
+			return " Warning";
+		case 2:
+			return " Fatal";
+	}
+
+	return " Unknown";
+}
+
+static xe_cstr ssl_alert_string(byte v){
+	switch(v){
+		case 0:
+			return " Close Notify";
+		case 1:
+			return " End of Early Data";
+		case 10:
+			return " Unexpected Message";
+		case 20:
+			return " Bad Record Mac";
+		case 21:
+			return " Decryption Failed";
+		case 22:
+			return " Record Overflow";
+		case 30:
+			return " Decompression Failure";
+		case 40:
+			return " Handshake Failure";
+		case 42:
+			return " Bad Certificate";
+		case 43:
+			return " Unsupported Certificate";
+		case 44:
+			return " Certificate Revoked";
+		case 45:
+			return " Certificate Expired";
+		case 46:
+			return " Certificate Unknown";
+		case 47:
+			return " Illegal Parameter";
+		case 48:
+			return " Unknown CA";
+		case 49:
+			return " Access Denied";
+		case 50:
+			return " Decode Error";
+		case 51:
+			return " Decrypt Error";
+		case 60:
+			return " Export Restriction";
+		case 70:
+			return " Protocol Version";
+		case 71:
+			return " Insufficient Security";
+		case 80:
+			return " Internal Error";
+		case 86:
+			return " Inappropriate Fallback";
+		case 90:
+			return " User Canceled";
+		case 100:
+			return " No Renegotiation";
+		case 109:
+			return " Missing Extension";
+		case 110:
+			return " Unsupported Extensoin";
+		case 111:
+			return " Certificate Unobtainable";
+		case 112:
+			return " Unrecognized Name";
+		case 113:
+			return " Bad Certificate Status Response";
+		case 114:
+			return " Bad Certificate Hash Value";
+		case 115:
+			return " Unknown PSK Identity";
+		case 116:
+			return " Certificate Required";
+	}
+
+	return " Unknown";
+}
+
+static xe_cstr ssl_handshake_string(byte v){
+	switch(v){
+		case 0:
+			return " Hello Request";
+		case 1:
+			return " Client Hello";
+		case 2:
+			return " Server Hello";
+		case 4:
+			return " Newsession Ticket";
+		case 5:
+			return " End of Early Data";
+		case 8:
+			return " Encrypted Extensions";
+		case 11:
+			return " Certificate";
+		case 12:
+			return " Server Key Exchange";
+		case 13:
+			return " Certificate Request";
+		case 14:
+			return " Server Hello Done";
+		case 15:
+			return " Certificate Verify";
+		case 16:
+			return " Client Key Exchange";
+		case 20:
+			return " Finished";
+		case 21:
+			return " Certificate URL";
+		case 22:
+			return " Certificate Status";
+		case 23:
+			return " Supplemental Data";
+		case 24:
+			return " Key Update";
+		case 67:
+			return " Next Proto";
+		case 254:
+			return " Message Hash";
+	}
+
+	return " Unknown";
+}
+
+static void ssl_msg_callback(int direction, int version, int content_type, xe_cptr buf, size_t len, WOLFSSL* wssl, xe_ptr user){
+	xe_ssl& ssl = *(xe_ssl*)user;
+	byte* data = (byte*)buf;
+	xe_cstr type, alert_level, details;
+
+	alert_level = "";
+	details = "";
+
+	switch(content_type){
+		case SSL3_RT_CHANGE_CIPHER_SPEC:
+			type = "Change Cipher Spec";
+
+			break;
+		case SSL3_RT_ALERT:
+			type = "Alert";
+
+			if(len == 2){
+				alert_level = ssl_alert_level(data[0]);
+				details = ssl_alert_string(data[1]);
+			}
+
+			break;
+		case SSL3_RT_HANDSHAKE:
+			type = "Handshake";
+
+			if(len > 0)
+				details = ssl_handshake_string(data[0]);
+			break;
+		case SSL3_RT_APPLICATION_DATA:
+			type = "Application Data";
+
+			break;
+		default:
+			type = "Unknown Type";
+
+			break;
+	}
+
+	xe_log_trace(&ssl, "%s %s %s%s%s", direction ? "<<" : ">>", ssl_version_string(version), type, alert_level, details);
 }
 
 int xe_ssl::init(const xe_ssl_ctx& ctx){
@@ -41,6 +243,11 @@ int xe_ssl::init(const xe_ssl_ctx& ctx){
 	if(!ssl)
 		return XE_ENOMEM;
 	data = ssl;
+
+#ifdef XE_DEBUG
+	wolfSSL_set_msg_callback(ssl, ssl_msg_callback);
+	wolfSSL_set_msg_callback_arg(ssl, this);
+#endif
 
 	return 0;
 }
@@ -76,15 +283,59 @@ int xe_ssl::set_alpn(const xe_string_view& protocols){
 	return 0;
 }
 
+static void ssl_connected(xe_ssl& wrapper, WOLFSSL* ssl){
+#ifndef XE_DEBUG
+	return;
+#endif
+	WOLFSSL_X509* cert;
+	xe_fla<char, 2048> buffer;
+	char* out;
+
+	xe_log_verbose(&wrapper, "connected using %s / %s", wolfSSL_get_version(ssl), wolfSSL_get_cipher(ssl));
+
+	cert = wolfSSL_get_peer_certificate(ssl);
+
+	if(!cert){
+		xe_log_verbose(&wrapper, "no peer certificate");
+
+		return;
+	}
+
+	xe_log_verbose(&wrapper, "certificate:");
+
+	out = wolfSSL_X509_NAME_oneline(wolfSSL_X509_get_subject_name(cert), buffer.data(), buffer.size());
+
+	if(out)
+		xe_log_verbose(&wrapper, "    subject: %s", out);
+	out = wolfSSL_X509_NAME_oneline(wolfSSL_X509_get_issuer_name(cert), buffer.data(), buffer.size());
+
+	if(out)
+		xe_log_verbose(&wrapper, "    issuer : %s", out);
+	out = wolfSSL_ASN1_TIME_to_string(wolfSSL_X509_get_notBefore(cert), buffer.data(), buffer.size());
+
+	if(out)
+		xe_log_verbose(&wrapper, "    start date : %s", out);
+	out = wolfSSL_ASN1_TIME_to_string(wolfSSL_X509_get_notAfter(cert), buffer.data(), buffer.size());
+
+	if(out)
+		xe_log_verbose(&wrapper, "    expire date: %s", out);
+	while((out = wolfSSL_X509_get_next_altname(cert)))
+		xe_log_verbose(&wrapper, "    alt name: %s", out);
+	wolfSSL_X509_free(cert);
+}
+
 int xe_ssl::connect(int flags){
 	WOLFSSL* ssl = (WOLFSSL*)data;
+	int err;
 
 	wolfSSL_SetIOReadFlags(ssl, flags);
 	wolfSSL_SetIOWriteFlags(ssl, flags);
 
-	if(wolfSSL_connect(ssl) == WOLFSSL_SUCCESS)
+	if(wolfSSL_connect(ssl) == WOLFSSL_SUCCESS){
+		ssl_connected(*this, ssl);
+
 		return 0;
-	int err;
+	}
 
 	switch(wolfSSL_get_error(ssl, -1)){
 		case WOLFSSL_ERROR_WANT_READ:
@@ -97,7 +348,7 @@ int xe_ssl::connect(int flags){
 		case SOCKET_ERROR_E:
 			err = xe_errno();
 
-			return err ?: XE_SSL; // todo: recv error if err == 0
+			return err ?: XE_RECV_ERROR;
 	}
 
 	return XE_SSL;
@@ -161,6 +412,10 @@ int xe_ssl::send(xe_cptr buffer, size_t len, int flags){
 	}
 
 	return XE_SSL;
+}
+
+xe_cstr xe_ssl::class_name(){
+	return "xe_ssl";
 }
 
 int xurl::xe_ssl_init(){

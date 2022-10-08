@@ -6,15 +6,15 @@ void xe_poll::poll_cb(xe_req& req, int events){
 	xe_poll& handle = xe_containerof(req, &xe_poll::poll_req);
 	int res;
 
-	if(!handle.active)
+	if(!handle.active) [[unlikely]]
 		goto done;
 	res = events;
 
 	if(events == XE_ECANCELED)
 		events = 0;
-	else if(events < 0)
+	else if(events < 0) [[unlikely]]
 		goto err;
-	if(handle.updated){
+	if(handle.updated) [[unlikely]]{
 		/* events were updated mid-poll
 		 * check if there are any events to report
 		 */
@@ -25,19 +25,21 @@ void xe_poll::poll_cb(xe_req& req, int events){
 		handle.active = false;
 	}
 
-	if(handle.poll_callback){
+	if(handle.poll_callback) [[likely]] {
 		/* temporarily prevent a modify req from being started */
 		handle.updated = true;
 
 		handle.poll_callback(handle, events);
 	}
 
-	if(!handle.active) goto done;
+	if(!handle.active) [[unlikely]]
+		goto done;
 ok:
 	handle.updated = false;
 	res = handle.loop_ -> poll(handle.poll_req, handle.fd_, handle.events_);
 
-	if(!res) return;
+	if(!res) [[likely]]
+		return;
 err:
 	handle.active = false;
 	handle.polling = false;

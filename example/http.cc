@@ -43,7 +43,7 @@ static int write_cb(xe_request& request, xe_ptr data, size_t len){
 }
 
 static void done_cb(xe_request& request, int status){
-	fprintf(stderr, "request completed with status: %s\n", xe_strerror(status));
+	fprintf(stderr, "\nrequest completed with status: %s\n", xe_strerror(status));
 }
 
 int main(){

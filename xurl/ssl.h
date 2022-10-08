@@ -21,6 +21,8 @@ public:
 	void close();
 
 	~xe_ssl_ctx() = default;
+
+	static xe_cstr class_name();
 };
 
 class xe_ssl{
@@ -45,6 +47,8 @@ public:
 	int send(xe_cptr buffer, size_t len, int flags);
 
 	~xe_ssl() = default;
+
+	static xe_cstr class_name();
 };
 
 int xe_ssl_init();

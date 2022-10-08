@@ -249,13 +249,17 @@ int xe_http::start(xe_request_internal& request){
 		while(*list){
 			xe_http_protocol_singleconnection& conn = list -> head -> connection;
 
-			if(conn.peer_closed())
-				conn.close(0);
-			else{
+			err = 0;
+
+			if(!conn.peer_closed()){
 				err = conn.open(request);
 
 				if(!err) return 0;
 			}
+
+			conn.close(err);
+
+			if(err && err != XE_SEND_ERROR) return err;
 		}
 	}else{
 		xe_unique_ptr<xe_http_connection_list> new_list;
