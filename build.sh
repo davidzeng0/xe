@@ -6,7 +6,7 @@ sudo apt install -y autoconf libtool make cmake ninja-build gcc g++-11
 git clone --depth 1 https://github.com/wolfSSL/wolfssl.git
 cd wolfssl
 ./autogen.sh
-./configure --enable-fast-rsa --enable-intelasm --enable-sp --enable-sp-math --enable-sp-asm --enable-fastmath --enable-tls13 --enable-sni --enable-aesni --enable-alpn --enable-aesgcm  --enable-harden
+./configure --enable-fast-rsa --enable-intelasm --enable-sp --enable-sp-math --enable-sp-asm --enable-fastmath --enable-tls13 --enable-sni --enable-aesni --enable-alpn --enable-aesgcm --enable-harden --enable-opensslextra --enable-aesgcm-stream
 make
 sudo make install
 cd ..
