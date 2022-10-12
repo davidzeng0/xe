@@ -292,16 +292,16 @@ public:
 	/* regular op */
 #define XE_OP_DEFINE1(func, ...)			\
 	int func(xe_req& req, ##__VA_ARGS__);	\
-	int func##_ex(xe_req& req, uint sq_flags, ##__VA_ARGS__); \
+	int func##_ex(xe_req& req, byte sq_flags, ##__VA_ARGS__); \
 	xe_promise func(__VA_ARGS__);			\
-	xe_promise func##_ex(uint sq_flags, ##__VA_ARGS__);
+	xe_promise func##_ex(byte sq_flags, ##__VA_ARGS__);
 
 	/* supports ioprio */
 #define XE_OP_DEFINE2(func, ...)			\
 	int func(xe_req& req, ##__VA_ARGS__);	\
-	int func##_ex(xe_req& req, uint sq_flags, uint ioprio, ##__VA_ARGS__); \
+	int func##_ex(xe_req& req, byte sq_flags, ushort ioprio, ##__VA_ARGS__); \
 	xe_promise func(__VA_ARGS__);			\
-	xe_promise func##_ex(uint sq_flags, uint ioprio, ##__VA_ARGS__);
+	xe_promise func##_ex(byte sq_flags, ushort ioprio, ##__VA_ARGS__);
 
 	XE_OP_DEFINE1(nop)
 

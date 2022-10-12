@@ -589,13 +589,13 @@ xe_ptr xe_loop::iobuf_large() const{
 	return io_buf;
 }
 
-static inline void xe_sqe_init(io_uring_sqe& sqe, uint flags, uint ioprio){
-	sqe.flags = flags;
+static inline void xe_sqe_init(io_uring_sqe& sqe, byte sq_flags, ushort ioprio){
+	sqe.flags = sq_flags;
 	sqe.ioprio = ioprio;
 }
 
-static inline void xe_sqe_rw(io_uring_sqe& sqe, uint flags, uint ioprio, int fd, xe_cptr addr, uint len, ulong offset, uint rw_flags){
-	xe_sqe_init(sqe, flags, ioprio);
+static inline void xe_sqe_rw(io_uring_sqe& sqe, byte sq_flags, ushort ioprio, int fd, xe_cptr addr, uint len, ulong offset, uint rw_flags){
+	xe_sqe_init(sqe, sq_flags, ioprio);
 
 	sqe.fd = fd;
 	sqe.addr = (ulong)addr;
@@ -604,26 +604,26 @@ static inline void xe_sqe_rw(io_uring_sqe& sqe, uint flags, uint ioprio, int fd,
 	sqe.rw_flags = rw_flags;
 }
 
-static inline void xe_sqe_rw_fixed(io_uring_sqe& sqe, uint flags, uint ioprio, int fd, xe_cptr addr, uint len, ulong offset, uint rw_flags, uint buf_index){
-	xe_sqe_rw(sqe, flags, ioprio, fd, addr, len, offset, rw_flags);
+static inline void xe_sqe_rw_fixed(io_uring_sqe& sqe, byte sq_flags, ushort ioprio, int fd, xe_cptr addr, uint len, ulong offset, uint rw_flags, uint buf_index){
+	xe_sqe_rw(sqe, sq_flags, ioprio, fd, addr, len, offset, rw_flags);
 
 	sqe.buf_index = buf_index;
 }
 
-static inline void xe_sqe_close(io_uring_sqe& sqe, uint flags, int fd, uint file_index){
-	xe_sqe_rw_fixed(sqe, flags, 0, fd, null, 0, 0, 0, 0);
+static inline void xe_sqe_close(io_uring_sqe& sqe, byte sq_flags, int fd, uint file_index){
+	xe_sqe_rw_fixed(sqe, sq_flags, 0, fd, null, 0, 0, 0, 0);
 
 	sqe.file_index = file_index;
 }
 
-static inline void xe_sqe_sync(io_uring_sqe& sqe, uint flags, int fd, uint len, ulong offset, uint sync_flags){
-	xe_sqe_rw_fixed(sqe, flags, 0, fd, null, len, offset, sync_flags, 0);
+static inline void xe_sqe_sync(io_uring_sqe& sqe, byte sq_flags, int fd, uint len, ulong offset, uint sync_flags){
+	xe_sqe_rw_fixed(sqe, sq_flags, 0, fd, null, len, offset, sync_flags, 0);
 
 	sqe.splice_fd_in = 0;
 }
 
-static inline void xe_sqe_advise(io_uring_sqe& sqe, uint flags, xe_cptr addr, uint len, ulong offset, uint advice){
-	xe_sqe_init(sqe, flags, 0);
+static inline void xe_sqe_advise(io_uring_sqe& sqe, byte sq_flags, xe_cptr addr, uint len, ulong offset, uint advice){
+	xe_sqe_init(sqe, sq_flags, 0);
 
 	sqe.addr = (ulong)addr;
 	sqe.len = len;
@@ -633,8 +633,8 @@ static inline void xe_sqe_advise(io_uring_sqe& sqe, uint flags, xe_cptr addr, ui
 	sqe.splice_fd_in = 0;
 }
 
-static inline void xe_sqe_fs(io_uring_sqe& sqe, uint flags, int fd0, xe_cptr ptr0, int fd1, xe_cptr ptr1, uint fs_flags){
-	xe_sqe_init(sqe, flags, 0);
+static inline void xe_sqe_fs(io_uring_sqe& sqe, byte sq_flags, int fd0, xe_cptr ptr0, int fd1, xe_cptr ptr1, uint fs_flags){
+	xe_sqe_init(sqe, sq_flags, 0);
 
 	sqe.fd = fd0;
 	sqe.addr = (ulong)ptr0;
@@ -645,8 +645,8 @@ static inline void xe_sqe_fs(io_uring_sqe& sqe, uint flags, int fd0, xe_cptr ptr
 	sqe.splice_fd_in = 0;
 }
 
-static inline void xe_sqe_fxattr(io_uring_sqe& sqe, uint flags, int fd, xe_cptr name, xe_cptr value, uint len, uint xattr_flags){
-	xe_sqe_init(sqe, flags, 0);
+static inline void xe_sqe_fxattr(io_uring_sqe& sqe, byte sq_flags, int fd, xe_cptr name, xe_cptr value, uint len, uint xattr_flags){
+	xe_sqe_init(sqe, sq_flags, 0);
 
 	sqe.fd = fd;
 	sqe.addr = (ulong)name;
@@ -655,8 +655,8 @@ static inline void xe_sqe_fxattr(io_uring_sqe& sqe, uint flags, int fd, xe_cptr 
 	sqe.xattr_flags = xattr_flags;
 }
 
-static inline void xe_sqe_xattr(io_uring_sqe& sqe, uint flags, xe_cstr path, xe_cptr name, xe_cptr value, uint len, uint xattr_flags){
-	xe_sqe_init(sqe, flags, 0);
+static inline void xe_sqe_xattr(io_uring_sqe& sqe, byte sq_flags, xe_cstr path, xe_cptr name, xe_cptr value, uint len, uint xattr_flags){
+	xe_sqe_init(sqe, sq_flags, 0);
 
 	sqe.addr3 = (ulong)path;
 	sqe.addr = (ulong)name;
@@ -665,8 +665,8 @@ static inline void xe_sqe_xattr(io_uring_sqe& sqe, uint flags, xe_cstr path, xe_
 	sqe.xattr_flags = xattr_flags;
 }
 
-static inline void xe_sqe_splice(io_uring_sqe& sqe, uint flags, int fd_in, ulong off_in, int fd_out, ulong off_out, uint len, uint splice_flags){
-	xe_sqe_init(sqe, flags, 0);
+static inline void xe_sqe_splice(io_uring_sqe& sqe, byte sq_flags, int fd_in, ulong off_in, int fd_out, ulong off_out, uint len, uint splice_flags){
+	xe_sqe_init(sqe, sq_flags, 0);
 
 	sqe.splice_fd_in = fd_in;
 	sqe.splice_off_in = off_in;
@@ -676,20 +676,20 @@ static inline void xe_sqe_splice(io_uring_sqe& sqe, uint flags, int fd_in, ulong
 	sqe.splice_flags = splice_flags;
 }
 
-static inline void xe_sqe_socket(io_uring_sqe& sqe, uint flags, int fd, xe_cptr addr, uint len, ulong offset, uint socket_flags, uint file_index){
-	xe_sqe_rw_fixed(sqe, flags, 0, fd, addr, len, offset, socket_flags, 0);
+static inline void xe_sqe_socket(io_uring_sqe& sqe, byte sq_flags, int fd, xe_cptr addr, uint len, ulong offset, uint socket_flags, uint file_index){
+	xe_sqe_rw_fixed(sqe, sq_flags, 0, fd, addr, len, offset, socket_flags, 0);
 
 	sqe.file_index = file_index;
 }
 
-static inline void xe_sqe_socket_rw(io_uring_sqe& sqe, uint flags, uint ioprio, int fd, xe_cptr addr, uint len, uint msg_flags){
-	xe_sqe_rw(sqe, flags, ioprio, fd, addr, len, 0, msg_flags);
+static inline void xe_sqe_socket_rw(io_uring_sqe& sqe, byte sq_flags, ushort ioprio, int fd, xe_cptr addr, uint len, uint msg_flags){
+	xe_sqe_rw(sqe, sq_flags, ioprio, fd, addr, len, 0, msg_flags);
 
 	sqe.file_index = 0;
 }
 
-static inline void xe_sqe_buffer(io_uring_sqe& sqe, uint flags, xe_ptr addr, uint len, ushort nr, ushort bgid, ushort bid){
-	xe_sqe_init(sqe, flags, 0);
+static inline void xe_sqe_buffer(io_uring_sqe& sqe, byte sq_flags, xe_ptr addr, uint len, ushort nr, ushort bgid, ushort bid){
+	xe_sqe_init(sqe, sq_flags, 0);
 
 	sqe.fd = nr;
 	sqe.addr = (ulong)addr;
@@ -699,13 +699,13 @@ static inline void xe_sqe_buffer(io_uring_sqe& sqe, uint flags, xe_ptr addr, uin
 	sqe.rw_flags = 0;
 }
 
-int xe_loop::nop_ex(xe_req& req, uint sq_flags){
+int xe_loop::nop_ex(xe_req& req, byte sq_flags){
 	return queue_io(IORING_OP_NOP, req, [&](io_uring_sqe& sqe){
 		xe_sqe_init(sqe, sq_flags, 0);
 	});
 }
 
-int xe_loop::openat_ex(xe_req& req, uint sq_flags, int dfd, xe_cstr path, uint flags, mode_t mode, uint file_index){
+int xe_loop::openat_ex(xe_req& req, byte sq_flags, int dfd, xe_cstr path, uint flags, mode_t mode, uint file_index){
 	return queue_io(IORING_OP_OPENAT, req, [&](io_uring_sqe& sqe){
 		xe_sqe_init(sqe, sq_flags, 0);
 
@@ -718,7 +718,7 @@ int xe_loop::openat_ex(xe_req& req, uint sq_flags, int dfd, xe_cstr path, uint f
 	});
 }
 
-int xe_loop::openat2_ex(xe_req& req, uint sq_flags, int dfd, xe_cstr path, open_how* how, uint file_index){
+int xe_loop::openat2_ex(xe_req& req, byte sq_flags, int dfd, xe_cstr path, open_how* how, uint file_index){
 	return queue_io(IORING_OP_OPENAT2, req, [&](io_uring_sqe& sqe){
 		xe_sqe_init(sqe, sq_flags, 0);
 
@@ -731,67 +731,67 @@ int xe_loop::openat2_ex(xe_req& req, uint sq_flags, int dfd, xe_cstr path, open_
 	});
 }
 
-int xe_loop::close_ex(xe_req& req, uint sq_flags, int fd){
+int xe_loop::close_ex(xe_req& req, byte sq_flags, int fd){
 	return queue_io(IORING_OP_CLOSE, req, [&](io_uring_sqe& sqe){
 		xe_sqe_close(sqe, sq_flags, fd, 0);
 	});
 }
 
-int xe_loop::close_direct_ex(xe_req& req, uint sq_flags, uint file_index){
+int xe_loop::close_direct_ex(xe_req& req, byte sq_flags, uint file_index){
 	return queue_io(IORING_OP_CLOSE, req, [&](io_uring_sqe& sqe){
 		xe_sqe_close(sqe, sq_flags, 0, file_index);
 	});
 }
 
-int xe_loop::read_ex(xe_req& req, uint sq_flags, uint ioprio, int fd, xe_ptr buf, uint len, long offset, uint flags){
+int xe_loop::read_ex(xe_req& req, byte sq_flags, ushort ioprio, int fd, xe_ptr buf, uint len, long offset, uint flags){
 	return queue_io(IORING_OP_READ, req, [&](io_uring_sqe& sqe){
 		xe_sqe_rw(sqe, sq_flags, ioprio, fd, buf, len, offset, flags);
 	});
 }
 
-int xe_loop::write_ex(xe_req& req, uint sq_flags, uint ioprio, int fd, xe_cptr buf, uint len, long offset, uint flags){
+int xe_loop::write_ex(xe_req& req, byte sq_flags, ushort ioprio, int fd, xe_cptr buf, uint len, long offset, uint flags){
 	return queue_io(IORING_OP_WRITE, req, [&](io_uring_sqe& sqe){
 		xe_sqe_rw(sqe, sq_flags, ioprio, fd, buf, len, offset, flags);
 	});
 }
 
-int xe_loop::readv_ex(xe_req& req, uint sq_flags, uint ioprio, int fd, const iovec* vecs, uint vlen, long offset, uint flags){
+int xe_loop::readv_ex(xe_req& req, byte sq_flags, ushort ioprio, int fd, const iovec* vecs, uint vlen, long offset, uint flags){
 	return queue_io(IORING_OP_READV, req, [&](io_uring_sqe& sqe){
 		xe_sqe_rw(sqe, sq_flags, ioprio, fd, vecs, vlen, offset, flags);
 	});
 }
 
-int xe_loop::writev_ex(xe_req& req, uint sq_flags, uint ioprio, int fd, const iovec* vecs, uint vlen, long offset, uint flags){
+int xe_loop::writev_ex(xe_req& req, byte sq_flags, ushort ioprio, int fd, const iovec* vecs, uint vlen, long offset, uint flags){
 	return queue_io(IORING_OP_WRITEV, req, [&](io_uring_sqe& sqe){
 		xe_sqe_rw(sqe, sq_flags, ioprio, fd, vecs, vlen, offset, flags);
 	});
 }
 
-int xe_loop::read_fixed_ex(xe_req& req, uint sq_flags, uint ioprio, int fd, xe_ptr buf, uint len, long offset, uint buf_index, uint flags){
+int xe_loop::read_fixed_ex(xe_req& req, byte sq_flags, ushort ioprio, int fd, xe_ptr buf, uint len, long offset, uint buf_index, uint flags){
 	return queue_io(IORING_OP_READ_FIXED, req, [&](io_uring_sqe& sqe){
 		xe_sqe_rw_fixed(sqe, sq_flags, ioprio, fd, buf, len, offset, flags, buf_index);
 	});
 }
 
-int xe_loop::write_fixed_ex(xe_req& req, uint sq_flags, uint ioprio, int fd, xe_cptr buf, uint len, long offset, uint buf_index, uint flags){
+int xe_loop::write_fixed_ex(xe_req& req, byte sq_flags, ushort ioprio, int fd, xe_cptr buf, uint len, long offset, uint buf_index, uint flags){
 	return queue_io(IORING_OP_WRITE_FIXED, req, [&](io_uring_sqe& sqe){
 		xe_sqe_rw_fixed(sqe, sq_flags, ioprio, fd, buf, len, offset, flags, buf_index);
 	});
 }
 
-int xe_loop::fsync_ex(xe_req& req, uint sq_flags, int fd, uint flags){
+int xe_loop::fsync_ex(xe_req& req, byte sq_flags, int fd, uint flags){
 	return queue_io(IORING_OP_FSYNC, req, [&](io_uring_sqe& sqe){
 		xe_sqe_sync(sqe, sq_flags, fd, 0, 0, flags);
 	});
 }
 
-int xe_loop::sync_file_range_ex(xe_req& req, uint sq_flags, int fd, uint len, long offset, uint flags){
+int xe_loop::sync_file_range_ex(xe_req& req, byte sq_flags, int fd, uint len, long offset, uint flags){
 	return queue_io(IORING_OP_SYNC_FILE_RANGE, req, [&](io_uring_sqe& sqe){
 		xe_sqe_sync(sqe, sq_flags, fd, len, offset, flags);
 	});
 }
 
-int xe_loop::fallocate_ex(xe_req& req, uint sq_flags, int fd, int mode, long offset, long len){
+int xe_loop::fallocate_ex(xe_req& req, byte sq_flags, int fd, int mode, long offset, long len){
 	return queue_io(IORING_OP_FALLOCATE, req, [&](io_uring_sqe& sqe){
 		xe_sqe_rw_fixed(sqe, sq_flags, 0, fd, (xe_ptr)len, mode, offset, 0, 0);
 
@@ -799,7 +799,7 @@ int xe_loop::fallocate_ex(xe_req& req, uint sq_flags, int fd, int mode, long off
 	});
 }
 
-int xe_loop::fadvise_ex(xe_req& req, uint sq_flags, int fd, ulong offset, uint len, uint advice){
+int xe_loop::fadvise_ex(xe_req& req, byte sq_flags, int fd, ulong offset, uint len, uint advice){
 	return queue_io(IORING_OP_FADVISE, req, [&](io_uring_sqe& sqe){
 		xe_sqe_advise(sqe, sq_flags, null, len, offset, advice);
 
@@ -807,97 +807,97 @@ int xe_loop::fadvise_ex(xe_req& req, uint sq_flags, int fd, ulong offset, uint l
 	});
 }
 
-int xe_loop::madvise_ex(xe_req& req, uint sq_flags, xe_ptr addr, uint len, uint advice){
+int xe_loop::madvise_ex(xe_req& req, byte sq_flags, xe_ptr addr, uint len, uint advice){
 	return queue_io(IORING_OP_MADVISE, req, [&](io_uring_sqe& sqe){
 		xe_sqe_advise(sqe, sq_flags, addr, len, 0, advice);
 	});
 }
 
-int xe_loop::renameat_ex(xe_req& req, uint sq_flags, int old_dfd, xe_cstr old_path, int new_dfd, xe_cstr new_path, uint flags){
+int xe_loop::renameat_ex(xe_req& req, byte sq_flags, int old_dfd, xe_cstr old_path, int new_dfd, xe_cstr new_path, uint flags){
 	return queue_io(IORING_OP_RENAMEAT, req, [&](io_uring_sqe& sqe){
 		xe_sqe_fs(sqe, sq_flags, old_dfd, old_path, new_dfd, new_path, flags);
 	});
 }
 
-int xe_loop::unlinkat_ex(xe_req& req, uint sq_flags, int dfd, xe_cstr path, uint flags){
+int xe_loop::unlinkat_ex(xe_req& req, byte sq_flags, int dfd, xe_cstr path, uint flags){
 	return queue_io(IORING_OP_UNLINKAT, req, [&](io_uring_sqe& sqe){
 		xe_sqe_fs(sqe, sq_flags, dfd, path, 0, null, flags);
 	});
 }
 
-int xe_loop::mkdirat_ex(xe_req& req, uint sq_flags, int dfd, xe_cstr path, mode_t mode){
+int xe_loop::mkdirat_ex(xe_req& req, byte sq_flags, int dfd, xe_cstr path, mode_t mode){
 	return queue_io(IORING_OP_MKDIRAT, req, [&](io_uring_sqe& sqe){
 		xe_sqe_fs(sqe, sq_flags, dfd, path, mode, null, 0);
 	});
 }
 
-int xe_loop::symlinkat_ex(xe_req& req, uint sq_flags, xe_cstr target, int newdirfd, xe_cstr linkpath){
+int xe_loop::symlinkat_ex(xe_req& req, byte sq_flags, xe_cstr target, int newdirfd, xe_cstr linkpath){
 	return queue_io(IORING_OP_SYMLINKAT, req, [&](io_uring_sqe& sqe){
 		xe_sqe_fs(sqe, sq_flags, newdirfd, target, 0, linkpath, 0);
 	});
 }
 
-int xe_loop::linkat_ex(xe_req& req, uint sq_flags, int old_dfd, xe_cstr old_path, int new_dfd, xe_cstr new_path, uint flags){
+int xe_loop::linkat_ex(xe_req& req, byte sq_flags, int old_dfd, xe_cstr old_path, int new_dfd, xe_cstr new_path, uint flags){
 	return queue_io(IORING_OP_LINKAT, req, [&](io_uring_sqe& sqe){
 		xe_sqe_fs(sqe, sq_flags, old_dfd, old_path, new_dfd, new_path, flags);
 	});
 }
 
-int xe_loop::fgetxattr_ex(xe_req& req, uint sq_flags, int fd, xe_cstr name, char* value, uint len){
+int xe_loop::fgetxattr_ex(xe_req& req, byte sq_flags, int fd, xe_cstr name, char* value, uint len){
 	return queue_io(IORING_OP_FGETXATTR, req, [&](io_uring_sqe& sqe){
 		xe_sqe_fxattr(sqe, sq_flags, fd, name, value, len, 0);
 	});
 }
 
-int xe_loop::fsetxattr_ex(xe_req& req, uint sq_flags, int fd, xe_cstr name, xe_cstr value, uint len, uint flags){
+int xe_loop::fsetxattr_ex(xe_req& req, byte sq_flags, int fd, xe_cstr name, xe_cstr value, uint len, uint flags){
 	return queue_io(IORING_OP_FSETXATTR, req, [&](io_uring_sqe& sqe){
 		xe_sqe_fxattr(sqe, sq_flags, fd, name, value, len, flags);
 	});
 }
 
-int xe_loop::getxattr_ex(xe_req& req, uint sq_flags, xe_cstr path, xe_cstr name, char* value, uint len){
+int xe_loop::getxattr_ex(xe_req& req, byte sq_flags, xe_cstr path, xe_cstr name, char* value, uint len){
 	return queue_io(IORING_OP_GETXATTR, req, [&](io_uring_sqe& sqe){
 		xe_sqe_xattr(sqe, sq_flags, path, name, value, len, 0);
 	});
 }
 
-int xe_loop::setxattr_ex(xe_req& req, uint sq_flags, xe_cstr path, xe_cstr name, xe_cstr value, uint len, uint flags){
+int xe_loop::setxattr_ex(xe_req& req, byte sq_flags, xe_cstr path, xe_cstr name, xe_cstr value, uint len, uint flags){
 	return queue_io(IORING_OP_SETXATTR, req, [&](io_uring_sqe& sqe){
 		xe_sqe_xattr(sqe, sq_flags, path, name, value, len, flags);
 	});
 }
 
-int xe_loop::splice_ex(xe_req& req, uint sq_flags, int fd_in, long off_in, int fd_out, long off_out, uint len, uint flags){
+int xe_loop::splice_ex(xe_req& req, byte sq_flags, int fd_in, long off_in, int fd_out, long off_out, uint len, uint flags){
 	return queue_io(IORING_OP_SPLICE, req, [&](io_uring_sqe& sqe){
 		xe_sqe_splice(sqe, sq_flags, fd_in, off_in, fd_out, off_out, len, flags);
 	});
 }
 
-int xe_loop::tee_ex(xe_req& req, uint sq_flags, int fd_in, int fd_out, uint len, uint flags){
+int xe_loop::tee_ex(xe_req& req, byte sq_flags, int fd_in, int fd_out, uint len, uint flags){
 	return queue_io(IORING_OP_TEE, req, [&](io_uring_sqe& sqe){
 		xe_sqe_splice(sqe, sq_flags, fd_in, 0, fd_out, 0, len, flags);
 	});
 }
 
-int xe_loop::statx_ex(xe_req& req, uint sq_flags, int fd, xe_cstr path, uint flags, uint mask, struct statx* statx){
+int xe_loop::statx_ex(xe_req& req, byte sq_flags, int fd, xe_cstr path, uint flags, uint mask, struct statx* statx){
 	return queue_io(IORING_OP_STATX, req, [&](io_uring_sqe& sqe){
 		xe_sqe_rw_fixed(sqe, sq_flags, 0, fd, path, mask, (ulong)statx, flags, 0);
 	});
 }
 
-int xe_loop::socket_ex(xe_req& req, uint sq_flags, int af, int type, int protocol, uint flags, uint file_index){
+int xe_loop::socket_ex(xe_req& req, byte sq_flags, int af, int type, int protocol, uint flags, uint file_index){
 	return queue_io(IORING_OP_SOCKET, req, [&](io_uring_sqe& sqe){
 		xe_sqe_socket(sqe, sq_flags, af, null, protocol, type, flags, file_index);
 	});
 }
 
-int xe_loop::connect_ex(xe_req& req, uint sq_flags, int fd, const sockaddr* addr, socklen_t addrlen){
+int xe_loop::connect_ex(xe_req& req, byte sq_flags, int fd, const sockaddr* addr, socklen_t addrlen){
 	return queue_io(IORING_OP_CONNECT, req, [&](io_uring_sqe& sqe){
 		xe_sqe_socket(sqe, sq_flags, fd, addr, 0, addrlen, 0, 0);
 	});
 }
 
-int xe_loop::accept_ex(xe_req& req, uint sq_flags, uint ioprio, int fd, sockaddr* addr, socklen_t* addrlen, uint flags, uint file_index){
+int xe_loop::accept_ex(xe_req& req, byte sq_flags, ushort ioprio, int fd, sockaddr* addr, socklen_t* addrlen, uint flags, uint file_index){
 	return queue_io(IORING_OP_ACCEPT, req, [&](io_uring_sqe& sqe){
 		xe_sqe_socket(sqe, sq_flags, fd, addr, 0, (ulong)addrlen, flags, file_index);
 
@@ -905,35 +905,35 @@ int xe_loop::accept_ex(xe_req& req, uint sq_flags, uint ioprio, int fd, sockaddr
 	});
 }
 
-int xe_loop::recv_ex(xe_req& req, uint sq_flags, uint ioprio, int fd, xe_ptr buf, uint len, uint flags){
+int xe_loop::recv_ex(xe_req& req, byte sq_flags, ushort ioprio, int fd, xe_ptr buf, uint len, uint flags){
 	return queue_io(IORING_OP_RECV, req, [&](io_uring_sqe& sqe){
 		xe_sqe_socket_rw(sqe, sq_flags, ioprio, fd, buf, len, flags);
 	});
 }
 
-int xe_loop::send_ex(xe_req& req, uint sq_flags, uint ioprio, int fd, xe_cptr buf, uint len, uint flags){
+int xe_loop::send_ex(xe_req& req, byte sq_flags, ushort ioprio, int fd, xe_cptr buf, uint len, uint flags){
 	return queue_io(IORING_OP_SEND, req, [&](io_uring_sqe& sqe){
 		xe_sqe_socket_rw(sqe, sq_flags, ioprio, fd, buf, len, flags);
 	});
 }
 
-int xe_loop::recvmsg_ex(xe_req& req, uint sq_flags, uint ioprio, int fd, msghdr* msg, uint flags){
+int xe_loop::recvmsg_ex(xe_req& req, byte sq_flags, ushort ioprio, int fd, msghdr* msg, uint flags){
 	return queue_io(IORING_OP_RECVMSG, req, [&](io_uring_sqe& sqe){
 		xe_sqe_socket_rw(sqe, sq_flags, ioprio, fd, msg, 1, flags);
 	});
 }
 
-int xe_loop::sendmsg_ex(xe_req& req, uint sq_flags, uint ioprio, int fd, const msghdr* msg, uint flags){
+int xe_loop::sendmsg_ex(xe_req& req, byte sq_flags, ushort ioprio, int fd, const msghdr* msg, uint flags){
 	return queue_io(IORING_OP_SENDMSG, req, [&](io_uring_sqe& sqe){
 		xe_sqe_socket_rw(sqe, sq_flags, ioprio, fd, msg, 1, flags);
 	});
 }
 
-int xe_loop::send_zc_ex(xe_req& req, uint sq_flags, uint ioprio, int fd, xe_cptr buf, uint len, uint flags, uint buf_index){
+int xe_loop::send_zc_ex(xe_req& req, byte sq_flags, ushort ioprio, int fd, xe_cptr buf, uint len, uint flags, uint buf_index){
 	return sendto_zc_ex(req, sq_flags, ioprio, fd, buf, len, flags, null, 0, buf_index);
 }
 
-int xe_loop::sendto_zc_ex(xe_req& req, uint sq_flags, uint ioprio, int fd, xe_cptr buf, uint len, uint flags, const sockaddr* addr, socklen_t addrlen, uint buf_index){
+int xe_loop::sendto_zc_ex(xe_req& req, byte sq_flags, ushort ioprio, int fd, xe_cptr buf, uint len, uint flags, const sockaddr* addr, socklen_t addrlen, uint buf_index){
 	return queue_io(IORING_OP_SEND_ZC, req, [&](io_uring_sqe& sqe){
 		xe_sqe_init(sqe, sq_flags, ioprio);
 
@@ -950,7 +950,7 @@ int xe_loop::sendto_zc_ex(xe_req& req, uint sq_flags, uint ioprio, int fd, xe_cp
 	});
 }
 
-int xe_loop::shutdown_ex(xe_req& req, uint sq_flags, int fd, int how){
+int xe_loop::shutdown_ex(xe_req& req, byte sq_flags, int fd, int how){
 	return queue_io(IORING_OP_SHUTDOWN, req, [&](io_uring_sqe& sqe){
 		xe_sqe_socket(sqe, sq_flags, fd, null, how, 0, 0, 0);
 	});
@@ -962,13 +962,13 @@ static inline uint xe_poll_mask(uint mask){
 	return mask;
 }
 
-int xe_loop::poll_ex(xe_req& req, uint sq_flags, uint ioprio, int fd, uint mask){
+int xe_loop::poll_ex(xe_req& req, byte sq_flags, ushort ioprio, int fd, uint mask){
 	return queue_io(IORING_OP_POLL_ADD, req, [&](io_uring_sqe& sqe){
 		xe_sqe_rw_fixed(sqe, sq_flags, 0, fd, null, ioprio, 0, xe_poll_mask(mask), 0);
 	});
 }
 
-int xe_loop::poll_update_ex(xe_req& req, uint sq_flags, xe_req& poll, uint mask, uint flags){
+int xe_loop::poll_update_ex(xe_req& req, byte sq_flags, xe_req& poll, uint mask, uint flags){
 	return queue_io(IORING_OP_POLL_REMOVE, req, [&](io_uring_sqe& sqe){
 		xe_sqe_init(sqe, sq_flags, 0);
 
@@ -981,7 +981,7 @@ int xe_loop::poll_update_ex(xe_req& req, uint sq_flags, xe_req& poll, uint mask,
 	});
 }
 
-int xe_loop::epoll_ctl_ex(xe_req& req, uint sq_flags, int epfd, int op, int fd, epoll_event* events){
+int xe_loop::epoll_ctl_ex(xe_req& req, byte sq_flags, int epfd, int op, int fd, epoll_event* events){
 	return queue_io(IORING_OP_EPOLL_CTL, req, [&](io_uring_sqe& sqe){
 		xe_sqe_init(sqe, sq_flags, 0);
 
@@ -994,7 +994,7 @@ int xe_loop::epoll_ctl_ex(xe_req& req, uint sq_flags, int epfd, int op, int fd, 
 	});
 }
 
-int xe_loop::poll_cancel_ex(xe_req& req, uint sq_flags, xe_req& cancel){
+int xe_loop::poll_cancel_ex(xe_req& req, byte sq_flags, xe_req& cancel){
 	return queue_cancel(IORING_OP_POLL_REMOVE, req, cancel, [&](io_uring_sqe& sqe){
 		xe_sqe_init(sqe, sq_flags, 0);
 
@@ -1006,7 +1006,7 @@ int xe_loop::poll_cancel_ex(xe_req& req, uint sq_flags, xe_req& cancel){
 	});
 }
 
-int xe_loop::cancel_ex(xe_req& req, uint sq_flags, xe_req& cancel, uint flags){
+int xe_loop::cancel_ex(xe_req& req, byte sq_flags, xe_req& cancel, uint flags){
 	return queue_cancel(IORING_OP_ASYNC_CANCEL, req, cancel, [&](io_uring_sqe& sqe){
 		xe_sqe_init(sqe, sq_flags, 0);
 
@@ -1017,7 +1017,7 @@ int xe_loop::cancel_ex(xe_req& req, uint sq_flags, xe_req& cancel, uint flags){
 	});
 }
 
-int xe_loop::cancel_ex(xe_req& req, uint sq_flags, int fd, uint flags){
+int xe_loop::cancel_ex(xe_req& req, byte sq_flags, int fd, uint flags){
 	return queue_io(IORING_OP_ASYNC_CANCEL, req, [&](io_uring_sqe& sqe){
 		xe_sqe_rw(sqe, sq_flags, 0, fd, null, 0, 0, flags | IORING_ASYNC_CANCEL_FD);
 
@@ -1025,12 +1025,12 @@ int xe_loop::cancel_ex(xe_req& req, uint sq_flags, int fd, uint flags){
 	});
 }
 
-int xe_loop::cancel_fixed_ex(xe_req& req, uint sq_flags, uint file_index, uint flags){
+int xe_loop::cancel_fixed_ex(xe_req& req, byte sq_flags, uint file_index, uint flags){
 	/* safe to cast file_index to int here */
 	return cancel_ex(req, sq_flags, file_index, flags | IORING_ASYNC_CANCEL_FD_FIXED);
 }
 
-int xe_loop::cancel_all_ex(xe_req& req, uint sq_flags){
+int xe_loop::cancel_all_ex(xe_req& req, byte sq_flags){
 	return queue_io(IORING_OP_ASYNC_CANCEL, req, [&](io_uring_sqe& sqe){
 		xe_sqe_rw(sqe, sq_flags, 0, 0, null, 0, 0, IORING_ASYNC_CANCEL_ANY);
 
@@ -1038,7 +1038,7 @@ int xe_loop::cancel_all_ex(xe_req& req, uint sq_flags){
 	});
 }
 
-int xe_loop::files_update_ex(xe_req& req, uint sq_flags, int* fds, uint len, uint offset){
+int xe_loop::files_update_ex(xe_req& req, byte sq_flags, int* fds, uint len, uint offset){
 	return queue_io(IORING_OP_FILES_UPDATE, req, [&](io_uring_sqe& sqe){
 		xe_sqe_init(sqe, sq_flags, 0);
 
@@ -1050,13 +1050,13 @@ int xe_loop::files_update_ex(xe_req& req, uint sq_flags, int* fds, uint len, uin
 	});
 }
 
-int xe_loop::provide_buffers_ex(xe_req& req, uint sq_flags, xe_ptr addr, uint len, ushort nr, ushort bgid, ushort bid){
+int xe_loop::provide_buffers_ex(xe_req& req, byte sq_flags, xe_ptr addr, uint len, ushort nr, ushort bgid, ushort bid){
 	return queue_io(IORING_OP_PROVIDE_BUFFERS, req, [&](io_uring_sqe& sqe){
 		xe_sqe_buffer(sqe, sq_flags, addr, len, nr, bgid, bid);
 	});
 }
 
-int xe_loop::remove_buffers_ex(xe_req& req, uint sq_flags, ushort nr, ushort bgid){
+int xe_loop::remove_buffers_ex(xe_req& req, byte sq_flags, ushort nr, ushort bgid){
 	return queue_io(IORING_OP_REMOVE_BUFFERS, req, [&](io_uring_sqe& sqe){
 		xe_sqe_buffer(sqe, sq_flags, null, 0, nr, bgid, 0);
 	});
@@ -1084,7 +1084,7 @@ xe_cstr xe_loop::class_name(){
 	return func##_ex(req, 0, ##__VA_ARGS__);	\
 }
 
-#define XE_OP_ALIAS1_PROMISE_EX(func, ...) xe_promise xe_loop::func##_ex(uint sq_flags, ##__VA_ARGS__)
+#define XE_OP_ALIAS1_PROMISE_EX(func, ...) xe_promise xe_loop::func##_ex(byte sq_flags, ##__VA_ARGS__)
 #define XE_OP_ALIAS1_PROMISE_BODY_EX(func, ...) {		\
 	return make_promise(0, [&](xe_promise& promise){	\
 		return func##_ex(promise, sq_flags, ##__VA_ARGS__);	\
@@ -1107,7 +1107,7 @@ xe_cstr xe_loop::class_name(){
 	return func##_ex(req, 0, 0, ##__VA_ARGS__);	\
 }
 
-#define XE_OP_ALIAS2_PROMISE_EX(func, ...) xe_promise xe_loop::func##_ex(uint sq_flags, uint ioprio, ##__VA_ARGS__)
+#define XE_OP_ALIAS2_PROMISE_EX(func, ...) xe_promise xe_loop::func##_ex(byte sq_flags, ushort ioprio, ##__VA_ARGS__)
 #define XE_OP_ALIAS2_PROMISE_BODY_EX(func, ...) {		\
 	return make_promise(0, [&](xe_promise& promise){	\
 		return func##_ex(promise, sq_flags, ioprio, ##__VA_ARGS__);	\
