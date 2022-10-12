@@ -534,6 +534,12 @@ public:
 		xe_http_singleconnection::close(error);
 	}
 
+	void closed(){
+		xe_http_singleconnection::closed();
+
+		xe_delete(this);
+	}
+
 	int close(ushort code, xe_cptr data, size_t size){
 		xe_fla<byte, CONTROL_FRAME_MAX_LENGTH> body;
 		auto writer = xe_writer(body);

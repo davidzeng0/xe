@@ -2,6 +2,9 @@
 #include <new>
 #include "xstd/std.h"
 
+static_assert(sizeof(ssize_t) == sizeof(ptrdiff_t));
+static constexpr size_t XE_MAX_MEMORY = SSIZE_MAX;
+
 xe_ptr xe_malloc(size_t elem_size, size_t bytes);
 xe_ptr xe_malloc_aligned(size_t alignment, size_t elem_size, size_t bytes);
 xe_ptr xe_calloc(size_t elem_size, size_t bytes);

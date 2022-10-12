@@ -75,12 +75,6 @@ xe_http_string::~xe_http_string(){
 	clear();
 }
 
-void xe_http_connection::closed(){
-	xe_connection::closed();
-
-	proto.closed(*this);
-}
-
 void xe_http_protocol::redirect(xe_request_internal& request, xe_string&& url){
 	request.complete(0);
 }
@@ -88,10 +82,6 @@ void xe_http_protocol::redirect(xe_request_internal& request, xe_string&& url){
 bool xe_http_protocol::available(xe_http_connection& connection, bool available){
 
 	return true;
-}
-
-void xe_http_protocol::closed(xe_http_connection& connection){
-	xe_delete(&connection);
 }
 
 int xe_http_protocol::open(xe_http_internal_data& data, xe_url&& url, bool redirect){
@@ -404,17 +394,13 @@ ssize_t xe_http_singleconnection::data(xe_ptr buf, size_t size){
 }
 
 void xe_http_singleconnection::close(int error){
+	xe_dealloc(header_buffer);
+
 	proto.available(*this, false);
 
 	if(request)
 		complete(error);
 	xe_http_connection::close(error);
-}
-
-void xe_http_singleconnection::closed(){
-	xe_dealloc(header_buffer);
-
-	xe_http_connection::closed();
 }
 
 void xe_http_singleconnection::complete(int error){

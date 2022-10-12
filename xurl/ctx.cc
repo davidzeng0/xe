@@ -112,6 +112,13 @@ int xurl_ctx::resolve(xe_connection& conn, const xe_string_view& host, xe_endpoi
 	return XE_EINPROGRESS;
 }
 
+void xurl_ctx::close_cb(xe_resolve& resolve){
+	xurl_ctx& ctx = xe_containerof(resolve, &xurl_ctx::resolver);
+
+	ctx.resolver_closing = false;
+	ctx.check_close();
+}
+
 void xurl_ctx::resolved(xe_ptr data, const xe_string_view& host, xe_endpoint&& endpoint, int status){
 	xurl_ctx& ctx = *(xurl_ctx*)data;
 	xe_connection* conn;
@@ -181,6 +188,24 @@ void xurl_ctx::uncount(){
 	active_connections_--;
 }
 
+void xurl_ctx::count_closing(){
+	closing_connections++;
+}
+
+void xurl_ctx::uncount_closing(){
+	closing_connections--;
+
+	if(closing) check_close();
+}
+
+void xurl_ctx::check_close(){
+	if(resolver_closing || closing_connections)
+		return;
+	closing = false;
+
+	if(close_callback) close_callback(*this);
+}
+
 int xurl_ctx::init(xe_loop& loop, xurl_shared& shared_){
 	size_t i;
 	int err;
@@ -206,16 +231,22 @@ fail:
 	return err;
 }
 
-void xurl_ctx::close(){
+int xurl_ctx::close(){
 	xe_connection* conn;
 	xe_connection* next;
+	int res;
 
+	if(closing)
+		return XE_EALREADY;
 	conn = connections;
 	connections = null;
 
-	resolver.close();
+	closing = true;
+	res = resolver.close();
 	endpoints.clear();
 
+	if(res)
+		resolver_closing = true;
 	while(conn){
 		next = conn -> next;
 		conn -> prev = null;
@@ -226,6 +257,11 @@ void xurl_ctx::close(){
 
 	for(auto protocol : protocols)
 		xe_delete(protocol);
+	if(!resolver_closing && !closing_connections)
+		closing = false;
+	else if(!res)
+		res = XE_EINPROGRESS;
+	return res;
 }
 
 int xurl_ctx::open(xe_request& request, const xe_string_view& url_){

@@ -137,6 +137,8 @@ protected:
 	int handle_trailer(const xe_string_view& key, const xe_string_view& value){
 		return call(&xe_http_callbacks::trailer, *request, key, value);
 	}
+
+	void closed();
 public:
 	xe_http_protocol_singleconnection(xe_http& proto);
 };
@@ -206,7 +208,6 @@ public:
 	void redirect(xe_request_internal& request, xe_string&& url);
 	int internal_redirect(xe_request_internal& request, xe_string&& url);
 	bool available(xe_http_connection& connection, bool available);
-	void closed(xe_http_connection& connection);
 
 	~xe_http() = default;
 
@@ -214,6 +215,13 @@ public:
 };
 
 xe_http_protocol_singleconnection::xe_http_protocol_singleconnection(xe_http& proto): xe_http_singleconnection(proto){}
+
+void xe_http_protocol_singleconnection::closed(){
+	xe_http_singleconnection::closed();
+	xe_http_connection_node<>& node = xe_containerof(*this, &xe_http_connection_node<>::connection);
+
+	xe_delete(&node);
+}
 
 xe_http::xe_http(xurl_ctx& net): xe_http_protocol(net, XE_PROTOCOL_HTTP){}
 
@@ -363,12 +371,6 @@ bool xe_http::available(xe_http_connection& connection, bool available){
 	else
 		node.list.remove(node);
 	return false;
-}
-
-void xe_http::closed(xe_http_connection& connection){
-	xe_http_connection_node<>& node = xe_containerof((xe_http_protocol_singleconnection&)connection, &xe_http_connection_node<>::connection);
-
-	xe_delete(&node);
 }
 
 xe_cstr xe_http::class_name(){

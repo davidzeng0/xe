@@ -39,6 +39,7 @@ public:
 class xurl_ctx{
 private:
 	static void resolved(xe_ptr, const xe_string_view&, xe_endpoint&&, int);
+	static void close_cb(xe_resolve&);
 
 	int resolve(xe_connection&, const xe_string_view&, xe_endpoint*&);
 
@@ -47,6 +48,9 @@ private:
 	void remove(xe_connection&);
 	void count();
 	void uncount();
+	void count_closing();
+	void uncount_closing();
+	void check_close();
 
 	struct xe_resolve_entry{
 		xe_connection* null;
@@ -65,25 +69,33 @@ private:
 	xe_connection* connections;
 	size_t active_connections_;
 	size_t active_resolves_;
+	size_t closing_connections;
 
 	bool closing: 1;
+	bool resolver_closing: 1;
 
 	friend class xe_connection;
 public:
+	void (*close_callback)(xurl_ctx& ctx);
+
 	xurl_ctx(){
 		for(auto& protocol : protocols)
 			protocol = null;
+		resolver.close_callback = close_cb;
 		connections = null;
 		active_connections_ = 0;
 		active_resolves_ = 0;
+		closing_connections = 0;
 
 		closing = false;
+		resolver_closing = false;
+		close_callback = null;
 	}
 
 	xe_disallow_copy_move(xurl_ctx)
 
 	int init(xe_loop& loop, xurl_shared& shared);
-	void close();
+	int close();
 
 	int open(xe_request& request, const xe_string_view& url);
 	int start(xe_request& request);

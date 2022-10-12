@@ -279,6 +279,8 @@ public:
 	uint remain() const; /* remaining sqes */
 	uint capacity() const; /* alias for sqe_count */
 
+	int flush(); /* submit any queued sqes */
+
 	int timer_ms(xe_timer& timer, ulong time, ulong repeat, uint flags);
 	int timer_ns(xe_timer& timer, ulong time, ulong repeat, uint flags);
 	int cancel(xe_timer& timer);

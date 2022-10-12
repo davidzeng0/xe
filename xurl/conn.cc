@@ -24,6 +24,7 @@ void xe_connection::poll_cb(xe_poll& poll, int res){
 void xe_connection::close_cb(xe_poll& poll){
 	xe_connection& conn = xe_containerof(poll, &xe_connection::poll);
 
+	conn.ctx -> count_closing();
 	conn.closed();
 }
 
@@ -329,6 +330,8 @@ int xe_connection::writable(){
 void xe_connection::closed(){
 	if(fd >= 0)
 		::close(fd);
+	ctx -> uncount_closing();
+
 	xe_log_trace(this, "closed()");
 }
 
@@ -474,9 +477,14 @@ void xe_connection::close(int error){
 		ctx -> remove(*this);
 	}
 
+	error = poll.close();
+
 	set_state(XE_CONNECTION_STATE_CLOSED);
 
-	if(!poll.close()) closed();
+	if(!error)
+		closed();
+	else
+		ctx -> count_closing();
 }
 
 xe_cstr xe_connection::class_name(){

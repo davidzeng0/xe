@@ -8,7 +8,7 @@
 #include "xutil/assert.h"
 
 enum{
-	ENTRY_COUNT = 1024, /* default sqe and cqe count */
+	ENTRY_COUNT = 256, /* default sqe and cqe count */
 
 	/* useful in the case that not all sqes were submitted and no events return in time */
 	MAX_WAIT = 4'000'000'000 /* 4 seconds */
@@ -508,7 +508,7 @@ int xe_loop::run(){
 				handles--;
 			if(req -> event) [[likely]]
 				req -> event(*req, cqe -> res, res);
-		}while(cqe_head != cqe_tail);
+		}while(cqe_head != cqe_tail && !error);
 
 		io_uring_smp_store_release(ring.cq.khead, cqe_tail);
 	}
@@ -530,6 +530,18 @@ uint xe_loop::remain() const{
 
 uint xe_loop::capacity() const{
 	return sqe_count();
+}
+
+int xe_loop::flush(){
+	if(!queued) [[unlikely]]
+		return 0;
+	xe_return_error(error);
+
+	if(sq_ring_full) [[unlikely]]
+		return XE_EAGAIN;
+	error = submit(0, 0, false);
+
+	return error;
 }
 
 int xe_loop::timer_ms(xe_timer& timer, ulong millis, ulong repeat, uint flags){

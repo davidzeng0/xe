@@ -69,9 +69,9 @@ static xe_cstr ssl_version_string(int version){
 
 static xe_cstr ssl_alert_level(byte v){
 	switch(v){
-		case 1:
+		case alert_warning:
 			return " Warning";
-		case 2:
+		case alert_fatal:
 			return " Fatal";
 	}
 
@@ -80,72 +80,64 @@ static xe_cstr ssl_alert_level(byte v){
 
 static xe_cstr ssl_alert_string(byte v){
 	switch(v){
-		case 0:
+		case close_notify:
 			return " Close Notify";
-		case 1:
-			return " End of Early Data";
-		case 10:
+		case unexpected_message:
 			return " Unexpected Message";
-		case 20:
+		case bad_record_mac:
 			return " Bad Record Mac";
-		case 21:
-			return " Decryption Failed";
-		case 22:
+		case record_overflow:
 			return " Record Overflow";
-		case 30:
+		case decompression_failure:
 			return " Decompression Failure";
-		case 40:
+		case handshake_failure:
 			return " Handshake Failure";
-		case 42:
+		case bad_certificate:
 			return " Bad Certificate";
-		case 43:
+		case unsupported_certificate:
 			return " Unsupported Certificate";
-		case 44:
+		case certificate_revoked:
 			return " Certificate Revoked";
-		case 45:
+		case certificate_expired:
 			return " Certificate Expired";
-		case 46:
+		case certificate_unknown:
 			return " Certificate Unknown";
-		case 47:
+		case illegal_parameter:
 			return " Illegal Parameter";
-		case 48:
+		case unknown_ca:
 			return " Unknown CA";
-		case 49:
+		case access_denied:
 			return " Access Denied";
-		case 50:
+		case decode_error:
 			return " Decode Error";
-		case 51:
+		case decrypt_error:
 			return " Decrypt Error";
-		case 60:
-			return " Export Restriction";
-		case 70:
+		case protocol_version:
 			return " Protocol Version";
-		case 71:
+		case insufficient_security:
 			return " Insufficient Security";
-		case 80:
+		case internal_error:
 			return " Internal Error";
-		case 86:
+		case inappropriate_fallback:
 			return " Inappropriate Fallback";
-		case 90:
+		case user_canceled:
 			return " User Canceled";
-		case 100:
+		case no_renegotiation:
 			return " No Renegotiation";
-		case 109:
+		case missing_extension:
 			return " Missing Extension";
-		case 110:
-			return " Unsupported Extensoin";
-		case 111:
-			return " Certificate Unobtainable";
-		case 112:
+		case unsupported_extension:
+			return " Unsupported Extension";
+		case unrecognized_name:
 			return " Unrecognized Name";
-		case 113:
+		case bad_certificate_status_response:
 			return " Bad Certificate Status Response";
-		case 114:
-			return " Bad Certificate Hash Value";
-		case 115:
+		case unknown_psk_identity:
 			return " Unknown PSK Identity";
-		case 116:
+		case certificate_required:
 			return " Certificate Required";
+		case no_application_protocol:
+			return " No Application Protocol";
 	}
 
 	return " Unknown";
@@ -234,7 +226,7 @@ static void ssl_msg_callback(int direction, int version, int content_type, xe_cp
 			break;
 	}
 
-	xe_log_trace(&ssl, "%s %s %s%s%s", direction ? "<<" : ">>", ssl_version_string(version), type, alert_level, details);
+	xe_log_trace(&ssl, "%s %s %s%s%s (%zu)", direction ? "<<" : ">>", ssl_version_string(version), type, alert_level, details, len);
 }
 
 int xe_ssl::init(const xe_ssl_ctx& ctx){
