@@ -52,6 +52,7 @@ int main(){
 	xurl_ctx ctx;
 	xe_request request;
 
+	/* build in debug mode for verbose strings */
 	xe_log_set_level(XE_LOG_DEBUG);
 
 	/* init */
