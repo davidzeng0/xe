@@ -4,7 +4,10 @@ cmake_policy(SET CMP0069 NEW)
 include(CheckIPOSupported)
 check_ipo_supported()
 
-option(XE_FLTO "Enable flto optimization on release mode" ON)
+option(XE_ENABLE_EXAMPLES "Enable examples" ON)
+option(XE_ENABLE_XURL "Enable xurl library" OFF)
+
+option(XE_FLTO "Enable full program optimization on release mode" ON)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++20")
 
 if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
@@ -48,30 +51,46 @@ set(SOURCES "")
 file(GLOB SOURCES
 	"xe/*.cc"
 	"xe/io/*.cc"
-	"xurl/*.cc"
-	"xurl/proto/*.cc"
 	"xutil/*.cc"
 	"xstd/*.cc"
 )
+
+set(XURL_SOURCES "")
+file(GLOB XURL_SOURCES
+	"xurl/*.cc"
+	"xurl/proto/*.cc"
+)
+
+if(XE_ENABLE_XURL)
+	set(SOURCES ${SOURCES} ${XURL_SOURCES})
+endif()
 
 set(ARCH "")
 file(GLOB ARCH "xarch/default/*.cc")
 
 add_library(xe ${SOURCES} ${ARCH})
-target_link_libraries(xe uring cares wolfssl)
 target_include_directories(xe INTERFACE include)
+target_link_libraries(xe uring)
 
-add_executable(echoserver "example/echoserver.cc")
-target_link_libraries(echoserver xe)
+if(XE_ENABLE_XURL)
+	target_link_libraries(xe cares wolfssl)
+endif()
 
-add_executable(coroutine_echoserver "example/coroutine_echoserver.cc")
-target_link_libraries(coroutine_echoserver xe)
+if(XE_ENABLE_EXAMPLES)
+	add_executable(echoserver "example/echoserver.cc")
+	target_link_libraries(echoserver xe)
 
-add_executable(client "example/client.cc")
-target_link_libraries(client xe)
+	add_executable(coroutine_echoserver "example/coroutine_echoserver.cc")
+	target_link_libraries(coroutine_echoserver xe)
 
-add_executable(timer "example/timer.cc")
-target_link_libraries(timer xe)
+	add_executable(client "example/client.cc")
+	target_link_libraries(client xe)
 
-add_executable(http "example/http.cc")
-target_link_libraries(http xe)
+	add_executable(timer "example/timer.cc")
+	target_link_libraries(timer xe)
+
+	if(XE_ENABLE_XURL)
+		add_executable(http "example/http.cc")
+		target_link_libraries(http xe)
+	endif()
+endif()
