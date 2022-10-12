@@ -191,6 +191,7 @@ inline int xe_loop::queue_io(int op, xe_req& req, F init_sqe){
 	int res;
 
 	xe_assert(queued <= capacity());
+	xe_return_error(error);
 
 	if(queued < capacity()) [[likely]]
 		goto enqueue;
@@ -200,8 +201,6 @@ inline int xe_loop::queue_io(int op, xe_req& req, F init_sqe){
 	 * upon failure, put the request in a queue
 	 * and try again when there are free sqes
 	 */
-	xe_return_error(error);
-
 	res = sq_ring_full ? XE_EAGAIN : submit(0, 0, false);
 
 	if(!res)
@@ -489,7 +488,9 @@ int xe_loop::run(){
 				run_timer(timer, now);
 
 				it = timers.begin();
-			}while(it != timers.end());
+			}while(it != timers.end() && !error);
+
+			xe_return_error(error);
 		}
 
 		if(cqe_tail == cqe_head)

@@ -36,7 +36,9 @@ int xe_connection::io(xe_connection& conn, int res){
 			if(getsockopt(conn.fd, SOL_SOCKET, SO_ERROR, &res, &len) < 0)
 				return xe_errno();
 			if(res){
-				xe_log_debug(&conn, "connection failed, try %zu in %f ms, status: %s", conn.ip_index + 1, (xe_time_ns() - conn.time) / (float)XE_NANOS_PER_MS, xe_strerror(xe_syserror(res)));
+				res = xe_syserror(res);
+
+				xe_log_debug(&conn, "connection failed, try %zu in %f ms, status: %s", conn.ip_index + 1, (xe_time_ns() - conn.time) / (float)XE_NANOS_PER_MS, xe_strerror(res));
 
 				if(res != XE_ECONNREFUSED)
 					return res;

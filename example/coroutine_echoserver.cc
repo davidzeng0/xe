@@ -1,3 +1,4 @@
+#include <linux/version.h>
 #include <netdb.h>
 #include <arpa/inet.h>
 #include <netinet/tcp.h>
@@ -97,7 +98,11 @@ static task start_server(xe_loop& loop){
 	xe_socket server(loop);
 
 	/* create a socket */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 19, 0)
+	server.init(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+#else
 	co_await server.init_async(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+#endif
 
 	setsockopt(server.fd(), SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes));
 

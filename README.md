@@ -17,14 +17,14 @@ This library does not use exceptions
 ## using
 
 ### prerequisites
-- linux kernel 5.19 or later
+- linux kernel 5.11 or later
 - liburing ([github link](https://github.com/axboe/liburing))
 - cmake <code>apt install cmake</code>
-- g++ 11 or newer, or clang 12 or newer <code>apt install g++-11/clang++-12</code>
+- g++ 10 or newer, or clang 12 or newer <code>apt install g++-10/clang++-12</code>
 
 ### xurl prerequisites (if enabled, disabled by default)
 - c-ares ([github link](https://github.com/c-ares/c-ares))
-- wolfSSL ([github link](https://github.com/wolfSSL/wolfssl))
+- wolfSSL ([github link](https://github.com/wolfSSL/wolfssl), see [build flags](https://github.com/ilikdoge/xe/blob/master/build.sh#L9))
 
 ### use with cmake
 ```cmake

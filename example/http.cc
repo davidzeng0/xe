@@ -78,9 +78,9 @@ int main(){
 	loop.run();
 
 	/* cleanup */
-	loop.close();
 	shared.close();
 	ctx.close();
+	loop.close();
 
 	xurl_cleanup();
 
