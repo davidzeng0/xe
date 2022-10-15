@@ -188,7 +188,7 @@ static inline bool read_status(xe_string_view& line, uint& out, uint& i){
 	out = 0;
 	result = xe_read_integer(XE_DECIMAL, out, line.data() + i, line.length() - i);
 
-	if(result == -1 || result == 0)
+	if(result == (size_t)-1 || result == 0)
 		return false;
 	i += result;
 
@@ -236,7 +236,7 @@ static bool parse_status_line(xe_string_view& line, xe_http_version& version, ui
 static inline void header_parse(xe_string_view& line, xe_string_view& key, xe_string_view& value){
 	size_t index = line.index_of(':');
 
-	if(index != -1){
+	if(index != (size_t)-1){
 		key = line.substring(0, index);
 		index++;
 
@@ -256,9 +256,11 @@ static constexpr xe_cstr http_version_to_string(xe_http_version version){
 			return "HTTP/1.0";
 		case XE_HTTP_VERSION_1_1:
 			return "HTTP/1.1";
-	}
+		default:
+			xe_notreached();
 
-	xe_notreached();
+			break;
+	}
 
 	return null;
 }
@@ -504,7 +506,7 @@ int xe_http_singleconnection::handle_header(const xe_string_view& key, const xe_
 		size_t read = xe_read_integer(XE_DECIMAL, clen, value.data(), value.length());
 
 		if(read != value.length()){
-			xe_log_error(this, read == -1 ? "content length overflowed" : "invalid content length");
+			xe_log_error(this, read == (size_t)-1 ? "content length overflowed" : "invalid content length");
 
 			return XE_INVALID_RESPONSE;
 		}
@@ -518,7 +520,7 @@ int xe_http_singleconnection::handle_header(const xe_string_view& key, const xe_
 		while(start < value.length()){
 			index = key.index_of(',', start);
 
-			if(index != -1){
+			if(index != (size_t)-1){
 				str = value.substring(start, index);
 				index++;
 
@@ -555,7 +557,7 @@ inline int xe_http_singleconnection::read_line(byte*& buf, size_t& len, xe_strin
 
 	next = xe_string_view((char*)buf, len).index_of('\n');
 
-	if(next == -1){
+	if(next == (size_t)-1){
 		if(len >= HEADERBUFFER_SIZE - header_offset || len >= MAXIMUM_HEADER_SIZE - header_total){
 			/* would fill the buffer and have no space for newline */
 			return XE_HEADERS_TOO_LONG;
@@ -741,7 +743,7 @@ int xe_http_singleconnection::chunked_body(byte* buf, size_t len){
 			case CHUNKED_READ_SIZE:
 				result = xe_read_integer(XE_HEX, data_len, buf, len);
 
-				if(result == -1){
+				if(result == (size_t)-1){
 					xe_log_error(this, "chunk size overflowed");
 
 					return XE_INVALID_RESPONSE;
@@ -760,7 +762,7 @@ int xe_http_singleconnection::chunked_body(byte* buf, size_t len){
 			case CHUNKED_READ_EXTENSION:
 				result = xe_string_view((char*)buf, len).index_of('\n');
 
-				if(result == -1)
+				if(result == (size_t)-1)
 					len = 0;
 				else{
 					len -= result + 1;
@@ -798,7 +800,7 @@ int xe_http_singleconnection::chunked_body(byte* buf, size_t len){
 			case CHUNKED_READ_END:
 				result = xe_string_view((char*)buf, len).index_of('\n');
 
-				if(result == -1)
+				if(result == (size_t)-1)
 					len = 0;
 				else{
 					len -= result + 1;

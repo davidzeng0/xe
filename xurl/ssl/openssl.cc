@@ -55,7 +55,7 @@ static int sock_read_ex(BIO* bio, char* buf, size_t len, size_t* read){
 
 	flags = (int)(long)BIO_get_data(bio);
 	len = xe_min<size_t>(len, xe_max_value<int>());
-	ret = recv(fd, buf, len, 0);
+	ret = recv(fd, buf, len, flags);
 
 	BIO_clear_retry_flags(bio);
 

@@ -451,7 +451,8 @@ public:
 		xe_fla<byte, 14> header;
 		xe_writer writer(header);
 		byte payload_len = len;
-		ssize_t sent = 0, result;
+		ssize_t result;
+		size_t sent;
 
 		if(state != XE_CONNECTION_STATE_ACTIVE || closing)
 			return XE_STATE;
@@ -469,6 +470,7 @@ public:
 		else if(payload_len == LONG_FRAME_LENGTH)
 			writer.w64be(len);
 		writer.w32be(0); /* mask */
+		sent = 0;
 
 		if(message_head)
 			goto queue;
@@ -483,7 +485,7 @@ public:
 
 		sent += result;
 
-		if(result < writer.pos())
+		if((size_t)result < writer.pos())
 			goto queue;
 		result = xe_connection::send(buf, len);
 
@@ -496,7 +498,7 @@ public:
 
 		sent += result;
 
-		if(result < len)
+		if((size_t)result < len)
 			goto queue;
 		if(closing){
 			if(close_received)
@@ -567,7 +569,7 @@ public:
 		return send(WS_CLOSE, body.data(), writer.pos(), false);
 	}
 
-	void end(xe_request& req){
+	void end(xe_request_internal& req){
 		close(XE_ABORTED);
 	}
 

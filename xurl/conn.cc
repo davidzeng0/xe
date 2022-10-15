@@ -255,7 +255,7 @@ int xe_connection::try_connect(xe_connection& conn){
 		in.sin_family = AF_INET;
 		in.sin_port = conn.port;
 		address_size = sizeof(in);
-	}else if(family == AF_INET6){
+	}else{
 		xe_zero(&in6);
 		xe_tmemcpy(&in6.sin6_addr, &inet6[index]);
 
