@@ -31,5 +31,5 @@ sudo ldconfig
 git submodule update --init --recursive
 mkdir build
 cd build
-cmake -G "Ninja" -DXE_ENABLE_XURL="ON" -DCMAKE_BUILD_TYPE="Release" -DCMAKE_CXX_COMPILER="g++-11" ..
+cmake -G "Ninja" -DXE_ENABLE_XURL="ON" -DXE_USE_WOLFSSL="ON" -DCMAKE_BUILD_TYPE="Release" -DCMAKE_CXX_COMPILER="g++-11" ..
 cmake --build .
