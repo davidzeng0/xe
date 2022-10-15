@@ -286,7 +286,7 @@ int xurl_ctx::open(xe_request& request, const xe_string_view& url_){
 		return 0;
 	}
 
-	return XE_EPROTONOSUPPORT;
+	return XE_ENOPROTOOPT;
 }
 
 int xurl_ctx::start(xe_request& request){

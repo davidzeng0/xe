@@ -8,6 +8,8 @@ int timer_callback(xe_loop& loop, xe_timer& timer){
 }
 
 int main(){
+	using namespace std::chrono_literals;
+
 	xe_loop loop;
 	xe_loop_options options;
 	xe_timer timer;
@@ -18,7 +20,7 @@ int main(){
 	loop.init_options(options);
 
 	timer.callback = timer_callback;
-	loop.timer_ms(timer, 1000, 0, 0); /* set a timer for 1000 ms without repeating */
+	loop.timer(timer, 1000ms, 0s, 0); /* set a timer for 1000 ms without repeating */
 
 	loop.run();
 

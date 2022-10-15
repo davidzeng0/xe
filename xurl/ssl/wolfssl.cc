@@ -5,7 +5,7 @@
 #include "xutil/log.h"
 #include "xstd/fla.h"
 #include "xe/error.h"
-#include "ssl.h"
+#include "../ssl_common.h"
 
 using namespace xurl;
 
@@ -40,193 +40,8 @@ void xe_ssl_ctx::close(){
 	wolfSSL_CTX_free((WOLFSSL_CTX*)data);
 }
 
-xe_cstr xe_ssl_ctx::class_name(){
-	return "xe_ssl_ctx";
-}
-
-static xe_cstr ssl_version_string(int version){
-	switch(version){
-		case SSL2_VERSION:
-			return "SSLv2.0";
-		case SSL3_VERSION:
-			return "SSLv3.0";
-		case TLS1_VERSION:
-			return "TLSv1.0";
-		case TLS1_1_VERSION:
-			return "TLSv1.1";
-		case TLS1_2_VERSION:
-			return "TLSv1.2";
-		case TLS1_3_VERSION:
-			return "TLSv1.3";
-		case DTLS1_VERSION:
-			return "DTLS 1.0";
-		case DTLS1_2_VERSION:
-			return "DTLS 1.2";
-	}
-
-	return "Unknown Version";
-}
-
-static xe_cstr ssl_alert_level(byte v){
-	switch(v){
-		case alert_warning:
-			return " Warning";
-		case alert_fatal:
-			return " Fatal";
-	}
-
-	return " Unknown";
-}
-
-static xe_cstr ssl_alert_string(byte v){
-	switch(v){
-		case close_notify:
-			return " Close Notify";
-		case unexpected_message:
-			return " Unexpected Message";
-		case bad_record_mac:
-			return " Bad Record Mac";
-		case record_overflow:
-			return " Record Overflow";
-		case decompression_failure:
-			return " Decompression Failure";
-		case handshake_failure:
-			return " Handshake Failure";
-		case bad_certificate:
-			return " Bad Certificate";
-		case unsupported_certificate:
-			return " Unsupported Certificate";
-		case certificate_revoked:
-			return " Certificate Revoked";
-		case certificate_expired:
-			return " Certificate Expired";
-		case certificate_unknown:
-			return " Certificate Unknown";
-		case illegal_parameter:
-			return " Illegal Parameter";
-		case unknown_ca:
-			return " Unknown CA";
-		case access_denied:
-			return " Access Denied";
-		case decode_error:
-			return " Decode Error";
-		case decrypt_error:
-			return " Decrypt Error";
-		case protocol_version:
-			return " Protocol Version";
-		case insufficient_security:
-			return " Insufficient Security";
-		case internal_error:
-			return " Internal Error";
-		case inappropriate_fallback:
-			return " Inappropriate Fallback";
-		case user_canceled:
-			return " User Canceled";
-		case no_renegotiation:
-			return " No Renegotiation";
-		case missing_extension:
-			return " Missing Extension";
-		case unsupported_extension:
-			return " Unsupported Extension";
-		case unrecognized_name:
-			return " Unrecognized Name";
-		case bad_certificate_status_response:
-			return " Bad Certificate Status Response";
-		case unknown_psk_identity:
-			return " Unknown PSK Identity";
-		case certificate_required:
-			return " Certificate Required";
-		case no_application_protocol:
-			return " No Application Protocol";
-	}
-
-	return " Unknown";
-}
-
-static xe_cstr ssl_handshake_string(byte v){
-	switch(v){
-		case 0:
-			return " Hello Request";
-		case 1:
-			return " Client Hello";
-		case 2:
-			return " Server Hello";
-		case 4:
-			return " Newsession Ticket";
-		case 5:
-			return " End of Early Data";
-		case 8:
-			return " Encrypted Extensions";
-		case 11:
-			return " Certificate";
-		case 12:
-			return " Server Key Exchange";
-		case 13:
-			return " Certificate Request";
-		case 14:
-			return " Server Hello Done";
-		case 15:
-			return " Certificate Verify";
-		case 16:
-			return " Client Key Exchange";
-		case 20:
-			return " Finished";
-		case 21:
-			return " Certificate URL";
-		case 22:
-			return " Certificate Status";
-		case 23:
-			return " Supplemental Data";
-		case 24:
-			return " Key Update";
-		case 67:
-			return " Next Proto";
-		case 254:
-			return " Message Hash";
-	}
-
-	return " Unknown";
-}
-
-static void ssl_msg_callback(int direction, int version, int content_type, xe_cptr buf, size_t len, WOLFSSL* wssl, xe_ptr user){
-	xe_ssl& ssl = *(xe_ssl*)user;
-	byte* data = (byte*)buf;
-	xe_cstr type, alert_level, details;
-
-	alert_level = "";
-	details = "";
-
-	switch(content_type){
-		case SSL3_RT_CHANGE_CIPHER_SPEC:
-			type = "Change Cipher Spec";
-
-			break;
-		case SSL3_RT_ALERT:
-			type = "Alert";
-
-			if(len == 2){
-				alert_level = ssl_alert_level(data[0]);
-				details = ssl_alert_string(data[1]);
-			}
-
-			break;
-		case SSL3_RT_HANDSHAKE:
-			type = "Handshake";
-
-			if(len > 0)
-				details = ssl_handshake_string(data[0]);
-			break;
-		case SSL3_RT_APPLICATION_DATA:
-			type = "Application Data";
-
-			break;
-		default:
-			type = "Unknown Type";
-
-			break;
-	}
-
-	xe_log_trace(&ssl, "%s %s %s%s%s (%zu)", direction ? "<<" : ">>", ssl_version_string(version), type, alert_level, details, len);
+static void ssl_msg_callback(int direction, int version, int content_type, xe_cptr buf, size_t len, WOLFSSL* ssl, xe_ptr user){
+	xe_ssl_msg_callback(direction, version, content_type, buf, len, user);
 }
 
 int xe_ssl::init(const xe_ssl_ctx& ctx){
@@ -248,21 +63,20 @@ void xe_ssl::close(){
 	wolfSSL_free((WOLFSSL*)data);
 }
 
-void xe_ssl::set_fd(int fd){
+int xe_ssl::preconnect(int fd){
 	wolfSSL_set_fd((WOLFSSL*)data, fd);
+
+	return 0;
 }
 
-int xe_ssl::verify_host(const xe_string_view& host){
+int xe_ssl::verify_host(const xe_string& host){
 	WOLFSSL* ssl = (WOLFSSL*)data;
-	xe_string host_copy;
 
 	wolfSSL_set_verify(ssl, SSL_VERIFY_PEER, null);
 
-	if(wolfSSL_UseSNI(ssl, WOLFSSL_SNI_HOST_NAME, host.data(), host.length()) != WOLFSSL_SUCCESS)
+	if(wolfSSL_UseSNI(ssl, WOLFSSL_SNI_HOST_NAME, host.c_str(), host.length()) != WOLFSSL_SUCCESS)
 		return XE_ENOMEM;
-	if(!host_copy.copy(host))
-		return XE_ENOMEM;
-	if(wolfSSL_check_domain_name(ssl, host_copy.c_str()) != WOLFSSL_SUCCESS)
+	if(wolfSSL_check_domain_name(ssl, host.c_str()) != WOLFSSL_SUCCESS)
 		return XE_ENOMEM;
 	return 0;
 }
@@ -406,12 +220,24 @@ int xe_ssl::send(xe_cptr buffer, size_t len, int flags){
 	return XE_SSL;
 }
 
-xe_cstr xe_ssl::class_name(){
-	return "xe_ssl";
+int xe_crypto::sha1(const byte* in, size_t inlen, byte* out, size_t outlen){
+	wc_Sha sha;
+
+	if(outlen < SHA_DIGEST_SIZE)
+		return XE_EINVAL;
+	if(wc_InitSha(&sha))
+		return XE_FATAL;
+	if(wc_ShaUpdate(&sha, in, inlen))
+		return XE_FATAL;
+	if(wc_ShaFinal(&sha, out))
+		return XE_FATAL;
+	wc_ShaFree(&sha);
+
+	return 0;
 }
 
 int xurl::xe_ssl_init(){
-	return wolfSSL_Init() != WOLFSSL_SUCCESS ? XE_SSL : 0;
+	return wolfSSL_Init() == WOLFSSL_SUCCESS ? 0 : XE_SSL;
 }
 
 void xurl::xe_ssl_cleanup(){

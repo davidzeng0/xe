@@ -90,7 +90,7 @@ int xe_loop::submit(uint wait, ulong timeout, bool want_events){
 	res = xe_ring_enter(ring, submit, wait, flags, timeout);
 ret:
 	if(res > 0) [[likely]] {
-		xe_log_trace(this, "submitted %u entries", res);
+		xe_log_trace(this, "<< ring %u", res);
 
 		queued -= res;
 		handles += res;
@@ -99,14 +99,14 @@ ret:
 	}
 
 	if(!res || res == XE_EAGAIN){
-		xe_log_debug(this, "submission queue full");
+		xe_log_debug(this, "<< ring queue full");
 
 		sq_ring_full = true;
 
 		return XE_EAGAIN;
 	}
 
-	xe_log_error(this, "fatal error: %s", xe_strerror(res));
+	xe_log_error(this, "<< ring fatal error: %s", xe_strerror(res));
 
 	return res == XE_EBADR ? XE_ENOMEM : XE_FATAL;
 }
@@ -495,7 +495,7 @@ int xe_loop::run(){
 
 		if(cqe_tail == cqe_head)
 			continue;
-		xe_log_trace(this, "processing %u completions", cqe_tail - cqe_head);
+		xe_log_trace(this, ">> ring %u", cqe_tail - cqe_head);
 
 		if(sq_ring_full)
 			sq_ring_full = false;

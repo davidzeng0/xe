@@ -24,13 +24,17 @@ This library does not use exceptions
 
 ### xurl prerequisites (if enabled, disabled by default)
 - c-ares ([github link](https://github.com/c-ares/c-ares))
+one of:
+- OpenSSL >= 1.1.1 <code>apt install libssl-dev</code>
 - wolfSSL ([github link](https://github.com/wolfSSL/wolfssl), see [build flags](https://github.com/ilikdoge/xe/blob/master/build.sh#L9))
 
 ### use with cmake
 ```cmake
 project(sample CXX)
 
-set(XE_ENABLE_XURL OFF) # set to on to enable xurl
+# remove two lines below to disable xurl
+set(XE_ENABLE_XURL ON)
+set(XE_USE_OPENSSL ON) # alternatively set(XE_USE_WOLFSSL ON)
 
 FetchContent_Declare(xe GIT_REPOSITORY https://github.com/ilikdoge/xe.git GIT_TAG master)
 FetchContent_MakeAvailable(xe)
@@ -38,6 +42,9 @@ FetchContent_MakeAvailable(xe)
 ...
 
 target_link_libraries(sample xe)
+
+# with xurl
+target_link_libraries(sample xe xurl)
 ```
 
 ### build xe

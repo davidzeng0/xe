@@ -148,5 +148,5 @@ public:
 
 	~xe_http_singleconnection() = default;
 
-	xe_cstr class_name();
+	virtual xe_cstr class_name();
 };

@@ -13,6 +13,7 @@ typedef typename std::experimental::coroutine_handle<> xe_coroutine_handle;
 typedef typename std::coroutine_handle<> xe_coroutine_handle;
 #endif
 
+#include <chrono>
 #include <liburing.h>
 #include "xstd/types.h"
 #include "xstd/rbtree.h"
@@ -283,6 +284,16 @@ public:
 
 	int timer_ms(xe_timer& timer, ulong time, ulong repeat, uint flags);
 	int timer_ns(xe_timer& timer, ulong time, ulong repeat, uint flags);
+
+	template<typename Rep0, class Period0, typename Rep1, class Period1>
+	int timer(xe_timer& timer, std::chrono::duration<Rep0, Period0> time, std::chrono::duration<Rep1, Period1> repeat, uint flags){
+		return timer_ns(timer,
+			std::chrono::duration_cast<std::chrono::nanoseconds>(time).count(),
+			std::chrono::duration_cast<std::chrono::nanoseconds>(repeat).count(),
+			flags
+		);
+	}
+
 	int cancel(xe_timer& timer);
 
 	/* shared buffer for sync I/O */

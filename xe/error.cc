@@ -14,7 +14,7 @@ xe_cstr xe_strerror(int err){
 			return "Invalid state";
 		case XE_RESOLVER:
 			return "Could not resolve hostname";
-		case XE_RESOLVER_UNKNOWN_HOST:
+		case XE_UNKNOWN_HOST:
 			return "Unknown host";
 		case XE_RESOLVER_SERVER_FAIL:
 			return "DNS server failed";

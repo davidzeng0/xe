@@ -36,10 +36,10 @@ public:
 	int init(const xe_ssl_ctx& ctx);
 	void close();
 
-	void set_fd(int fd);
-	int verify_host(const xe_string_view& host);
+	int verify_host(const xe_string& host);
 	int set_alpn(const xe_string_view& protocols);
 
+	int preconnect(int fd);
 	int connect(int flags);
 	int get_alpn_protocol(xe_string_view& proto);
 
@@ -49,6 +49,11 @@ public:
 	~xe_ssl() = default;
 
 	static xe_cstr class_name();
+};
+
+class xe_crypto{
+public:
+	static int sha1(const byte* in, size_t inlen, byte* out, size_t outlen);
 };
 
 int xe_ssl_init();

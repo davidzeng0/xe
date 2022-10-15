@@ -11,11 +11,11 @@ protected:
 	size_t position;
 
 	size_t available_space(size_t requested){
-		constexpr bool has_grow = requires(const xe_container& c) {
+		constexpr bool has_grow = requires(xe_container& c) {
 			c.grow(size_t());
 		};
 
-		constexpr bool has_resize = requires(const xe_container& c) {
+		constexpr bool has_resize = requires(xe_container& c) {
 			c.resize(size_t());
 		};
 

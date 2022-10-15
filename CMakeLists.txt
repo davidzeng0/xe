@@ -7,6 +7,9 @@ check_ipo_supported()
 option(XE_ENABLE_EXAMPLES "Enable examples" ON)
 option(XE_ENABLE_XURL "Enable xurl library" OFF)
 
+option(XE_USE_WOLFSSL "Use wolfssl" OFF)
+option(XE_USE_OPENSSL "Use wolfssl" OFF)
+
 option(XE_FLTO "Enable full program optimization on release mode" ON)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++20")
 
@@ -30,10 +33,12 @@ else()
 	message(SEND_ERROR "Compile with gcc 10, clang 12, or newer")
 endif()
 
+
+set(CMAKE_CXX_FLAGS_RELEASE "-O3 -march=native -mtune=native")
+set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-O3 -g -march=native -mtune=native")
 if(${CMAKE_BUILD_TYPE} STREQUAL "Debug")
 	set(XE_DEBUG TRUE)
 elseif(${CMAKE_BUILD_TYPE} STREQUAL "Release")
-	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -march=native -mtune=native")
 	if(XE_FLTO)
 		set(CMAKE_INTERPROCEDURAL_OPTIMIZATION ON)
 	endif()
@@ -61,8 +66,19 @@ file(GLOB XURL_SOURCES
 	"xurl/proto/*.cc"
 )
 
+set(XURL_LINK "")
 if(XE_ENABLE_XURL)
-	set(SOURCES ${SOURCES} ${XURL_SOURCES})
+	set(XURL_LINK ${XURL_LINK} cares)
+
+	if(XE_USE_WOLFSSL)
+		set(XURL_SOURCES ${XURL_SOURCES} "xurl/ssl/wolfssl.cc")
+		set(XURL_LINK ${XURL_LINK} wolfssl)
+	elseif(XE_USE_OPENSSL)
+		set(XURL_LINK ${XURL_LINK} ssl crypto)
+		set(XURL_SOURCES ${XURL_SOURCES} "xurl/ssl/openssl.cc")
+	else()
+		set(XURL_SOURCES ${XURL_SOURCES} "xurl/ssl/nossl.cc")
+	endif()
 endif()
 
 set(ARCH "")
@@ -73,7 +89,9 @@ target_include_directories(xe INTERFACE include)
 target_link_libraries(xe uring)
 
 if(XE_ENABLE_XURL)
-	target_link_libraries(xe cares wolfssl)
+	add_library(xurl ${XURL_SOURCES})
+	target_include_directories(xurl INTERFACE include)
+	target_link_libraries(xurl xe ${XURL_LINK})
 endif()
 
 if(XE_ENABLE_EXAMPLES)
@@ -91,6 +109,6 @@ if(XE_ENABLE_EXAMPLES)
 
 	if(XE_ENABLE_XURL)
 		add_executable(http "example/http.cc")
-		target_link_libraries(http xe)
+		target_link_libraries(http xe xurl)
 	endif()
 endif()

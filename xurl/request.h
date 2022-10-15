@@ -1,4 +1,5 @@
 #pragma once
+#include <chrono>
 #include "xstd/types.h"
 #include "xstd/string.h"
 #include "xutil/util.h"
@@ -50,6 +51,12 @@ public:
 
 	void set_port(ushort port);
 	void set_connect_timeout(uint timeout_ms);
+
+	template<typename Rep, typename Period>
+	void set_connect_timeout(std::chrono::duration<Rep, Period> timeout){
+		set_connect_timeout(std::chrono::duration_cast<std::chrono::milliseconds>(timeout).count());
+	}
+
 	void set_ssl_ctx(const xe_ssl_ctx& ctx);
 	void set_ssl_verify(bool verify);
 	void set_ip_mode(xe_ip_mode mode);

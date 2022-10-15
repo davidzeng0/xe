@@ -40,7 +40,7 @@ int xe_connection::io(xe_connection& conn, int res){
 
 				xe_log_debug(&conn, "connection failed, try %zu in %f ms, status: %s", conn.ip_index + 1, (xe_time_ns() - conn.time) / (float)XE_NANOS_PER_MS, xe_strerror(res));
 
-				if(res != XE_ECONNREFUSED)
+				if(res != XE_ECONNREFUSED && res != XE_ETIMEDOUT)
 					return res;
 				if(conn.ip_index < xe_max_value(conn.ip_index)){
 					conn.ip_index++;
@@ -48,7 +48,7 @@ int xe_connection::io(xe_connection& conn, int res){
 					return try_connect(conn);
 				}
 
-				return XE_ECONNREFUSED;
+				return res;
 			}
 
 			xe_log_verbose(&conn, "connected to %.*s:%u after %zu tries in %f ms", conn.host.length(), conn.host.data(), xe_ntohs(conn.port), (size_t)conn.ip_index + 1, (xe_time_ns() - conn.time) / (float)XE_NANOS_PER_MS);
@@ -56,8 +56,8 @@ int xe_connection::io(xe_connection& conn, int res){
 
 			if(conn.ssl_enabled){
 				xe_return_error(conn.poll.poll(XE_POLL_IN));
+				xe_return_error(conn.ssl.preconnect(conn.fd));
 
-				conn.ssl.set_fd(conn.fd);
 				conn.set_state(XE_CONNECTION_STATE_HANDSHAKE);
 
 			#ifdef XE_DEBUG
@@ -73,7 +73,7 @@ int xe_connection::io(xe_connection& conn, int res){
 			res = conn.ssl.connect(XE_CONNECTION_MSG_FLAGS);
 
 			if(!res){
-				xe_log_verbose(&conn, "ssl handshake completed in %f ms", (xe_time_ns() - conn.time) / (float)XE_NANOS_PER_MS);
+				xe_log_verbose(&conn, "ssl connected in %f ms", (xe_time_ns() - conn.time) / (float)XE_NANOS_PER_MS);
 
 				return ready(conn);
 			}else if(res != XE_EAGAIN){
@@ -151,7 +151,7 @@ int xe_connection::socket_read(xe_connection& conn){
 int xe_connection::timeout(xe_loop& loop, xe_timer& timer){
 	xe_connection& conn = xe_containerof(timer, &xe_connection::timer);
 
-	conn.close(conn.state == XE_CONNECTION_STATE_HANDSHAKE ? XE_SSL : XE_ECONNREFUSED);
+	conn.close(XE_ETIMEDOUT);
 
 	return XE_ABORTED;
 }
@@ -231,7 +231,7 @@ int xe_connection::try_connect(xe_connection& conn){
 			index -= inet6.size();
 
 			if(index >= inet.size() || conn.ip_mode == XE_IP_ONLY_V6)
-				return XE_ECONNREFUSED;
+				return XE_EHOSTUNREACH;
 			family = AF_INET;
 		}
 	}else{
@@ -241,7 +241,7 @@ int xe_connection::try_connect(xe_connection& conn){
 			index -= inet.size();
 
 			if(index >= inet6.size() || conn.ip_mode == XE_IP_ONLY_V4)
-				return XE_ECONNREFUSED;
+				return XE_EHOSTUNREACH;
 			family = AF_INET6;
 		}
 	}
@@ -367,12 +367,17 @@ int xe_connection::init_ssl(const xe_ssl_ctx& shared){
 }
 
 int xe_connection::connect(const xe_string_view& host_, ushort port_, uint timeout_ms){
+	xe_string host_copy;
 	int err;
 
 	xe_log_verbose(this, "connecting to %.*s:%u", host_.length(), host_.data(), port_);
 
-	if(ssl_enabled && ssl_verify)
-		xe_return_error(ssl.verify_host(host_));
+	if(ssl_enabled && ssl_verify){
+		if(!host_copy.copy(host_))
+			return XE_ENOMEM;
+		xe_return_error(ssl.verify_host(host_copy));
+	}
+
 #ifdef XE_DEBUG
 	host = host_;
 #endif

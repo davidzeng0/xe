@@ -81,7 +81,7 @@ static int xe_ares_error(int status){
 			return XE_RESOLVER_BADNAME;
 		case ARES_ENODATA:
 		case ARES_ENOTFOUND:
-			return XE_RESOLVER_UNKNOWN_HOST;
+			return XE_UNKNOWN_HOST;
 		case ARES_ENOMEM:
 			return XE_ENOMEM;
 		case ARES_ECANCELLED:
@@ -346,14 +346,18 @@ void xe_resolve::resolved(xe_ptr data, int status, int timeouts, xe_ptr ptr){
 	if(!status){
 		char ip[INET6_ADDRSTRLEN];
 
+		if(query.endpoint.inet().size())
+			xe_log_debug(query.resolve, ">> A");
 		for(auto& addr : query.endpoint.inet()){
 			inet_ntop(AF_INET, &addr, ip, sizeof(ip));
-			xe_log_debug(query.resolve, "    %s", ip);
+			xe_log_debug(query.resolve, ">>  %s", ip);
 		}
 
+		if(query.endpoint.inet6().size())
+			xe_log_debug(query.resolve, ">> AAAA");
 		for(auto& addr : query.endpoint.inet6()){
 			inet_ntop(AF_INET6, &addr, ip, sizeof(ip));
-			xe_log_debug(query.resolve, "    %s", ip);
+			xe_log_debug(query.resolve, ">>  %s", ip);
 		}
 	}
 #endif
@@ -402,7 +406,7 @@ int xe_resolve::ip_resolve(const xe_string& host, xe_endpoint& endpoint){
 		return 0;
 	}
 
-	return XE_RESOLVER_UNKNOWN_HOST;
+	return XE_UNKNOWN_HOST;
 }
 
 int xe_resolve::timeout(xe_loop& loop, xe_timer& timer){
@@ -457,7 +461,7 @@ int xe_resolve::resolve(const xe_string& host, xe_endpoint& endpoint, xe_resolve
 
 	err = ip_resolve(host, endpoint);
 
-	if(err != XE_RESOLVER_UNKNOWN_HOST){
+	if(err != XE_UNKNOWN_HOST){
 		xe_log_debug(this, "ipresolve %s, status: %s", host.c_str(), xe_strerror(err));
 
 		return err;

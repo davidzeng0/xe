@@ -1,5 +1,3 @@
-#include <wolfssl/options.h>
-#include <wolfssl/wolfcrypt/sha.h>
 #include "http_internal.h"
 #include "net_internal.h"
 #include "xutil/endian.h"
@@ -198,18 +196,29 @@ protected:
 		if(key.equal_case("Connection")){
 			if(value.equal_case("upgrade"))
 				connection_upgrade_seen = true;
-			else
+			else{
 				failure = true;
+
+				xe_log_error(this, "connection header mismatch");
+			}
 		}else if(key.equal_case("Upgrade")){
 			if(value.equal_case("websocket"))
 				upgrade_websocket_seen = true;
-			else
+			else{
 				failure = true;
+
+				xe_log_error(this, "upgrade header mismatch");
+			}
 		}else if(key.equal_case("Sec-WebSocket-Accept")){
 			websocket_accept_seen = true;
 
-			if(value != xe_string_view((char*)options().accept.data(), options().accept.size()))
+			if(value == xe_string_view((char*)options().accept.data(), options().accept.size())){
+				xe_log_verbose(this, "accept header matching");
+			}else{
 				failure = true;
+
+				xe_log_error(this, "accept header mismatch");
+			}
 		}
 
 		return 0;
@@ -223,8 +232,12 @@ protected:
 			return xe_http_singleconnection::pretransfer();
 		}
 
-		if(failure || !connection_upgrade_seen || !upgrade_websocket_seen || !websocket_accept_seen)
+		if(failure || !connection_upgrade_seen || !upgrade_websocket_seen || !websocket_accept_seen){
+			xe_log_error(this, "websocket connection refused");
+
 			return XE_WEBSOCKET_CONNECTION_REFUSED;
+		}
+
 		if(call(&xe_websocket_callbacks::ready, *request))
 			return XE_ABORTED;
 		message_state = WS_FRAME_HEADER_FIRST;
@@ -436,7 +449,7 @@ public:
 
 	int send(xe_websocket_opcode opcode, xe_cptr buf, size_t len, bool priority = false){
 		xe_fla<byte, 14> header;
-		auto writer = xe_writer(header);
+		xe_writer writer(header);
 		byte payload_len = len;
 		ssize_t sent = 0, result;
 
@@ -542,7 +555,7 @@ public:
 
 	int close(ushort code, xe_cptr data, size_t size){
 		xe_fla<byte, CONTROL_FRAME_MAX_LENGTH> body;
-		auto writer = xe_writer(body);
+		xe_writer writer(body);
 
 		if(size > CONTROL_FRAME_MAX_LENGTH - 2)
 			return XE_EINVAL;
@@ -641,23 +654,21 @@ int xe_websocket::open(xe_request_internal& request, xe_url&& url){
 }
 
 int xe_websocket::open(xe_websocket_data_internal& data, xe_url&& url, bool redirect){
-	xe_string_view accept = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
 	xe_fla<byte, 16> rng;
-	xe_fla<byte, SHA_DIGEST_SIZE> sum;
-	Sha sha;
-
-	xe_return_error(xe_http_protocol::open(data, std::move(url), redirect));
+	xe_fla<byte, 20> sum;
+	xe_fla<byte, 60> accept;
+	xe_writer writer(accept);
 
 	random.random_bytes(rng.data(), rng.size());
 
 	xe_base64_encode(XE_BASE64_PAD, data.key.data(), data.key.size(), rng.data(), rng.size());
 
-	wc_InitSha(&sha);
-	wc_ShaUpdate(&sha, data.key.data(), data.key.size());
-	wc_ShaUpdate(&sha, (byte*)accept.data(), accept.length());
-	wc_ShaFinal(&sha, sum.data());
+	writer.write(data.key);
+	writer.write("258EAFA5-E914-47DA-95CA-C5AB0DC85B11");
 
+	xe_return_error(xe_crypto::sha1(accept.data(), accept.size(), sum.data(), sum.size()));
 	xe_base64_encode(XE_BASE64_PAD, data.accept.data(), data.accept.size(), sum.data(), sum.size());
+	xe_return_error(xe_http_protocol::open(data, std::move(url), redirect));
 
 	if(!data.internal_set_header("Connection", "Upgrade", 0) ||
 		!data.internal_set_header("Upgrade", "websocket", 0) ||

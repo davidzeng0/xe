@@ -47,6 +47,8 @@ static void done_cb(xe_request& request, int status){
 }
 
 int main(){
+	using namespace std::chrono_literals;
+
 	xe_loop loop;
 	xurl_shared shared;
 	xurl_ctx ctx;
@@ -64,7 +66,8 @@ int main(){
 
 	/* open an http request */
 	ctx.open(request, "https://www.example.com");
-	request.set_connect_timeout(10'000); /* 10 seconds */
+
+	request.set_connect_timeout(10s); /* timeout connect after 10s */
 	request.set_follow_location(true);
 
 	request.set_http_response_cb(response_cb);

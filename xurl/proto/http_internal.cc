@@ -501,9 +501,10 @@ int xe_http_singleconnection::handle_header(const xe_string_view& key, const xe_
 		if(transfer_mode != TRANSFER_MODE_NONE)
 			return 0;
 		ulong clen = 0;
+		size_t read = xe_read_integer(XE_DECIMAL, clen, value.data(), value.length());
 
-		if(xe_read_integer(XE_DECIMAL, clen, value.data(), value.length()) != value.length()){
-			xe_log_error(this, "invalid content length header");
+		if(read != value.length()){
+			xe_log_error(this, read == -1 ? "content length overflowed" : "invalid content length");
 
 			return XE_INVALID_RESPONSE;
 		}
@@ -741,7 +742,7 @@ int xe_http_singleconnection::chunked_body(byte* buf, size_t len){
 				result = xe_read_integer(XE_HEX, data_len, buf, len);
 
 				if(result == -1){
-					xe_log_error(this, "chunk size exceeds maximum value");
+					xe_log_error(this, "chunk size overflowed");
 
 					return XE_INVALID_RESPONSE;
 				}

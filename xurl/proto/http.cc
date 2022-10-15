@@ -141,6 +141,8 @@ protected:
 	void closed();
 public:
 	xe_http_protocol_singleconnection(xe_http& proto);
+
+	xe_cstr class_name();
 };
 
 class xe_http_connection_list;
@@ -221,6 +223,10 @@ void xe_http_protocol_singleconnection::closed(){
 	xe_http_connection_node<>& node = xe_containerof(*this, &xe_http_connection_node<>::connection);
 
 	xe_delete(&node);
+}
+
+xe_cstr xe_http_protocol_singleconnection::class_name(){
+	return "xe_http_connection";
 }
 
 xe_http::xe_http(xurl_ctx& net): xe_http_protocol(net, XE_PROTOCOL_HTTP){}
