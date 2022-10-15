@@ -27,7 +27,7 @@ int xe_ssl::preconnect(int fd){
 	return XE_ENOSYS;
 }
 
-int xe_ssl::verify_host(const xe_string_view& host){
+int xe_ssl::verify_host(const xe_string& host){
 	return XE_ENOSYS;
 }
 

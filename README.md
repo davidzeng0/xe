@@ -54,8 +54,8 @@ mkdir build; cd build
 
 # with ninja
 cmake -G "Ninja" -DCMAKE_BUILD_TYPE="Release" -DCMAKE_CXX_COMPILER="/your/cxx/compiler" ..
-# enable xurl
-cmake -G "Ninja" -DXE_ENABLE_XURL="ON" -DCMAKE_BUILD_TYPE="Release" -DCMAKE_CXX_COMPILER="/your/cxx/compiler" ..
+# enable xurl and use openssl
+cmake -G "Ninja" -DXE_ENABLE_XURL="ON" -DXE_USE_OPENSSL="ON" -DCMAKE_BUILD_TYPE="Release" -DCMAKE_CXX_COMPILER="/your/cxx/compiler" ..
 
 # without ninja
 cmake -DCMAKE_BUILD_TYPE="Release" -DCMAKE_CXX_COMPILER="/your/cxx/compiler" ..
