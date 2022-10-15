@@ -171,9 +171,11 @@ int xe_ssl::verify_host(const xe_string& host){
 }
 
 int xe_ssl::set_alpn(const xe_string_view& protocols){
-	// todo
+	SSL* ssl = (SSL*)data;
 
-	return XE_ENOSYS;
+	if(SSL_set_alpn_protos(ssl, (byte*)protocols.data(), protocols.size()))
+		return XE_ENOMEM;
+	return 0;
 }
 
 static void ssl_connected(xe_ssl& wrapper, SSL* ssl){
@@ -267,9 +269,18 @@ int xe_ssl::connect(int flags){
 }
 
 int xe_ssl::get_alpn_protocol(xe_string_view& proto){
-	// todo
+	SSL* ssl = (SSL*)data;
 
-	return XE_ENOSYS;
+	const byte* name;
+	uint size;
+
+	SSL_get0_alpn_selected(ssl, &name, &size);
+
+	if(!name)
+		return XE_SSL_NO_ALPN;
+	proto = xe_string_view((char*)name, size);
+
+	return 0;
 }
 
 int xe_ssl::recv(xe_ptr buffer, size_t len, int flags){

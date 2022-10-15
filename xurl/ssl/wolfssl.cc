@@ -84,7 +84,8 @@ int xe_ssl::verify_host(const xe_string& host){
 int xe_ssl::set_alpn(const xe_string_view& protocols){
 	WOLFSSL* ssl = (WOLFSSL*)data;
 
-	if(wolfSSL_UseALPN(ssl, (char*)protocols.data(), protocols.length(), WOLFSSL_ALPN_CONTINUE_ON_MISMATCH) != WOLFSSL_SUCCESS)
+	if(wolfSSL_UseALPN(ssl, (char*)protocols.data(), protocols.length(), WOLFSSL_ALPN_CONTINUE_ON_MISMATCH)
+		!= WOLFSSL_SUCCESS)
 		return XE_ENOMEM;
 	return 0;
 }
@@ -172,7 +173,7 @@ int xe_ssl::get_alpn_protocol(xe_string_view& proto){
 
 			return 0;
 		case WOLFSSL_ALPN_NOT_FOUND:
-			return XE_SSL;
+			return XE_SSL_NO_ALPN;
 		default:
 			return XE_SSL;
 	}

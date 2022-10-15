@@ -36,6 +36,8 @@ xe_cstr xe_strerror(int err){
 			return "CA signer not available for verification";
 		case XE_SSL_PEER_VERIFICATION_FAILED:
 			return "SSL peer verification failed";
+		case XE_SSL_NO_ALPN:
+			return "SSL no ALPN";
 		case XE_RECV_ERROR:
 			return "Failed to recv data";
 		case XE_SEND_ERROR:
