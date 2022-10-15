@@ -24,6 +24,7 @@ This library does not use exceptions
 
 ### xurl prerequisites (if enabled, disabled by default)
 - c-ares ([github link](https://github.com/c-ares/c-ares))
+
 one of:
 - OpenSSL >= 1.1.1 <code>apt install libssl-dev</code>
 - wolfSSL ([github link](https://github.com/wolfSSL/wolfssl), see [build flags](https://github.com/ilikdoge/xe/blob/master/build.sh#L9))
