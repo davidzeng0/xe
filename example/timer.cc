@@ -11,13 +11,10 @@ int main(){
 	using namespace std::chrono_literals;
 
 	xe_loop loop;
-	xe_loop_options options;
 	xe_timer timer;
 
-	options.entries = 8; /* sqes and cqes */
-
 	/* init */
-	loop.init_options(options);
+	loop.init(8); /* 8 sqes and cqes */
 
 	timer.callback = timer_callback;
 	loop.timer(timer, 1000ms, 0s, 0); /* set a timer for 1000 ms without repeating */

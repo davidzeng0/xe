@@ -49,13 +49,10 @@ void send_callback(xe_req& req, int result){
 
 int main(){
 	xe_loop loop;
-	xe_loop_options options;
 	client c{loop};
 
-	options.entries = 8; /* sqes and cqes */
-
 	/* init */
-	loop.init_options(options);
+	loop.init(8); /* 8 sqes and cqes */
 
 	/* connect address */
 	sockaddr_in addr;
