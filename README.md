@@ -14,6 +14,37 @@ This library does not use exceptions
 | xutil     | utility library                                           |
 | xarch     | architecture specific optimized subroutines               |
 
+## examples
+```c++
+// Hello World Example
+static task run(xe_loop& loop){
+	char msg[] = "Hello World!\n";
+
+	co_await loop.write(STDOUT_FILENO, msg, sizeof(msg) - 1, 0);
+}
+```
+
+See [Hello World](https://github.com/ilikdoge/xe/blob/master/example/coroutines/hello_world.cc)
+
+See [examples](https://github.com/ilikdoge/xe/tree/master/example)
+
+See [coroutine examples](https://github.com/ilikdoge/xe/tree/master/example/coroutines)
+
+## features
+#### xe
+- low latency I/O
+- ultra low overhead (2.2% for [coroutine_echoserver](https://github.com/ilikdoge/xe/blob/master/example/coroutines/echoserver.cc))
+- fast and high resolution timers
+- ring error handling
+
+#### xe/io
+- socket and file handles
+- epoll-like [fast poll handle](https://github.com/ilikdoge/xe/blob/master/xe/io/poll.cc) for io_uring
+
+#### xurl
+- async DNS resolution
+- http, websocket*, and file* url protocols (WIP)
+
 ## using
 
 ### prerequisites

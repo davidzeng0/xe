@@ -9,85 +9,11 @@
 #include <xutil/endian.h>
 
 static ulong last_time, recvs = 0, sends = 0, clients = 0;
+static xe_socket server;
+static const uint buffer_length = 16384;
 
-void recv_callback(xe_req& req, int result);
-void send_callback(xe_req& req, int result);
-
-struct client{
-	xe_socket socket;
-	xe_req recv;
-	xe_req send;
-	byte* buf;
-	uint len;
-
-	client(xe_loop& loop): socket(loop){
-		recv.callback = recv_callback;
-		send.callback = send_callback;
-	}
-
-	~client(){
-		socket.close();
-
-		xe_dealloc(buf);
-	}
-};
-
-void client_close(client& cl){
-	xe_delete(&cl);
-	xe_print("closing a client. %lu still open", --clients);
-}
-
-void recv_callback(xe_req& req, int result){
-	client& cl = xe_containerof(req, &client::recv);
-
-	if(result > 0){
-		recvs++;
-		cl.socket.send(cl.send, cl.buf, result, 0); /* send it back */
-	}else{
-		client_close(cl);
-	}
-}
-
-void send_callback(xe_req& req, int result){
-	client& cl = xe_containerof(req, &client::send);
-
-	if(result > 0){
-		sends++;
-		cl.socket.recv(cl.recv, cl.buf, cl.len, 0); /* receive more */
-	}else{
-		client_close(cl);
-	}
-}
-
-class accept_req : public xe_req{
-public:
-	xe_socket& socket;
-
-	accept_req(xe_socket& socket): socket(socket){}
-};
-
-void accept_callback(xe_req& req, int result){
-	xe_socket& socket = ((accept_req&)req).socket;
-
-	if(result > 0){
-		xe_print("accepted a client. %lu clients open", ++clients);
-
-		/* create a client socket */
-		client* cl = xe_znew<client>(socket.loop());
-
-		cl -> len = 16384;
-		cl -> buf = xe_alloc_aligned<byte>(0, cl -> len); /* page size aligned alloc */
-
-		cl -> socket.accept(result);
-		cl -> socket.recv(cl -> recv, cl -> buf, cl -> len, 0);
-
-		socket.accept(req, null, null, 0);
-	}else{
-		xe_print("failed to accept: %s", xe_strerror(result));
-	}
-}
-
-int timer_callback(xe_loop& loop, xe_timer& timer){
+/* stats */
+static int timer_callback(xe_loop& loop, xe_timer& timer){
 	ulong now = xe_time_ns();
 
 	xe_print("%lu reqs %lu sends in %f ms", recvs, sends, (now - last_time) / 1e6);
@@ -99,18 +25,78 @@ int timer_callback(xe_loop& loop, xe_timer& timer){
 	return 0;
 }
 
-int main(){
-	xe_loop loop;
-	xe_loop_options options;
-	xe_socket socket(loop);
-	xe_timer timer;
+/* client structure */
+struct echo_client{
+	xe_socket socket;
+	xe_req recv;
+	xe_req send;
+	byte* buf;
 
-	options.entries = 256; /* number of sqes, seems to work the best */
-	options.cq_entries = 65536;
-	options.flag_cqsize = true;
+	static void recv_callback(xe_req& req, int result){
+		echo_client& client = xe_containerof(req, &echo_client::recv);
 
-	/* init */
-	loop.init_options(options);
+		if(result > 0){
+			recvs++;
+			client.socket.send(client.send, client.buf, result, 0); /* send it back */
+		}else{
+			/* error */
+			xe_delete(&client);
+		}
+	}
+
+	static void send_callback(xe_req& req, int result){
+		echo_client& client = xe_containerof(req, &echo_client::send);
+
+		if(result > 0){
+			sends++;
+			client.socket.recv(client.recv, client.buf, buffer_length, 0); /* receive more */
+		}else{
+			/* error */
+			xe_delete(&client);
+		}
+	}
+
+	echo_client(xe_loop& loop, int fd): socket(loop){
+		/* set up socket */
+		socket.accept(fd);
+
+		/* set up callbacks */
+		recv.callback = recv_callback;
+		send.callback = send_callback;
+
+		/* alloc buffer */
+		buf = xe_alloc_aligned<byte>(0, buffer_length); /* page size aligned alloc */
+
+		xe_print("accepted a client. %lu clients open", ++clients);
+	}
+
+	~echo_client(){
+		socket.close();
+
+		xe_dealloc(buf);
+		xe_print("closing a client. %lu still open", --clients);
+	}
+};
+
+static void accept_callback(xe_req& req, int result){
+	if(result < 0){
+		xe_print("failed to accept: %s", xe_strerror(result));
+
+		return;
+	}
+
+	/* queue up another accept */
+	server.accept(req, null, null, 0);
+
+	/* create a client socket */
+	echo_client* cl = xe_znew<echo_client>(server.loop(), result);
+
+	/* start recving */
+	cl -> socket.recv(cl -> recv, cl -> buf, buffer_length, 0);
+}
+
+static void setup_socket(){
+	int yes = 1;
 
 	/* listen addr */
 	sockaddr_in addr;
@@ -121,27 +107,47 @@ int main(){
 	addr.sin_addr.s_addr = inet_addr("127.0.0.1");
 	addr.sin_port = xe_htons(8080);
 
-	socket.init(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+	server.init(AF_INET, SOCK_STREAM, IPPROTO_TCP);
 
-	int yes = 1;
+	setsockopt(server.fd(), SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes));
 
-	setsockopt(socket.fd(), SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes));
+	server.bind((sockaddr*)&addr, sizeof(addr));
+	server.listen(SOMAXCONN);
+}
 
-	socket.bind((sockaddr*)&addr, sizeof(addr));
-	socket.listen(SOMAXCONN);
+int main(){
+	xe_loop loop;
+	xe_loop_options options;
+	xe_timer timer;
 
-	accept_req req(socket);
+	options.entries = 256; /* number of sqes, seems to work the best */
+	options.cq_entries = 65536;
+	options.flag_cqsize = true;
 
-	req.callback = accept_callback;
-	socket.accept(req, null, null, 0);
+	/* init */
+	loop.init_options(options);
 
+	/* listen on addr */
+	setup_socket();
+
+	/* accept clients */
+	xe_req accept_req;
+
+	accept_req.callback = accept_callback;
+	server.set_loop(loop);
+	server.accept(accept_req, null, null, 0);
+
+	/* accept clients */
 	last_time = xe_time_ns();
 	timer.callback = timer_callback;
-
 	loop.timer_ms(timer, 1000, 1000, XE_TIMER_REPEAT | XE_TIMER_ALIGN);
+
+	/* run */
 	loop.run();
 
+	/* cleanup */
 	loop.close();
+	server.close();
 
 	return 0;
 }

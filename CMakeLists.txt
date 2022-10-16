@@ -99,14 +99,23 @@ if(XE_ENABLE_EXAMPLES)
 	add_executable(echoserver "example/echoserver.cc")
 	target_link_libraries(echoserver xe)
 
-	add_executable(coroutine_echoserver "example/coroutine_echoserver.cc")
-	target_link_libraries(coroutine_echoserver xe)
-
 	add_executable(client "example/client.cc")
 	target_link_libraries(client xe)
 
 	add_executable(timer "example/timer.cc")
 	target_link_libraries(timer xe)
+
+	add_executable(coroutine_echoserver "example/coroutines/echoserver.cc")
+	target_link_libraries(coroutine_echoserver xe)
+
+	add_executable(coroutine_client "example/coroutines/client.cc")
+	target_link_libraries(coroutine_client xe)
+
+	add_executable(coroutine_file "example/coroutines/file.cc")
+	target_link_libraries(coroutine_file xe)
+
+	add_executable(coroutine_hello_world "example/coroutines/hello_world.cc")
+	target_link_libraries(coroutine_hello_world xe)
 
 	if(XE_ENABLE_XURL)
 		add_executable(http "example/http.cc")

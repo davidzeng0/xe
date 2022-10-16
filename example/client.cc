@@ -1,6 +1,5 @@
 #include <netdb.h>
 #include <arpa/inet.h>
-#include <xstd/types.h>
 #include <xstd/string.h>
 #include <xe/loop.h>
 #include <xe/error.h>
@@ -9,8 +8,8 @@
 #include <xutil/log.h>
 #include <xutil/endian.h>
 
-static uint len = 16384;
-static byte* buf = xe_alloc<byte>(len);
+static const uint buffer_length = 16384;
+static byte* buf = xe_alloc<byte>(buffer_length);
 
 static xe_string_view msg = "Hello World!";
 
@@ -43,13 +42,13 @@ void send_callback(xe_req& req, int result){
 	xe_print("send status: %s", xe_strerror(xe_min(result, 0)));
 
 	if(result > 0)
-		client.socket.recv(client.recv, buf, len, 0);
+		client.socket.recv(client.recv, buf, buffer_length, 0);
 }
 
 
 int main(){
 	xe_loop loop;
-	client c{loop};
+	client c;
 
 	/* init */
 	loop.init(8); /* 8 sqes and cqes */
@@ -63,6 +62,7 @@ int main(){
 	addr.sin_addr.s_addr = inet_addr("127.0.0.1");
 	addr.sin_port = xe_htons(8080);
 
+	c.socket.set_loop(loop);
 	c.conn.callback = connect_callback;
 	c.recv.callback = recv_callback;
 	c.send.callback = send_callback;

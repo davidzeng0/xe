@@ -1,8 +1,7 @@
-#include <linux/version.h>
 #include <netdb.h>
 #include <arpa/inet.h>
 #include <netinet/tcp.h>
-#include <xstd/types.h>
+#include <linux/version.h>
 #include <xe/loop.h>
 #include <xe/clock.h>
 #include <xe/error.h>
@@ -10,39 +9,11 @@
 #include <xutil/mem.h>
 #include <xutil/log.h>
 #include <xutil/endian.h>
-
-/* coroutine task structure */
-struct task{
-	struct promise_type{
-		task get_return_object(){
-			return task(std::coroutine_handle<promise_type>::from_promise(*this));
-		}
-
-		auto initial_suspend(){
-			return std::suspend_never();
-		}
-
-		auto final_suspend() noexcept{
-			return std::suspend_never();
-		}
-
-		void return_void(){}
-
-		void unhandled_exception(){}
-	};
-
-	std::coroutine_handle<promise_type> handle;
-
-	task(std::coroutine_handle<promise_type> h){
-		handle = h;
-	}
-
-	~task(){
-		/* don't kill the coroutine, nothing to do */
-	}
-};
+#include "coroutine.h"
 
 static ulong last_time, recvs = 0, sends = 0, clients = 0;
+static const uint buffer_length = 16384;
+
 static int timer_callback(xe_loop& loop, xe_timer& timer){
 	ulong now = xe_time_ns();
 
@@ -56,17 +27,15 @@ static int timer_callback(xe_loop& loop, xe_timer& timer){
 }
 
 static task echo(xe_loop& loop, int fd){
-	const int len = 16384;
-
-	byte* buf = xe_alloc_aligned<byte>(0, len); /* page size aligned */
-	int result;
-
 	xe_socket socket(loop);
+	int result;
+	byte* buf;
 
+	buf = xe_alloc_aligned<byte>(0, buffer_length); /* page size aligned alloc */
 	socket.accept(fd);
 
 	while(true){
-		result = co_await socket.recv(buf, len, 0);
+		result = co_await socket.recv(buf, buffer_length, 0);
 
 		if(result <= 0)
 			break;

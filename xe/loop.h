@@ -155,7 +155,6 @@ protected:
 	xe_disallow_move_assign(xe_promise)
 
 	xe_coroutine_handle waiter;
-
 	int result_;
 
 	union{
