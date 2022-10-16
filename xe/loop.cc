@@ -63,10 +63,16 @@ static inline bool xe_cqe_need_flush(io_uring& ring){
 }
 
 static inline bool xe_cqe_needs_enter(io_uring& ring, uint wait){
-	return wait || xe_cqe_need_flush(ring) || (ring.flags & IORING_SETUP_IOPOLL);
+	if(wait) [[likely]]
+		return true;
+	if(ring.flags & IORING_SETUP_IOPOLL) [[unlikely]]
+		return true;
+	if(xe_cqe_need_flush(ring)) [[unlikely]]
+		return true;
+	return false;
 }
 
-int xe_loop::submit(uint wait, ulong timeout, bool want_events){
+inline int xe_loop::submit(uint wait, ulong timeout, bool want_events){
 	uint submit = ring.sq.sqe_tail - *ring.sq.khead;
 	uint flags = 0;
 	int res;
@@ -75,7 +81,7 @@ int xe_loop::submit(uint wait, ulong timeout, bool want_events){
 
 	if(want_events && xe_cqe_needs_enter(ring, wait))
 		flags |= IORING_ENTER_GETEVENTS;
-	if(ring.flags & IORING_SETUP_SQPOLL){
+	if(ring.flags & IORING_SETUP_SQPOLL) [[unlikely]] {
 		io_uring_smp_mb();
 
 		if(IO_URING_READ_ONCE(*ring.sq.kflags) & IORING_SQ_NEED_WAKEUP) [[unlikely]]
@@ -111,7 +117,7 @@ ret:
 	return res == XE_EBADR ? XE_ENOMEM : XE_FATAL;
 }
 
-int xe_loop::wait(uint wait, ulong timeout){
+inline int xe_loop::wait(uint wait, ulong timeout){
 	int ret;
 
 	if(!xe_cqe_needs_enter(ring, wait)){
@@ -314,6 +320,8 @@ int xe_loop::queue_pending(){
 
 			if(next) next -> prev = null;
 		}else if(err != XE_EAGAIN){
+			error = err;
+
 			return err;
 		}else{
 			break;
@@ -416,31 +424,29 @@ int xe_loop::run(){
 	cqe_head = *ring.cq.khead;
 	cqe_tail = cqe_head;
 
+	xe_return_error(error);
+
 	while(true){
-		xe_return_error(error);
 		xe_return_error(queue_pending());
 
 		it = timers.begin();
+		timeout = MAX_WAIT;
 		nwait = 1;
 
 		if(it != timers.end()){
 			/* we have a timer to run some time in the future */
 			now = xe_time_ns();
-			timeout = it -> key;
 
-			if(now < timeout)
-				timeout = xe_min<ulong>(timeout - now, MAX_WAIT);
+			if(now < it -> key)
+				timeout = xe_min<ulong>(it -> key - now, MAX_WAIT);
 			else{
 				/* timer already expired, just submit and/or flush cqe, don't wait */
 				nwait = 0;
 			}
-		}else{
-			/* no timers to exit early for */
-			timeout = MAX_WAIT;
 		}
 
-		if(queued){
-			if(sq_ring_full){
+		if(queued) [[likely]] {
+			if(sq_ring_full) [[unlikely]] {
 				/* not enough memory to submit more, just wait for returns */
 				goto wait;
 			}
@@ -451,14 +457,14 @@ int xe_loop::run(){
 				/* restart: wait for returns */
 				continue;
 			}
-		}else if(handles){
+		}else if(handles) [[likely]] {
 		wait:
 			cqe_tail = io_uring_smp_load_acquire(ring.cq.ktail);
 
 			if(cqe_head != cqe_tail)
 				goto runevents;
 			res = wait(nwait, timeout);
-		}else if(active_timers){
+		}else if(active_timers) [[likely]] {
 			/* no handles, but we have a timer to run */
 			if(!nwait)
 				goto runevents;
@@ -511,10 +517,11 @@ int xe_loop::run(){
 				req -> event(*req, cqe -> res, res);
 		}while(cqe_head != cqe_tail && !error);
 
+		xe_return_error(error);
 		io_uring_smp_store_release(ring.cq.khead, cqe_tail);
 	}
 
-	return 0;
+	return error;
 }
 
 uint xe_loop::sqe_count() const{

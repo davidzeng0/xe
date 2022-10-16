@@ -7,7 +7,7 @@ documentation is a WIP
 ### features
 #### xe
 - high performance
-- ultra lightweight (2.2% overhead for [coroutine_echoserver](https://github.com/ilikdoge/xe/blob/master/example/coroutines/echoserver.cc))
+- ultra lightweight (1.8% overhead for [coroutine_echoserver](https://github.com/ilikdoge/xe/blob/master/example/coroutines/echoserver.cc))
 - low latency I/O
 - fast high resolution timers
 - error handling for ring submit queue

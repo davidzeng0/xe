@@ -34,12 +34,11 @@ else()
 	message(SEND_ERROR "Compile with gcc 10, clang 12, or newer")
 endif()
 
-
 set(CMAKE_CXX_FLAGS_RELEASE "-O3 -march=native -mtune=native")
 set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-O3 -g -march=native -mtune=native")
 if(${CMAKE_BUILD_TYPE} STREQUAL "Debug")
 	set(XE_DEBUG TRUE)
-elseif(${CMAKE_BUILD_TYPE} STREQUAL "Release")
+elseif(${CMAKE_BUILD_TYPE} STREQUAL "Release" OR ${CMAKE_BUILD_TYPE} STREQUAL "RelWithDebInfo")
 	if(XE_FLTO)
 		set(CMAKE_INTERPROCEDURAL_OPTIMIZATION ON)
 	endif()

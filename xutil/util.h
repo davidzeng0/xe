@@ -3,7 +3,7 @@
 
 #define xe_return_error(exp)	\
 	do{							\
-		auto err_ = exp;		\
+		auto err_ = (exp);		\
 								\
 		if(err_) [[unlikely]] return err_;	\
 	}while(0)

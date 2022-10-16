@@ -460,7 +460,7 @@ public:
 	}
 
 	iterator begin(){
-		return iterator{begin_};
+		return iterator(begin_);
 	}
 
 	iterator end(){
