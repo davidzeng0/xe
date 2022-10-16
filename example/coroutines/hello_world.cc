@@ -22,7 +22,7 @@ int main(){
 	int err;
 
 	/* init */
-	err = loop.init(8);
+	err = loop.init(8); /* 8 sqes */
 
 	handle_error("init", err);
 

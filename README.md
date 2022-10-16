@@ -4,6 +4,67 @@ Lightweight Async I/O & Transfer Library Powered by io_uring
 
 This library does not use exceptions
 
+Documentation is a WIP
+
+### features
+#### xe
+- high performance
+- ultra lightweight (2.2% overhead for [coroutine_echoserver](https://github.com/ilikdoge/xe/blob/master/example/coroutines/echoserver.cc))
+- low latency I/O
+- fast high resolution timers
+- error handling for ring submit queue
+
+#### xe/io
+- socket and file handles
+- epoll-like [fast poll handle](https://github.com/ilikdoge/xe/blob/master/xe/io/poll.cc) for io_uring
+
+#### xurl
+- async DNS resolution
+- http, websocket, and file url protocols (WIP)
+
+### examples
+```c++
+// Hello World Example
+static task run(xe_loop& loop){
+	char msg[] = "Hello World!\n";
+
+	co_await loop.write(STDOUT_FILENO, msg, sizeof(msg) - 1, 0);
+}
+```
+Above example from [hello_world.cc](https://github.com/ilikdoge/xe/blob/master/example/coroutines/hello_world.cc)
+```c++
+// Echo Server Example
+static task echo(xe_socket& socket){
+	byte buf[16384];
+	int result;
+
+	while(true){
+		result = co_await socket.recv(buf, 16384, 0);
+
+		if(result <= 0)
+			break;
+		result = co_await socket.send(buf, result, 0);
+
+		if(result < 0)
+			break;
+	}
+}
+```
+Above example from [echoserver.cc](https://github.com/ilikdoge/xe/blob/master/example/coroutines/echoserver.cc)
+
+See [examples](https://github.com/ilikdoge/xe/tree/master/example) and [coroutine examples](https://github.com/ilikdoge/xe/tree/master/example/coroutines)
+
+### running examples
+```bash
+cd build
+./coroutine_hello_world
+./timer
+./coroutine_file
+./http # only if xurl enabled with openssl or wolfssl
+./coroutine_echoserver
+./echoserver
+```
+
 ### libraries
 
 | name      | description                                               |
@@ -14,53 +75,22 @@ This library does not use exceptions
 | xutil     | utility library                                           |
 | xarch     | architecture specific optimized subroutines               |
 
-## examples
-```c++
-// Hello World Example
-static task run(xe_loop& loop){
-	char msg[] = "Hello World!\n";
+### using
 
-	co_await loop.write(STDOUT_FILENO, msg, sizeof(msg) - 1, 0);
-}
-```
-
-See [Hello World](https://github.com/ilikdoge/xe/blob/master/example/coroutines/hello_world.cc)
-
-See [examples](https://github.com/ilikdoge/xe/tree/master/example)
-
-See [coroutine examples](https://github.com/ilikdoge/xe/tree/master/example/coroutines)
-
-## features
-#### xe
-- low latency I/O
-- ultra low overhead (2.2% for [coroutine_echoserver](https://github.com/ilikdoge/xe/blob/master/example/coroutines/echoserver.cc))
-- fast and high resolution timers
-- ring error handling
-
-#### xe/io
-- socket and file handles
-- epoll-like [fast poll handle](https://github.com/ilikdoge/xe/blob/master/xe/io/poll.cc) for io_uring
-
-#### xurl
-- async DNS resolution
-- http, websocket*, and file* url protocols (WIP)
-
-## using
-
-### prerequisites
+#### prerequisites
 - linux kernel 5.11 or later
 - liburing ([github link](https://github.com/axboe/liburing))
 - cmake <code>apt install cmake</code>
 - g++ 10 or newer, or clang 12 or newer <code>apt install g++-10/clang++-12</code>
 
-### xurl prerequisites (if enabled, disabled by default)
+#### xurl prerequisites (if enabled, disabled by default)
 - c-ares ([github link](https://github.com/c-ares/c-ares))
 
 one of:
 - OpenSSL >= 1.1.1 <code>apt install libssl-dev</code>
 - wolfSSL ([github link](https://github.com/wolfSSL/wolfssl), see [build flags](https://github.com/ilikdoge/xe/blob/master/build.sh#L9))
 
-### use with cmake
+#### use with cmake
 ```cmake
 project(sample CXX)
 
@@ -79,7 +109,7 @@ target_link_libraries(sample xe)
 target_link_libraries(sample xe xurl)
 ```
 
-### build xe
+#### build xe
 ```bash
 mkdir build; cd build
 

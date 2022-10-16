@@ -127,6 +127,8 @@ int main(){
 	/* init */
 	loop.init_options(options);
 
+	xe_print("initialized with %u sqes and %u cqes", loop.sqe_count(), loop.cqe_count());
+
 	/* listen on addr */
 	setup_socket();
 
