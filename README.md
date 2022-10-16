@@ -1,10 +1,10 @@
 # xe
 
-Lightweight Async I/O & Transfer Library Powered by io_uring
+lightweight async I/O & transfer library powered by io_uring
 
-This library does not use exceptions
+this library does not use exceptions
 
-Documentation is a WIP
+documentation is a WIP
 
 ### features
 #### xe
@@ -24,16 +24,16 @@ Documentation is a WIP
 
 ### examples
 ```c++
-// Hello World Example
+// hello world snippet
 static task run(xe_loop& loop){
 	char msg[] = "Hello World!\n";
 
 	co_await loop.write(STDOUT_FILENO, msg, sizeof(msg) - 1, 0);
 }
 ```
-Above example from [hello_world.cc](https://github.com/ilikdoge/xe/blob/master/example/coroutines/hello_world.cc)
+above snippet from [hello_world.cc](https://github.com/ilikdoge/xe/blob/master/example/coroutines/hello_world.cc)
 ```c++
-// Echo Server Example
+// echo server snippet
 static task echo(xe_socket& socket){
 	byte buf[16384];
 	int result;
@@ -50,9 +50,9 @@ static task echo(xe_socket& socket){
 	}
 }
 ```
-Above example from [echoserver.cc](https://github.com/ilikdoge/xe/blob/master/example/coroutines/echoserver.cc)
+above snippet from [echoserver.cc](https://github.com/ilikdoge/xe/blob/master/example/coroutines/echoserver.cc)
 
-See [examples](https://github.com/ilikdoge/xe/tree/master/example) and [coroutine examples](https://github.com/ilikdoge/xe/tree/master/example/coroutines)
+see [examples](https://github.com/ilikdoge/xe/tree/master/example) and [coroutine examples](https://github.com/ilikdoge/xe/tree/master/example/coroutines)
 
 ### running examples
 ##### see [building xe](https://github.com/ilikdoge/xe#build-xe) below
