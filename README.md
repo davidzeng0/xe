@@ -2,8 +2,6 @@
 
 lightweight async I/O & transfer library powered by io_uring
 
-this library does not use exceptions
-
 documentation is a WIP
 
 ### features
