@@ -55,6 +55,7 @@ Above example from [echoserver.cc](https://github.com/ilikdoge/xe/blob/master/ex
 See [examples](https://github.com/ilikdoge/xe/tree/master/example) and [coroutine examples](https://github.com/ilikdoge/xe/tree/master/example/coroutines)
 
 ### running examples
+##### see [building xe](https://github.com/ilikdoge/xe#build-xe) below
 ```bash
 cd build
 ./coroutine_hello_world
@@ -79,16 +80,16 @@ cd build
 
 #### prerequisites
 - linux kernel 5.11 or later
-- liburing ([github link](https://github.com/axboe/liburing))
+- liburing <code>apt install liburing-dev</code> or install from [source](https://github.com/axboe/liburing)
 - cmake <code>apt install cmake</code>
 - g++ 10 or newer, or clang 12 or newer <code>apt install g++-10/clang++-12</code>
 
 #### xurl prerequisites (if enabled, disabled by default)
-- c-ares ([github link](https://github.com/c-ares/c-ares))
+- c-ares <code>apt install libc-ares-dev</code> or install from [source](https://github.com/c-ares/c-ares)
 
 one of:
 - OpenSSL >= 1.1.1 <code>apt install libssl-dev</code>
-- wolfSSL ([github link](https://github.com/wolfSSL/wolfssl), see [build flags](https://github.com/ilikdoge/xe/blob/master/build.sh#L9))
+- wolfSSL (must be installed from [source](https://github.com/wolfSSL/wolfssl), see [build flags](https://github.com/ilikdoge/xe/blob/master/build.sh#L9))
 
 #### use with cmake
 ```cmake
