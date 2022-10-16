@@ -16,7 +16,7 @@ Documentation is a WIP
 
 #### xe/io
 - socket and file handles
-- epoll-like [fast poll handle](https://github.com/ilikdoge/xe/blob/master/xe/io/poll.cc) for io_uring
+- epoll-like [fast poll handle](https://github.com/ilikdoge/xe/blob/master/xe/io/poll.h) for io_uring
 
 #### xurl
 - async DNS resolution
