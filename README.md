@@ -16,7 +16,7 @@ documentation is a WIP
 - socket and file handles
 - epoll-like [fast poll handle](https://github.com/ilikdoge/xe/blob/master/xe/io/poll.h) for io_uring
 
-#### xurl
+#### xurl (WIP)
 - async DNS resolution
 - http, websocket, and file url protocols (WIP)
 
@@ -69,7 +69,7 @@ cd build
 | name      | description                                               |
 | --------- | ----------------------------------------------------------|
 | xe        | io_uring event loop with support for c++ 20 coroutines    |
-| xurl      | url client library (WIP)                                  |
+| xurl      | url client library                                        |
 | xstd      | structures and algorithms                                 |
 | xutil     | utility library                                           |
 | xarch     | architecture specific optimized subroutines               |
