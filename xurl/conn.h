@@ -29,8 +29,7 @@ private:
 
 	void start_connect(xe_endpoint&);
 
-	xe_connection* next;
-	xe_connection* prev;
+	xe_linked_node node;
 
 #ifdef XE_DEBUG
 	xe_string_view host;
@@ -80,9 +79,6 @@ protected:
 	xe_timer timer;
 public:
 	xe_connection(){
-		next = null;
-		prev = null;
-
 		poll.poll_callback = poll_cb;
 		poll.close_callback = close_cb;
 
@@ -111,7 +107,7 @@ public:
 	bool peer_closed();
 
 	virtual void close(int error);
-	virtual ~xe_connection() = default;
+	virtual ~xe_connection();
 
 	static xe_cstr class_name();
 };

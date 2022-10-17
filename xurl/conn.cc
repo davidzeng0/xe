@@ -24,7 +24,6 @@ void xe_connection::poll_cb(xe_poll& poll, int res){
 void xe_connection::close_cb(xe_poll& poll){
 	xe_connection& conn = xe_containerof(poll, &xe_connection::poll);
 
-	conn.ctx -> count_closing();
 	conn.closed();
 }
 
@@ -112,8 +111,7 @@ void xe_connection::start_connect(xe_endpoint& endpoint_){
 	else{
 		set_state(XE_CONNECTION_STATE_CONNECTING);
 
-		ctx -> count();
-		ctx -> add(*this);
+		ctx -> active_connections_++;
 	}
 }
 
@@ -332,8 +330,8 @@ int xe_connection::writable(){
 void xe_connection::closed(){
 	if(fd >= 0)
 		::close(fd);
-	ctx -> uncount_closing();
-
+	if(node.in_list())
+		ctx -> remove(*this);
 	xe_log_trace(this, "closed()");
 }
 
@@ -398,7 +396,7 @@ int xe_connection::connect(const xe_string_view& host_, ushort port_, uint timeo
 	xe_return_error(try_connect(*this));
 	set_state(XE_CONNECTION_STATE_CONNECTING);
 
-	ctx -> count();
+	ctx -> active_connections_++;
 	ctx -> add(*this);
 ok:
 	if(timeout_ms){
@@ -424,8 +422,7 @@ ssize_t xe_connection::send(xe_cptr data, size_t size){
 
 int xe_connection::transferctl(uint flags){
 	bool prev_recv_paused = recv_paused,
-		prev_send_paused = send_paused,
-		counted = !recv_paused || !send_paused;
+		prev_send_paused = send_paused;
 	if(flags & XE_PAUSE_SEND)
 		send_paused = true;
 	else if(flags & XE_RESUME_SEND)
@@ -452,9 +449,9 @@ int xe_connection::transferctl(uint flags){
 		recv_paused = prev_recv_paused;
 		send_paused = prev_send_paused;
 	}else if(events){
-		if(!counted) ctx -> count();
+		if(prev_recv_paused && prev_send_paused) ctx -> active_connections_++;
 	}else{
-		ctx -> uncount();
+		ctx -> active_connections_--;
 	}
 
 	return err;
@@ -470,28 +467,23 @@ void xe_connection::close(int error){
 	xe_assert(state != XE_CONNECTION_STATE_CLOSED);
 	xe_log_trace(this, "close()");
 
-	if(buf != ctx -> loop().iobuf())
-		xe_dealloc(buf);
-	if(ssl_enabled)
-		ssl.close();
 	if(timer.active())
 		xe_assertz(stop_timer());
-	if(state == XE_CONNECTION_STATE_RESOLVING)
-		ctx -> resolve_remove(*this);
-	else if(state > XE_CONNECTION_STATE_RESOLVING){
-		if(state != XE_CONNECTION_STATE_ACTIVE || !recv_paused || !send_paused)
-			ctx -> uncount();
-		ctx -> remove(*this);
-	}
-
+	if(state > XE_CONNECTION_STATE_RESOLVING &&
+		(state != XE_CONNECTION_STATE_ACTIVE || !recv_paused || !send_paused))
+		ctx -> active_connections_--;
 	error = poll.close();
 
 	set_state(XE_CONNECTION_STATE_CLOSED);
 
-	if(!error)
-		closed();
-	else
-		ctx -> count_closing();
+	if(!error) closed();
+}
+
+xe_connection::~xe_connection(){
+	if(buf != ctx -> loop().iobuf())
+		xe_dealloc(buf);
+	if(ssl_enabled)
+		ssl.close();
 }
 
 xe_cstr xe_connection::class_name(){

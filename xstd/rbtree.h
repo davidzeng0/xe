@@ -22,29 +22,29 @@ private:
 		T key;
 	};
 
-	template<typename node_t>
+	template<class node_t>
 	class rbiterator{
 	private:
 		node_t* node;
 	public:
-		rbiterator(): node(){}
-		rbiterator(node_t* node): node(node){}
+		constexpr rbiterator(): node(){}
+		constexpr rbiterator(node_t* node): node(node){}
 
-		node_t* operator->() const{
+		constexpr node_t* operator->() const{
 			return node;
 		}
 
-		node_t& operator*() const{
+		constexpr node_t& operator*() const{
 			return *node;
 		}
 
-		rbiterator& operator++(){
+		constexpr rbiterator& operator++(){
 			node = next(node);
 
 			return *this;
 		}
 
-		rbiterator operator++(int){
+		constexpr rbiterator operator++(int){
 			rbiterator tmp = *this;
 
 			node = next(node);
@@ -52,11 +52,11 @@ private:
 			return tmp;
 		}
 
-		rbiterator& operator--(){
+		constexpr rbiterator& operator--(){
 			node = prev(node);
 		}
 
-		rbiterator operator--(int){
+		constexpr rbiterator operator--(int){
 			rbiterator tmp = *this;
 
 			node = prev(node);
@@ -64,7 +64,7 @@ private:
 			return tmp;
 		}
 
-		bool operator==(const rbiterator& other) const{
+		constexpr bool operator==(const rbiterator& other) const{
 			return node == other.node;
 		}
 

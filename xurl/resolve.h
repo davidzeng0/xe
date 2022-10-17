@@ -36,7 +36,7 @@ private:
 
 	friend class xe_resolve;
 public:
-	xe_endpoint(){}
+	xe_endpoint() = default;
 
 	xe_disallow_copy(xe_endpoint)
 

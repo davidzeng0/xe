@@ -2,6 +2,7 @@
 #include "http_internal.h"
 #include "net_internal.h"
 #include "xstd/unique_ptr.h"
+#include "xstd/linked_list.h"
 #include "xutil/log.h"
 
 using namespace xurl;
@@ -151,44 +152,33 @@ template<class xe_connection_type = xe_http_protocol_singleconnection>
 class xe_http_connection_node{
 public:
 	xe_http_connection_list& list;
-	xe_http_connection_node* next;
-	xe_http_connection_node* prev;
-
+	xe_linked_node node;
 	xe_connection_type connection;
 
-	xe_http_connection_node(xe_http& proto, xe_http_connection_list& list): list(list), connection(proto){}
+	xe_http_connection_node(xe_http& proto, xe_http_connection_list& list):
+		connection(proto), list(list){}
+
+	~xe_http_connection_node() = default;
 };
 
 class xe_http_connection_list{
 public:
-	xe_http_connection_node<>* head;
+	xe_linked_list list;
 
 	operator bool(){
-		return head != null;
+		return !list.empty();
+	}
+
+	xe_http_connection_node<>& head(){
+		return xe_containerof(list.head(), &xe_http_connection_node<>::node);
 	}
 
 	void add(xe_http_connection_node<>& conn){
-		if(head == &conn || conn.next != null || conn.prev != null)
-			return;
-		if(head)
-			head -> prev = &conn;
-		conn.next = head;
-		head = &conn;
+		if(conn.node.in_list()) list.append(conn.node);
 	}
 
 	void remove(xe_http_connection_node<>& conn){
-		if(head != &conn && conn.next == null && conn.prev == null)
-			return;
-		xe_assert((conn.prev == null) == (&conn == head));
-
-		if(conn.next)
-			conn.next -> prev = conn.prev;
-		if(conn.prev)
-			conn.prev -> next = conn.next;
-		else
-			head = conn.next;
-		conn.next = null;
-		conn.prev = null;
+		if(conn.node.in_list()) list.erase(conn.node);
 	}
 };
 
@@ -261,7 +251,7 @@ int xe_http::start(xe_request_internal& request){
 		list = conn -> second;
 
 		while(*list){
-			xe_http_protocol_singleconnection& conn = list -> head -> connection;
+			xe_http_protocol_singleconnection& conn = list -> head().connection;
 
 			err = 0;
 
@@ -278,7 +268,7 @@ int xe_http::start(xe_request_internal& request){
 	}else{
 		xe_unique_ptr<xe_http_connection_list> new_list;
 
-		list = xe_zalloc<xe_http_connection_list>();
+		list = xe_new<xe_http_connection_list>();
 		new_list = list;
 
 		if(!list || !host.hostname.copy(data.url.hostname()) ||
@@ -388,8 +378,6 @@ xe_protocol* xurl::xe_http_new(xurl_ctx& ctx){
 }
 
 xe_http_specific::xe_http_specific(): xe_http_common_data(XE_PROTOCOL_HTTP){}
-
-xe_http_specific::~xe_http_specific(){}
 
 bool xe_http_specific::set_method(const xe_string_view& method, uint flags){
 	xe_http_specific_internal& internal = *(xe_http_specific_internal*)this;

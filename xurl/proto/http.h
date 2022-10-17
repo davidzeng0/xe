@@ -104,7 +104,7 @@ public:
 
 	bool set_method(const xe_string_view& method, uint flags = 0);
 
-	~xe_http_specific();
+	~xe_http_specific() = default;
 };
 
 xe_protocol* xe_http_new(xurl_ctx& ctx);

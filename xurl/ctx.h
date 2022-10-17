@@ -1,8 +1,9 @@
 #pragma once
 #include "xstd/types.h"
-#include "xstd/unique_ptr.h"
 #include "xstd/map.h"
 #include "xstd/fla.h"
+#include "xstd/unique_ptr.h"
+#include "xstd/linked_list.h"
 #include "xutil/util.h"
 #include "xe/loop.h"
 #include "protocol.h"
@@ -44,18 +45,12 @@ private:
 	int resolve(xe_connection&, const xe_string_view&, xe_endpoint*&);
 
 	void add(xe_connection&);
-	void resolve_remove(xe_connection&);
 	void remove(xe_connection&);
-	void count();
-	void uncount();
-	void count_closing();
-	void uncount_closing();
 	void check_close();
 
-	struct xe_resolve_entry{
-		xe_connection* null;
-		xe_connection* pending;
+	struct xe_resolve_entry : public xe_linked_list{
 		xe_endpoint endpoint;
+		bool in_progress: 1;
 	};
 
 	xe_loop* loop_;
@@ -66,10 +61,9 @@ private:
 
 	xe_resolve resolver;
 
-	xe_connection* connections;
+	xe_linked_list connections;
 	size_t active_connections_;
 	size_t active_resolves_;
-	size_t closing_connections;
 
 	bool closing: 1;
 	bool resolver_closing: 1;
@@ -82,10 +76,8 @@ public:
 		for(auto& protocol : protocols)
 			protocol = null;
 		resolver.close_callback = close_cb;
-		connections = null;
 		active_connections_ = 0;
 		active_resolves_ = 0;
-		closing_connections = 0;
 
 		closing = false;
 		resolver_closing = false;

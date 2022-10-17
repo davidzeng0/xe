@@ -61,7 +61,7 @@ public:
 
 	xe_string_view location() const;
 
-	~xe_http_common_data(){}
+	~xe_http_common_data() = default;
 };
 
 }

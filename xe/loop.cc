@@ -221,11 +221,7 @@ inline int xe_loop::queue_io(int op, xe_req& req, F init_sqe){
 
 	if(!info)
 		return XE_ENOMEM;
-	if(reqs)
-		reqs -> prev = info;
-	info -> next = reqs;
-	info -> prev = null;
-	reqs = info;
+	reqs.append(info -> node);
 	sqe = &info -> sqe;
 
 	goto store;
@@ -273,18 +269,9 @@ int xe_loop::queue_cancel(int op, xe_req& req, xe_req& cancel, F init_sqe){
 	info = cancel.info;
 
 	/* check if the request was put in our deferred queue */
-	if(info && (info == reqs || info -> prev)){
+	if(info && info -> node.in_list()){
 		/* remove the request */
-		next = info -> next;
-
-		if(info == reqs)
-			reqs = next;
-		else
-			info -> prev -> next = next;
-		if(next) reqs -> prev = info -> prev;
-
-		info -> prev = null;
-		info -> next = null;
+		info -> node.erase();
 
 		return 0;
 	}
@@ -299,7 +286,6 @@ int xe_loop::queue_cancel(int op, xe_req& req, xe_req& cancel, F init_sqe){
 
 int xe_loop::queue_pending(){
 	/* submit deferred requests */
-	xe_req_info* next;
 	int err;
 
 	if(!reqs) [[likely]]
@@ -310,21 +296,16 @@ int xe_loop::queue_pending(){
 	}
 
 	while(reqs){
-		next = reqs -> next;
-		err = queue_io(*reqs);
+		err = queue_io(xe_containerof(reqs.head(), &xe_req_info::node));
 
-		if(!err){
-			reqs -> prev = null;
-			reqs -> next = null;
-			reqs = next;
-
-			if(next) next -> prev = null;
-		}else if(err != XE_EAGAIN){
+		if(!err)
+			reqs.erase(reqs.head());
+		else if(err == XE_EAGAIN)
+			break;
+		else{
 			error = err;
 
 			return err;
-		}else{
-			break;
 		}
 	}
 

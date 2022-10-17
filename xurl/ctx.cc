@@ -66,13 +66,9 @@ int xurl_ctx::resolve(xe_connection& conn, const xe_string_view& host, xe_endpoi
 	auto entry = endpoints.find((xe_string&)host);
 
 	if(entry != endpoints.end()){
-		/* host resolution is in progress */
-		if(entry -> second -> pending){
-			conn.next = entry -> second -> pending;
-
-			if(conn.next)
-				conn.next -> prev = &conn;
-		}else{
+		/* host resolution already started */
+		if(!entry -> second -> in_progress){
+			/* host resolution already completed */
 			ep = &entry -> second -> endpoint;
 
 			return 0;
@@ -82,7 +78,7 @@ int xurl_ctx::resolve(xe_connection& conn, const xe_string_view& host, xe_endpoi
 		xe_unique_ptr<xe_resolve_entry> data;
 		int err;
 
-		data.own(xe_zalloc<xe_resolve_entry>());
+		data.own(xe_znew<xe_resolve_entry>());
 
 		if(!data || !host_copy.copy(host))
 			return XE_ENOMEM;
@@ -101,13 +97,11 @@ int xurl_ctx::resolve(xe_connection& conn, const xe_string_view& host, xe_endpoi
 			return err;
 		}
 
-		conn.next = null;
 		active_resolves_++;
 	}
 
-	entry -> second -> pending = &conn;
-	/* set prev to clear the link list head if cancelled */
-	conn.prev = (xe_connection*)&*entry -> second;
+	/* append to waiting list */
+	entry -> second -> append(conn.node);
 
 	return XE_EINPROGRESS;
 }
@@ -121,85 +115,48 @@ void xurl_ctx::close_cb(xe_resolve& resolve){
 
 void xurl_ctx::resolved(xe_ptr data, const xe_string_view& host, xe_endpoint&& endpoint, int status){
 	xurl_ctx& ctx = *(xurl_ctx*)data;
-	xe_connection* conn;
-	xe_connection* next;
-
 	auto entry = ctx.endpoints.find((xe_string&)host);
+	xe_resolve_entry& list = *entry -> second;
+	xe_connection* conn;
 
 	xe_assert(entry != ctx.endpoints.end());
 
 	ctx.active_resolves_--;
-	conn = entry -> second -> pending;
-	entry -> second -> pending = null;
 
 	if(!status && ctx.closing)
 		status = XE_ECANCELED;
 	if(!status)
-		entry -> second -> endpoint = std::move(endpoint);
-	else
-		ctx.endpoints.erase(entry);
-	while(conn){
-		next = conn -> next;
-		conn -> next = null;
-		conn -> prev = null;
+		list.endpoint = std::move(endpoint);
+	while(list){
+		conn = &xe_containerof(list.head(), &xe_connection::node);
+		list.erase(conn -> node);
+		ctx.connections.append(conn -> node);
 
 		if(status)
 			conn -> close(status);
 		else
-			conn -> start_connect(entry -> second -> endpoint);
-		conn = next;
+			conn -> start_connect(list.endpoint);
 	}
+
+	if(status) ctx.endpoints.erase(entry);
 }
 
 void xurl_ctx::add(xe_connection& conn){
-	xe_assert(conn.next == null && conn.prev == null);
+	xe_assert(!conn.node.in_list());
 
-	if(connections)
-		connections -> prev = &conn;
-	conn.next = connections;
-	connections = &conn;
-}
-
-void xurl_ctx::resolve_remove(xe_connection& conn){
-	if(conn.next)
-		conn.next -> prev = conn.prev;
-	if(conn.prev)
-		conn.prev -> next = conn.next;
+	connections.append(conn.node);
 }
 
 void xurl_ctx::remove(xe_connection& conn){
-	if(closing)
-		return;
-	xe_assert((conn.prev == null) == (&conn == connections));
+	xe_assert(conn.node.in_list());
 
-	if(conn.next)
-		conn.next -> prev = conn.prev;
-	if(conn.prev)
-		conn.prev -> next = conn.next;
-	else
-		connections = conn.next;
-}
-
-void xurl_ctx::count(){
-	active_connections_++;
-}
-
-void xurl_ctx::uncount(){
-	active_connections_--;
-}
-
-void xurl_ctx::count_closing(){
-	closing_connections++;
-}
-
-void xurl_ctx::uncount_closing(){
-	closing_connections--;
+	connections.erase(conn.node);
 
 	if(closing) check_close();
 }
 
 void xurl_ctx::check_close(){
-	if(resolver_closing || closing_connections)
+	if(resolver_closing || connections)
 		return;
 	closing = false;
 
@@ -233,31 +190,26 @@ fail:
 
 int xurl_ctx::close(){
 	xe_connection* conn;
-	xe_connection* next;
 	int res;
 
 	if(closing)
 		return XE_EALREADY;
-	conn = connections;
-	connections = null;
-
 	closing = true;
 	res = resolver.close();
 	endpoints.clear();
 
 	if(res)
 		resolver_closing = true;
-	while(conn){
-		next = conn -> next;
-		conn -> prev = null;
-		conn -> next = null;
+	auto cur = connections.begin(),
+		end = connections.end();
+	while(cur != end){
+		conn = &xe_containerof(*(cur++), &xe_connection::node);
 		conn -> close(XE_ECANCELED);
-		conn = next;
 	}
 
 	for(auto protocol : protocols)
 		xe_delete(protocol);
-	if(!resolver_closing && !closing_connections)
+	if(!resolver_closing && !connections)
 		closing = false;
 	else if(!res)
 		res = XE_EINPROGRESS;

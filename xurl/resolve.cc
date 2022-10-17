@@ -273,7 +273,6 @@ int xe_resolve::sockcreate(int fd, int type, xe_ptr data){
 
 static bool alloc_entries(size_t inet_len, size_t inet6_len, xe_slice<in_addr>& inet, xe_slice<in6_addr>& inet6){
 	ptrdiff_t inet_total, inet6_total, total;
-
 	byte* endpoints;
 
 	if(xe_overflow_mul(inet_total, inet_len, sizeof(in_addr)) ||

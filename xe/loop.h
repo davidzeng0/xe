@@ -17,6 +17,7 @@ typedef typename std::coroutine_handle<> xe_coroutine_handle;
 #include <liburing.h>
 #include "xstd/types.h"
 #include "xstd/rbtree.h"
+#include "xstd/linked_list.h"
 #include "xutil/util.h"
 
 enum xe_iobuf_size{
@@ -26,13 +27,12 @@ enum xe_iobuf_size{
 
 class xe_req_info{
 private:
-	xe_req_info* prev;
-	xe_req_info* next;
+	xe_linked_node node;
 	io_uring_sqe sqe;
 
 	friend class xe_loop;
 public:
-	xe_req_info(): prev(), next(){}
+	xe_req_info() = default;
 
 	xe_disallow_copy_move(xe_req_info)
 
@@ -226,7 +226,7 @@ private:
 	xe_rbtree<ulong> timers;
 
 	xe_ptr io_buf;
-	xe_req_info* reqs;
+	xe_linked_list reqs;
 
 	ulong handles;
 	uint queued;
@@ -257,7 +257,6 @@ public:
 		active_timers = 0;
 
 		io_buf = null;
-		reqs = null;
 
 		handles = 0;
 		queued = 0;
