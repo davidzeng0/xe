@@ -63,16 +63,6 @@ cd build
 ./echoserver
 ```
 
-### Libraries
-
-| name      | description                                               |
-| --------- | ----------------------------------------------------------|
-| xe        | io_uring event loop with support for c++ 20 coroutines    |
-| xurl      | url client library                                        |
-| xstd      | structures and algorithms                                 |
-| xutil     | utility library                                           |
-| xarch     | architecture specific optimized subroutines               |
-
 ### Using
 
 #### Prerequisites
