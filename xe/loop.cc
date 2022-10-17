@@ -34,28 +34,18 @@ xe_promise::xe_promise(){
 static inline int xe_ring_enter(io_uring& ring, uint submit, uint wait, uint flags, ulong timeout){
 	io_uring_getevents_arg args;
 	__kernel_timespec ts;
-	sigset_t* arg;
-	size_t sz;
 
-	if(wait){
-		flags |= IORING_ENTER_EXT_ARG;
+	flags |= IORING_ENTER_EXT_ARG;
 
-		args.sigmask = 0;
-		args.sigmask_sz = _NSIG / 8;
-		args.ts = (ulong)&ts;
-		args.pad = 0;
+	args.sigmask = 0;
+	args.sigmask_sz = _NSIG / 8;
+	args.ts = (ulong)&ts;
+	args.pad = 0;
 
-		ts.tv_nsec = timeout;
-		ts.tv_sec = 0;
+	ts.tv_nsec = timeout;
+	ts.tv_sec = 0;
 
-		arg = (sigset_t*)&args;
-		sz = sizeof(args);
-	}else{
-		arg = null;
-		sz = _NSIG / 8;
-	}
-
-	return io_uring_enter2(ring.ring_fd, submit, wait, flags, arg, sz);
+	return io_uring_enter2(ring.ring_fd, submit, wait, flags, (sigset_t*)&args, sizeof(args));
 }
 
 static inline bool xe_cqe_need_flush(io_uring& ring){
@@ -300,13 +290,10 @@ int xe_loop::queue_pending(){
 
 		if(!err)
 			reqs.erase(reqs.head());
-		else if(err == XE_EAGAIN)
-			break;
-		else{
-			error = err;
-
+		else if(err != XE_EAGAIN)
 			return err;
-		}
+		else
+			break;
 	}
 
 	return 0;
@@ -405,8 +392,6 @@ int xe_loop::run(){
 	cqe_head = *ring.cq.khead;
 	cqe_tail = cqe_head;
 
-	xe_return_error(error);
-
 	while(true){
 		xe_return_error(queue_pending());
 
@@ -452,7 +437,7 @@ int xe_loop::run(){
 			res = wait(1, timeout);
 
 			if(res && res != XE_ETIME)
-				return res;
+				goto exit;
 			goto runevents;
 		}else{
 			/* nothing else to do */
@@ -462,7 +447,7 @@ int xe_loop::run(){
 		if(!res) [[likely]]
 			cqe_tail = io_uring_smp_load_acquire(ring.cq.ktail);
 		else if(res != XE_EBUSY && res != XE_ETIME)
-			return res;
+			goto exit;
 	runevents:
 		if(it != timers.end()){
 			now = xe_time_ns();
@@ -474,10 +459,10 @@ int xe_loop::run(){
 					break;
 				run_timer(timer, now);
 
+				if(error) [[unlikely]]
+					goto exit_error;
 				it = timers.begin();
-			}while(it != timers.end() && !error);
-
-			xe_return_error(error);
+			}while(it != timers.end());
 		}
 
 		if(cqe_tail == cqe_head)
@@ -496,13 +481,18 @@ int xe_loop::run(){
 				handles--;
 			if(req -> event) [[likely]]
 				req -> event(*req, cqe -> res, res);
-		}while(cqe_head != cqe_tail && !error);
+			if(error) [[unlikely]]
+				goto exit_error;
+		}while(cqe_head != cqe_tail);
 
-		xe_return_error(error);
 		io_uring_smp_store_release(ring.cq.khead, cqe_tail);
 	}
-
-	return error;
+	return 0;
+exit_error:
+	res = error;
+	error = 0;
+exit:
+	return res;
 }
 
 uint xe_loop::sqe_count() const{
