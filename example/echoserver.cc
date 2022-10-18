@@ -10,7 +10,6 @@
 
 static ulong last_time, recvs = 0, sends = 0, clients = 0;
 static xe_socket server;
-static const uint buffer_length = 16384;
 
 /* stats */
 static int timer_callback(xe_loop& loop, xe_timer& timer){
@@ -27,6 +26,9 @@ static int timer_callback(xe_loop& loop, xe_timer& timer){
 
 /* client structure */
 struct echo_client{
+	/* smaller buffer sizes yield greater performance due to close proximity between blocks */
+	static constexpr uint buffer_length = 512;
+
 	xe_socket socket;
 	xe_req recv;
 	xe_req send;
@@ -65,9 +67,12 @@ struct echo_client{
 		send.callback = send_callback;
 
 		/* alloc buffer */
-		buf = xe_alloc_aligned<byte>(0, buffer_length); /* page size aligned alloc */
+		buf = xe_alloc_aligned<byte>(buffer_length, buffer_length);
 
 		xe_print("accepted a client. %lu clients open", ++clients);
+
+		/* start recving */
+		socket.recv(recv, buf, buffer_length, 0);
 	}
 
 	~echo_client(){
@@ -90,9 +95,6 @@ static void accept_callback(xe_req& req, int result){
 
 	/* create a client socket */
 	echo_client* cl = xe_znew<echo_client>(server.loop(), result);
-
-	/* start recving */
-	cl -> socket.recv(cl -> recv, cl -> buf, buffer_length, 0);
 }
 
 static void setup_socket(){

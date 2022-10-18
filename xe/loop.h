@@ -228,14 +228,13 @@ private:
 	xe_ptr io_buf;
 	xe_linked_list reqs;
 
-	ulong handles;
-	uint queued;
+	ulong handles_;
+	uint queued_;
 
 	int error;
 	bool sq_ring_full: 1;
 
-	int submit(uint, ulong, bool);
-	int wait(uint, ulong);
+	int submit(bool);
 
 	void run_timer(xe_timer&, ulong);
 	void queue_timer(xe_timer&);
@@ -258,8 +257,8 @@ public:
 
 		io_buf = null;
 
-		handles = 0;
-		queued = 0;
+		handles_ = 0;
+		queued_ = 0;
 
 		error = 0;
 		sq_ring_full = false;
@@ -277,6 +276,9 @@ public:
 	uint cqe_count() const; /* total cqes */
 	uint remain() const; /* remaining sqes */
 	uint capacity() const; /* alias for sqe_count */
+
+	uint queued() const; /* number of buffered requests */
+	ulong handles() const; /* number of in progress requests */
 
 	int flush(); /* submit any queued sqes */
 

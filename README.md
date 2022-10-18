@@ -9,7 +9,7 @@ Documentation is still WIP
 - High Performance
 - Low Latency I/O
 - Fast Nanosecond Precision Timers
-- Ultra Lightweight (1.8% overhead for [coroutine_echoserver](https://github.com/ilikdoge/xe/blob/master/example/coroutines/echoserver.cc))
+- Ultra Lightweight (0.6% overhead for [echoserver](https://github.com/ilikdoge/xe/blob/master/example/echoserver.cc))
 
 #### xe/io
 - Socket and File classes and utilities

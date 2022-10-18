@@ -12,7 +12,6 @@
 #include "coroutine.h"
 
 static ulong last_time, recvs = 0, sends = 0, clients = 0;
-static const uint buffer_length = 16384;
 
 static int timer_callback(xe_loop& loop, xe_timer& timer){
 	ulong now = xe_time_ns();
@@ -27,11 +26,14 @@ static int timer_callback(xe_loop& loop, xe_timer& timer){
 }
 
 static task echo(xe_loop& loop, int fd){
+	/* smaller buffer sizes yield greater performance due to close proximity between blocks */
+	constexpr uint buffer_length = 512;
+
 	xe_socket socket(loop);
 	int result;
 	byte* buf;
 
-	buf = xe_alloc_aligned<byte>(0, buffer_length); /* page size aligned alloc */
+	buf = xe_alloc_aligned<byte>(buffer_length, buffer_length);
 	socket.accept(fd);
 
 	while(true){
