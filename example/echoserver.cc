@@ -1,5 +1,6 @@
 #include <netdb.h>
 #include <arpa/inet.h>
+#include <netinet/tcp.h>
 #include <xe/loop.h>
 #include <xe/clock.h>
 #include <xe/error.h>
@@ -60,6 +61,10 @@ struct echo_client{
 
 	echo_client(xe_loop& loop, int fd): socket(loop){
 		/* set up socket */
+		int yes = 1;
+
+		setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &yes, sizeof(yes));
+
 		socket.accept(fd);
 
 		/* set up callbacks */
