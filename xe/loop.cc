@@ -88,6 +88,11 @@ inline int xe_loop::submit(bool want_events){
 		xe_rbtree<ulong>::iterator it;
 		ulong now;
 
+		if(!submit && !handles_ && !active_timers) [[unlikely]] {
+			/* done */
+			return XE_ENOENT;
+		}
+
 		if(sq_ring_full) [[unlikely]] {
 			/* not enough memory to submit more, just wait for returns */
 			submit = 0;
@@ -108,26 +113,23 @@ inline int xe_loop::submit(bool want_events){
 		now = xe_time_ns();
 		it = timers.begin();
 		timeout = MAX_WAIT;
+		wait = 1;
 
 		if(it != timers.end()){
 			/* we may have to exit early to run the timer */
-			timeout = now < it -> key ? it -> key - now : 0;
-			timeout = xe_min<ulong>(timeout, MAX_WAIT); // todo test branching here
+			if(now < it -> key)
+				timeout = xe_min<ulong>(it -> key - now, MAX_WAIT);
+			else{
+				/* if timer already expired, just submit and/or flush cqe, don't wait */
+				wait = 0;
+			}
 		}
-
-		/* if timer already expired, just submit and/or flush cqe, don't wait */
-		wait = timeout ? 1 : 0;
 
 		if(submit || wait) [[likely]]
 			break;
 		if(xe_cqe_needs_enter(ring)) [[likely]] {
 			/* events need to be flushed or task worked */
 			break;
-		}
-
-		if(!handles_){
-			/* only running timers, no outstanding i/o */
-			return active_timers ? 0 : XE_ENOENT;
 		}
 
 		/* nothing to do */
