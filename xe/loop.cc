@@ -48,8 +48,26 @@ static inline int xe_ring_enter(io_uring& ring, uint submit, uint wait, uint fla
 	return io_uring_enter2(ring.ring_fd, submit, wait, flags, (sigset_t*)&args, sizeof(args));
 }
 
-static inline bool xe_cqe_need_flush(io_uring& ring){
-	return IO_URING_READ_ONCE(*ring.sq.kflags) & (IORING_SQ_CQ_OVERFLOW | IORING_SQ_TASKRUN) ? true : false;
+static inline bool xe_cqe_test_flags(io_uring& ring, uint flags){
+	return IO_URING_READ_ONCE(*ring.sq.kflags) & (flags) ? true : false;
+}
+
+static inline bool xe_cqe_needs_enter(io_uring& ring){
+	return xe_cqe_test_flags(ring, IORING_SQ_CQ_OVERFLOW | IORING_SQ_TASKRUN);
+}
+
+static inline bool xe_cqe_needs_flush(io_uring& ring){
+	return xe_cqe_test_flags(ring, IORING_SQ_CQ_OVERFLOW);
+}
+
+static inline uint xe_cqe_available(io_uring& ring){
+	uint cqe_head;
+	uint cqe_tail;
+
+	cqe_head = *ring.cq.khead;
+	cqe_tail = io_uring_smp_load_acquire(ring.cq.ktail);
+
+	return cqe_tail - cqe_head;
 }
 
 inline int xe_loop::submit(bool want_events){
@@ -59,14 +77,14 @@ inline int xe_loop::submit(bool want_events){
 
 	ulong timeout;
 
-	uint cqe_head;
-	uint cqe_tail;
-
 	submit = queued_;
 	flags = 0;
 	wait = 0;
 
-	while(want_events){
+	if(!want_events){
+		if(xe_cqe_needs_flush(ring)) [[unlikely]]
+			flags |= IORING_ENTER_GETEVENTS;
+	}else do{
 		xe_rbtree<ulong>::iterator it;
 		ulong now;
 
@@ -75,11 +93,9 @@ inline int xe_loop::submit(bool want_events){
 			submit = 0;
 		}
 
-		if(!submit){
-			cqe_head = *ring.cq.khead;
-			cqe_tail = io_uring_smp_load_acquire(ring.cq.ktail);
-
-			if(cqe_tail != cqe_head) return 0;
+		if(!submit && xe_cqe_available(ring)){
+			/* events available */
+			return 0;
 		}
 
 		flags |= IORING_ENTER_GETEVENTS;
@@ -96,89 +112,87 @@ inline int xe_loop::submit(bool want_events){
 		if(it != timers.end()){
 			/* we may have to exit early to run the timer */
 			timeout = now < it -> key ? it -> key - now : 0;
-			timeout = xe_min<ulong>(timeout, MAX_WAIT);
+			timeout = xe_min<ulong>(timeout, MAX_WAIT); // todo test branching here
 		}
 
 		/* if timer already expired, just submit and/or flush cqe, don't wait */
 		wait = timeout ? 1 : 0;
 
-		if(submit) [[likely]]
+		if(submit || wait) [[likely]]
 			break;
-		if(!wait) [[unlikely]] {
-			if(!xe_cqe_need_flush(ring)){
-				/* nothing to wait for, flush, or submit: just return */
-				return 0;
-			}
-
-			if(!handles_){
-				/* only running timers, no outstanding i/o */
-				return active_timers ? 0 : XE_ENOENT;
-			}
+		if(xe_cqe_needs_enter(ring)) [[likely]] {
+			/* events need to be flushed or task worked */
+			break;
 		}
 
-		break;
-	}
+		if(!handles_){
+			/* only running timers, no outstanding i/o */
+			return active_timers ? 0 : XE_ENOENT;
+		}
 
-	if(!want_events || submit) [[likely]] {
+		/* nothing to do */
+		return 0;
+	}while(false);
+
+	do{
+		if(want_events && !submit) [[unlikely]] {
+			/* only getevents */
+			break;
+		}
+
+		/* submit sqes */
 		if(!(ring.flags & IORING_SETUP_SQPOLL)) [[likely]] {
 			io_uring_smp_store_release(ring.sq.ktail, ring.sq.sqe_tail);
-		}else{
-			IO_URING_WRITE_ONCE(*ring.sq.ktail, ring.sq.sqe_tail);
-			io_uring_smp_mb();
 
-			if(IO_URING_READ_ONCE(*ring.sq.kflags) & IORING_SQ_NEED_WAKEUP) [[unlikely]]
-				flags |= IORING_ENTER_SQ_WAKEUP;
-			if(!flags){
-				res = submit;
-
-				goto sqpoll_done;
-			}
+			break;
 		}
-	}
+
+		IO_URING_WRITE_ONCE(*ring.sq.ktail, ring.sq.sqe_tail);
+		io_uring_smp_mb();
+
+		if(IO_URING_READ_ONCE(*ring.sq.kflags) & IORING_SQ_NEED_WAKEUP) [[unlikely]]
+			flags |= IORING_ENTER_SQ_WAKEUP;
+		if(flags)
+			break;
+		res = submit;
+
+		goto sqpoll_done;
+	}while(false);
 
 	res = xe_ring_enter(ring, submit, wait, flags, timeout);
 
 	if(res < 0) [[unlikely]]
 		goto err;
 sqpoll_done:
-	if(submit) [[likely]] {
-		if(!res) [[unlikely]]
-			goto ring_full;
+	sq_ring_full = false;
+
+	if(!want_events || submit) [[likely]] {
 		xe_log_trace(this, "<< ring %u", res);
+
+		if(!res) [[unlikely]] {
+			/* didn't submit anything but kernel has memory for the next submit */
+			return want_events ? 0 : XE_EAGAIN;
+		}
 
 		queued_ -= res;
 		handles_ += res;
-
-		if(sq_ring_full) [[unlikely]] {
-			if(!queued_){
-				sq_ring_full = false;
-
-				return 0;
-			}
-
-			cqe_head = *ring.cq.khead;
-			cqe_tail = io_uring_smp_load_acquire(ring.cq.ktail);
-
-			if(cqe_head != cqe_tail)
-				sq_ring_full = false;
-		}
 	}
 
 	return 0;
 err:
 	if(res == XE_ETIME || res == XE_EBUSY || res == XE_EINTR) [[likely]]
 		return 0;
-	if(res == XE_EAGAIN)
-		goto ring_full;
+	if(res == XE_EAGAIN){
+		xe_log_debug(this, "<< ring queue full");
+
+		sq_ring_full = true;
+
+		return want_events ? 0 : XE_EAGAIN;
+	}
+
 	xe_log_error(this, "<< ring fatal error: %s", xe_strerror(res));
 
 	return res == XE_EBADR ? XE_ENOMEM : XE_FATAL;
-ring_full:
-	xe_log_debug(this, "<< ring queue full");
-
-	sq_ring_full = true;
-
-	return XE_EAGAIN;
 }
 
 void xe_loop::run_timer(xe_timer& timer, ulong now){
@@ -317,14 +331,13 @@ enqueue:
 
 template<class F>
 int xe_loop::queue_cancel(int op, xe_req& req, xe_req& cancel, F init_sqe){
-	xe_req_info* info, *next;
+	xe_req_info* info;
 	int res;
 
 	info = cancel.info;
 
-	/* check if the request was put in our deferred queue */
 	if(info && info -> node.in_list()){
-		/* remove the request */
+		/* the request was put in our deferred queue */
 		info -> node.erase();
 
 		return 0;
@@ -489,10 +502,10 @@ int xe_loop::run(){
 			flags = cqe -> flags;
 			res = cqe -> res;
 
-			if(!(res & IORING_CQE_F_MORE)) [[likely]]
+			if(!(flags & IORING_CQE_F_MORE)) [[likely]]
 				handles_--;
 			if(req -> event) [[likely]]
-				req -> event(*req, cqe -> res, res);
+				req -> event(*req, res, flags);
 			if(error) [[unlikely]]
 				goto exit_error;
 		}while(cqe_tail != cqe_head);
