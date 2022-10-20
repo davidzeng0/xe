@@ -1,5 +1,6 @@
 #include "xconfig/cpu.h"
 #include "xutil/encoding.h"
+#include "xutil/endian.h"
 #include "xstd/hash.h"
 #include "../arch.h"
 #include "../common.h"
@@ -31,20 +32,34 @@ size_t xe_arch_hash_bytes(xe_cptr ptr, size_t len){
 
 	if(!len)
 		goto end;
+	/* the amount of bytes we can read before crossing a page boundary */
 	align = XE_PAGESIZE - xe_arch_alignof(data, XE_PAGESIZE);
 
 	if(len <= align && block_size > align){
+		/*
+		 * if we can't read past the boundary and
+		 * the number of bytes wanted is more than what's left,
+		 * do an aligned read and bitshift after
+		 */
 		align = xe_arch_alignof(data, block_size);
 		data = xe_arch_alignto(data, block_size);
 
 		k = *data;
-		k >>= align * 8;
+
+		/* trim off the bytes at the start */
+		if(XE_BYTE_ORDER == XE_LITTLE_ENDIAN)
+			k >>= align * 8;
+		else
+			k <<= align * 8;
 	}else{
 		k = *data;
 	}
 
-	k &= (ULONG_MAX >> (8 * (block_size - len)));
-
+	/* trim off the bytes at the end */
+	if(XE_BYTE_ORDER == XE_LITTLE_ENDIAN)
+		k &= xe_max_value<ulong>() >> (8 * (block_size - len));
+	else
+		k &= xe_max_value<ulong>() << (8 * (block_size - len));
 	h ^= k;
 	h *= m;
 end:

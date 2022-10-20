@@ -314,6 +314,13 @@ public:
 	xe_promise func(__VA_ARGS__);			\
 	xe_promise func##_ex(byte sq_flags, ushort ioprio, ##__VA_ARGS__);
 
+	/* ioprio and buffer_select */
+#define XE_OP_DEFINE3(func, ...)			\
+	int func(xe_req& req, ##__VA_ARGS__);	\
+	int func##_ex(xe_req& req, byte sq_flags, ushort ioprio, ushort buf_group, ##__VA_ARGS__); \
+	xe_promise func(__VA_ARGS__);			\
+	xe_promise func##_ex(byte sq_flags, ushort ioprio, ushort buf_group, ##__VA_ARGS__);
+
 	XE_OP_DEFINE1(nop)
 
 	XE_OP_DEFINE1(openat, 			int dfd, xe_cstr path, uint flags, mode_t mode, uint file_index = 0)
@@ -322,9 +329,9 @@ public:
 	XE_OP_DEFINE1(close, 			int fd)
 	XE_OP_DEFINE1(close_direct, 	uint file_index)
 
-	XE_OP_DEFINE2(read, 			int fd, xe_ptr buf, uint len, long offset, uint flags = 0)
+	XE_OP_DEFINE3(read, 			int fd, xe_ptr buf, uint len, long offset, uint flags = 0)
 	XE_OP_DEFINE2(write, 			int fd, xe_cptr buf, uint len, long offset, uint flags = 0)
-	XE_OP_DEFINE2(readv, 			int fd, const iovec* iovecs, uint vlen, long offset, uint flags = 0)
+	XE_OP_DEFINE3(readv, 			int fd, const iovec* iovecs, uint vlen, long offset, uint flags = 0)
 	XE_OP_DEFINE2(writev, 			int fd, const iovec* iovecs, uint vlen, long offset, uint flags = 0)
 	XE_OP_DEFINE2(read_fixed, 		int fd, xe_ptr buf, uint len, long offset, uint buf_index, uint flags = 0)
 	XE_OP_DEFINE2(write_fixed, 		int fd, xe_cptr buf, uint len, long offset, uint buf_index, uint flags = 0)
@@ -357,9 +364,9 @@ public:
 	XE_OP_DEFINE1(connect, 			int fd, const sockaddr* addr, socklen_t addrlen)
 	XE_OP_DEFINE2(accept, 			int fd, sockaddr* addr, socklen_t* addrlen, uint flags, uint file_index = 0)
 
-	XE_OP_DEFINE2(recv, 			int fd, xe_ptr buf, uint len, uint flags)
+	XE_OP_DEFINE3(recv, 			int fd, xe_ptr buf, uint len, uint flags)
 	XE_OP_DEFINE2(send, 			int fd, xe_cptr buf, uint len, uint flags)
-	XE_OP_DEFINE2(recvmsg, 			int fd, msghdr* msg, uint flags)
+	XE_OP_DEFINE3(recvmsg, 			int fd, msghdr* msg, uint flags)
 	XE_OP_DEFINE2(sendmsg, 			int fd, const msghdr* msg, uint flags)
 	XE_OP_DEFINE2(send_zc, 			int fd, xe_cptr buf, uint len, uint flags, uint buf_index = 0)
 	XE_OP_DEFINE2(sendto_zc, 		int fd, xe_cptr buf, uint len, uint flags, const sockaddr* addr, socklen_t addrlen, uint buf_index = 0)
