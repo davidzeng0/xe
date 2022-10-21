@@ -18,7 +18,7 @@ static task run(xe_loop& loop){
 			break;
 		offset += result;
 
-		co_await loop.write(STDOUT_FILENO, data, result, 0);
+		co_await loop.queue(xe_op::write(STDOUT_FILENO, data, result, 0));
 	}
 
 	file.close();

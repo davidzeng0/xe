@@ -15,7 +15,6 @@ namespace xurl{
 
 class xurl_shared{
 private:
-	xe_map<xe_string, xe_endpoint> endpoints;
 	xe_fla<xe_ptr, XE_PROTOCOL_LAST> protocol_data;
 
 	xe_resolve_ctx resolve_ctx_;

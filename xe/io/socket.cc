@@ -107,7 +107,7 @@ int xe_socket::init_async(xe_socket_req& req, int af, int type, int proto){
 		return XE_EALREADY;
 	if(state != XE_SOCKET_NONE)
 		return XE_STATE;
-	xe_return_error(loop_ -> socket(req, af, type, proto, 0));
+	xe_return_error(loop_ -> queue(req, xe_op::socket(af, type, proto, 0)));
 
 	req.socket = this;
 	state = XE_SOCKET_OPENING;
@@ -124,7 +124,7 @@ xe_socket_promise xe_socket::init_async(int af, int type, int proto){
 	else if(state != XE_SOCKET_NONE)
 		res = XE_STATE;
 	else
-		res = loop_ -> socket(promise, af, type, proto, 0);
+		res = loop_ -> queue(promise, xe_op::socket(af, type, proto, 0));
 	if(res){
 		promise.result_ = res;
 		promise.ready_ = true;
@@ -139,7 +139,7 @@ xe_socket_promise xe_socket::init_async(int af, int type, int proto){
 int xe_socket::accept(xe_req& req, sockaddr* addr, socklen_t* addrlen, uint flags){
 	if(state != XE_SOCKET_LISTENING)
 		return XE_STATE;
-	return loop_ -> accept(req, fd_, addr, addrlen, flags);
+	return loop_ -> queue(req, xe_op::accept(fd_, addr, addrlen, flags));
 }
 
 int xe_socket::connect(xe_connect_req& req, const sockaddr* addr, socklen_t addrlen){
@@ -147,7 +147,7 @@ int xe_socket::connect(xe_connect_req& req, const sockaddr* addr, socklen_t addr
 		return XE_EALREADY;
 	if(state != XE_SOCKET_READY)
 		return XE_STATE;
-	xe_return_error(loop_ -> connect(req, fd_, addr, addrlen));
+	xe_return_error(loop_ -> queue(req, xe_op::connect(fd_, addr, addrlen)));
 
 	req.socket = this;
 	state = XE_SOCKET_CONNECTING;
@@ -158,7 +158,7 @@ int xe_socket::connect(xe_connect_req& req, const sockaddr* addr, socklen_t addr
 xe_promise xe_socket::accept(sockaddr* addr, socklen_t* addrlen, uint flags){
 	if(state != XE_SOCKET_LISTENING)
 		return xe_promise::done(XE_STATE);
-	return loop_ -> accept(fd_, addr, addrlen, flags);
+	return loop_ -> queue(xe_op::accept(fd_, addr, addrlen, flags));
 }
 
 xe_connect_promise xe_socket::connect(const sockaddr* addr, socklen_t addrlen){
@@ -170,7 +170,7 @@ xe_connect_promise xe_socket::connect(const sockaddr* addr, socklen_t addrlen){
 	else if(state != XE_SOCKET_READY)
 		res = XE_STATE;
 	else
-		res = loop_ -> connect(promise, fd_, addr, addrlen);
+		res = loop_ -> queue(promise, xe_op::connect(fd_, addr, addrlen));
 	if(res){
 		promise.result_ = res;
 		promise.ready_ = true;
@@ -185,25 +185,25 @@ xe_connect_promise xe_socket::connect(const sockaddr* addr, socklen_t addrlen){
 int xe_socket::recv(xe_req& req, xe_ptr buf, uint len, uint flags){
 	if(state != XE_SOCKET_CONNECTED)
 		return XE_STATE;
-	return loop_ -> recv(req, fd_, buf, len, flags);
+	return loop_ -> queue(req, xe_op::recv(fd_, buf, len, flags));
 }
 
 int xe_socket::send(xe_req& req, xe_cptr buf, uint len, uint flags){
 	if(state != XE_SOCKET_CONNECTED)
 		return XE_STATE;
-	return loop_ -> send(req, fd_, buf, len, flags);
+	return loop_ -> queue(req, xe_op::send(fd_, buf, len, flags));
 }
 
 xe_promise xe_socket::recv(xe_ptr buf, uint len, uint flags){
 	if(state != XE_SOCKET_CONNECTED)
 		return xe_promise::done(XE_STATE);
-	return loop_ -> recv(fd_, buf, len, flags);
+	return loop_ -> queue(xe_op::recv(fd_, buf, len, flags));
 }
 
 xe_promise xe_socket::send(xe_cptr buf, uint len, uint flags){
 	if(state != XE_SOCKET_CONNECTED)
 		return xe_promise::done(XE_STATE);
-	return loop_ -> send(fd_, buf, len, flags);
+	return loop_ -> queue(xe_op::send(fd_, buf, len, flags));
 }
 
 int xe_socket::bind(sockaddr* addr, socklen_t addrlen){

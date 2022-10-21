@@ -25,7 +25,7 @@ Documentation is still WIP
 static task run(xe_loop& loop){
 	char msg[] = "Hello World!\n";
 
-	co_await loop.write(STDOUT_FILENO, msg, sizeof(msg) - 1, 0);
+	co_await loop.queue(xe_op::write(STDOUT_FILENO, msg, sizeof(msg) - 1, 0));
 }
 ```
 Above snippet from [hello_world.cc](https://github.com/ilikdoge/xe/blob/master/example/coroutines/hello_world.cc)

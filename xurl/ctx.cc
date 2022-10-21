@@ -10,11 +10,12 @@
 #include "xutil/mem.h"
 #include "xutil/log.h"
 #include "xe/error.h"
+#include "xe/clock.h"
 
 using namespace xurl;
 
 enum{
-	MAX_EVENTS = 256
+	DNS_EXPIRE = 60 * 1000 /* 60 seconds */
 };
 
 int xurl_shared::init(){
@@ -46,7 +47,6 @@ const xe_ssl_ctx& xurl_shared::ssl_ctx(){
 void xurl_shared::close(){
 	resolve_ctx_.close();
 	ssl_ctx_.close();
-	endpoints.clear();
 }
 
 static xe_protocol* allocate_protocol(xurl_ctx& ctx, int id){

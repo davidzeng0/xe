@@ -41,7 +41,7 @@ int xe_file::openat(xe_open_req& req, int dfd, xe_cstr path, uint flags){
 		return XE_EALREADY;
 	if(fd_ >= 0)
 		return XE_STATE;
-	xe_return_error(loop_ -> openat(req, dfd, path, flags, 0));
+	xe_return_error(loop_ -> queue(req, xe_op::openat(dfd, path, flags, 0)));
 
 	req.file = this;
 	opening = true;
@@ -62,7 +62,7 @@ xe_open_promise xe_file::openat(int dfd, xe_cstr path, uint flags){
 	else if(fd_ >= 0)
 		res = XE_STATE;
 	else
-		res = loop_ -> openat(promise, dfd, path, flags, 0);
+		res = loop_ -> queue(promise, xe_op::openat(dfd, path, flags, 0));
 	if(res){
 		promise.result_ = res;
 		promise.ready_ = true;
@@ -77,25 +77,25 @@ xe_open_promise xe_file::openat(int dfd, xe_cstr path, uint flags){
 int xe_file::read(xe_req& req, xe_ptr buf, uint len, long offset){
 	if(fd_ < 0)
 		return XE_STATE;
-	return loop_ -> read(req, fd_, buf, len, offset);
+	return loop_ -> queue(req, xe_op::read(fd_, buf, len, offset));
 }
 
 int xe_file::write(xe_req& req, xe_cptr buf, uint len, long offset){
 	if(fd_ < 0)
 		return XE_STATE;
-	return loop_ -> write(req, fd_, buf, len, offset);
+	return loop_ -> queue(req, xe_op::write(fd_, buf, len, offset));
 }
 
 xe_promise xe_file::read(xe_ptr buf, uint len, long offset){
 	if(fd_ < 0)
 		return xe_promise::done(XE_STATE);
-	return loop_ -> read(fd_, buf, len, offset);
+	return loop_ -> queue(xe_op::read(fd_, buf, len, offset));
 }
 
 xe_promise xe_file::write(xe_cptr buf, uint len, long offset){
 	if(fd_ < 0)
 		return xe_promise::done(XE_STATE);
-	return loop_ -> write(fd_, buf, len, offset);
+	return loop_ -> queue(xe_op::write(fd_, buf, len, offset));
 }
 
 void xe_file::close(){

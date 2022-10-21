@@ -36,7 +36,7 @@ void xe_poll::poll_cb(xe_req& req, int events){
 		goto done;
 ok:
 	handle.updated = false;
-	res = handle.loop_ -> poll(handle.poll_req, handle.fd_, handle.events_);
+	res = handle.loop_ -> queue(handle.poll_req, xe_op::poll(handle.fd_, handle.events_));
 
 	if(!res) [[likely]]
 		return;
@@ -69,7 +69,7 @@ void xe_poll::cancel_cb(xe_req& req, int cancel_res){
 	}
 
 	handle.restart = false;
-	res = handle.loop_ -> poll_cancel(handle.cancel_req, handle.poll_req);
+	res = handle.loop_ -> cancel(handle.cancel_req, handle.poll_req, xe_op::poll_cancel());
 
 	if(res == XE_EINPROGRESS)
 		handle.modifying = true;
@@ -96,7 +96,7 @@ int xe_poll::update_poll(){
 		restart = true;
 	}else{
 		/* force the poll request to return and restart using new events */
-		int res = loop_ -> poll_cancel(cancel_req, poll_req);
+		int res = loop_ -> cancel(cancel_req, poll_req, xe_op::poll_cancel());
 
 		if(res != XE_EINPROGRESS){
 			xe_assert(res);
@@ -185,7 +185,7 @@ int xe_poll::poll(uint events){
 		events |= XE_POLL_ERR | XE_POLL_HUP | XE_POLL_NVAL | XE_POLL_RDHUP;
 
 		if(!polling){
-			xe_return_error(loop_ -> poll(poll_req, fd_, events));
+			xe_return_error(loop_ -> queue(poll_req, xe_op::poll(fd_, events)));
 
 			polling = true;
 		}else{

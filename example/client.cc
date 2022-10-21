@@ -45,7 +45,6 @@ void send_callback(xe_req& req, int result){
 		client.socket.recv(client.recv, buf, buffer_length, 0);
 }
 
-
 int main(){
 	xe_loop loop;
 	client c;

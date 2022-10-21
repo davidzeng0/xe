@@ -19,6 +19,9 @@ typedef typename std::coroutine_handle<> xe_coroutine_handle;
 #include "xstd/rbtree.h"
 #include "xstd/linked_list.h"
 #include "xutil/util.h"
+#include "error.h"
+#include "xe.h"
+#include "op.h"
 
 enum xe_iobuf_size{
 	XE_LOOP_IOBUF_SIZE = 16 * 1024,
@@ -28,7 +31,7 @@ enum xe_iobuf_size{
 class xe_req_info{
 private:
 	xe_linked_node node;
-	io_uring_sqe sqe;
+	xe_op op;
 
 	friend class xe_loop;
 public:
@@ -61,7 +64,6 @@ enum xe_timer_flags{
 	XE_TIMER_PASSIVE = 0x8 /* timer does not prevent loop from exiting */
 };
 
-class xe_loop;
 class xe_timer{
 private:
 	xe_rbtree<ulong>::node expire;
@@ -240,17 +242,10 @@ private:
 	void queue_timer(xe_timer&);
 	void erase_timer(xe_timer&);
 
-	template<class F>
-	int queue_io(int, xe_req&, F);
 	int queue_io(xe_req_info&);
-
-	template<class F>
-	int queue_cancel(int, xe_req&, xe_req&, F);
-
 	int queue_pending();
 
-	template<class F>
-	xe_promise make_promise(int, F);
+	int get_sqe(xe_req&, io_uring_sqe*&);
 public:
 	xe_loop(){
 		active_timers = 0;
@@ -271,6 +266,69 @@ public:
 	void close();
 
 	int run();
+
+	__attribute__((always_inline)) int queue(xe_req& req, xe_op op){
+		io_uring_sqe* sqe;
+
+		xe_return_error(get_sqe(req, sqe));
+
+		/* copy io parameters */
+		*sqe = op.sqe;
+		sqe -> user_data = (ulong)&req;
+
+		return 0;
+	}
+
+	__attribute__((always_inline)) int cancel(xe_req& req, xe_req& cancel, xe_op op){
+		xe_req_info* info;
+		int res;
+
+		info = cancel.info;
+
+		if(info && info -> node.in_list()){
+			/* the request was put in our deferred queue */
+			if(op.sqe.opcode == IORING_OP_POLL_REMOVE && op.sqe.len & (IORING_POLL_UPDATE_EVENTS | IORING_POLL_UPDATE_USER_DATA)){
+				/* poll update, not queued yet so just modify here */
+				if(op.sqe.len & IORING_POLL_UPDATE_EVENTS)
+					info -> op.sqe.poll32_events = op.sqe.poll32_events;
+				if(op.sqe.len & IORING_POLL_UPDATE_USER_DATA)
+					info -> op.sqe.user_data = op.sqe.user_data;
+			}else{
+				/* finish cancel */
+				info -> node.erase();
+			}
+
+			return 0;
+		}
+
+		op.sqe.addr = (ulong)&cancel;
+
+		return queue(req, op) ?: XE_EINPROGRESS;
+	}
+
+	__attribute__((always_inline)) xe_promise queue(xe_op op){
+		xe_promise promise;
+		int res = queue(promise, op);
+
+		if(res != 0){
+			promise.result_ = res;
+			promise.ready_ = true;
+		}
+
+		return promise;
+	}
+
+	__attribute__((always_inline)) xe_promise cancel(xe_req& cancel_req, xe_op op){
+		xe_promise promise;
+		int res = cancel(promise, cancel_req, op);
+
+		if(res != XE_EINPROGRESS){
+			promise.result_ = res;
+			promise.ready_ = true;
+		}
+
+		return promise;
+	}
 
 	uint sqe_count() const; /* total sqes */
 	uint cqe_count() const; /* total cqes */
@@ -312,97 +370,6 @@ public:
 	int register_files_update_tag(uint off, const int* fds, const ulong* tags, uint len);
 	int register_file_alloc_range(uint off, uint len);
 	int unregister_files();
-
-	/* regular op */
-#define XE_OP_DEFINE1(func, ...)			\
-	int func(xe_req& req, ##__VA_ARGS__);	\
-	int func##_ex(xe_req& req, byte sq_flags, ##__VA_ARGS__); \
-	xe_promise func(__VA_ARGS__);			\
-	xe_promise func##_ex(byte sq_flags, ##__VA_ARGS__);
-
-	/* supports ioprio */
-#define XE_OP_DEFINE2(func, ...)			\
-	int func(xe_req& req, ##__VA_ARGS__);	\
-	int func##_ex(xe_req& req, byte sq_flags, ushort ioprio, ##__VA_ARGS__); \
-	xe_promise func(__VA_ARGS__);			\
-	xe_promise func##_ex(byte sq_flags, ushort ioprio, ##__VA_ARGS__);
-
-	/* ioprio and buffer_select */
-#define XE_OP_DEFINE3(func, ...)			\
-	int func(xe_req& req, ##__VA_ARGS__);	\
-	int func##_ex(xe_req& req, byte sq_flags, ushort ioprio, ushort buf_group, ##__VA_ARGS__); \
-	xe_promise func(__VA_ARGS__);			\
-	xe_promise func##_ex(byte sq_flags, ushort ioprio, ushort buf_group, ##__VA_ARGS__);
-
-	XE_OP_DEFINE1(nop)
-
-	XE_OP_DEFINE1(openat, 			int dfd, xe_cstr path, uint flags, mode_t mode, uint file_index = 0)
-	XE_OP_DEFINE1(openat2, 			int dfd, xe_cstr path, open_how* how, uint file_index = 0)
-
-	XE_OP_DEFINE1(close, 			int fd)
-	XE_OP_DEFINE1(close_direct, 	uint file_index)
-
-	XE_OP_DEFINE3(read, 			int fd, xe_ptr buf, uint len, long offset, uint flags = 0)
-	XE_OP_DEFINE2(write, 			int fd, xe_cptr buf, uint len, long offset, uint flags = 0)
-	XE_OP_DEFINE3(readv, 			int fd, const iovec* iovecs, uint vlen, long offset, uint flags = 0)
-	XE_OP_DEFINE2(writev, 			int fd, const iovec* iovecs, uint vlen, long offset, uint flags = 0)
-	XE_OP_DEFINE2(read_fixed, 		int fd, xe_ptr buf, uint len, long offset, uint buf_index, uint flags = 0)
-	XE_OP_DEFINE2(write_fixed, 		int fd, xe_cptr buf, uint len, long offset, uint buf_index, uint flags = 0)
-
-	XE_OP_DEFINE1(fsync, 			int fd, uint flags)
-	XE_OP_DEFINE1(sync_file_range, 	int fd, uint len, long offset, uint flags)
-	XE_OP_DEFINE1(fallocate, 		int fd, int mode, long offset, long len)
-
-	XE_OP_DEFINE1(fadvise, 			int fd, ulong offset, uint len, uint advice)
-	XE_OP_DEFINE1(madvise, 			xe_ptr addr, uint len, uint advice)
-
-	XE_OP_DEFINE1(renameat, 		int old_dfd, xe_cstr old_path, int new_dfd, xe_cstr new_path, uint flags)
-	XE_OP_DEFINE1(unlinkat, 		int dfd, xe_cstr path, uint flags)
-	XE_OP_DEFINE1(mkdirat, 			int dfd, xe_cstr path, mode_t mode)
-	XE_OP_DEFINE1(symlinkat, 		xe_cstr target, int newdirfd, xe_cstr linkpath)
-	XE_OP_DEFINE1(linkat, 			int old_dfd, xe_cstr old_path, int new_dfd, xe_cstr new_path, uint flags)
-
-	XE_OP_DEFINE1(fgetxattr, 		int fd, xe_cstr name, char* value, uint len)
-	XE_OP_DEFINE1(fsetxattr, 		int fd, xe_cstr name, xe_cstr value, uint len, uint flags)
-	XE_OP_DEFINE1(getxattr, 		xe_cstr path, xe_cstr name, char* value, uint len)
-	XE_OP_DEFINE1(setxattr, 		xe_cstr path, xe_cstr name, xe_cstr value, uint len, uint flags)
-
-	XE_OP_DEFINE1(splice, 			int fd_in, long off_in, int fd_out, long off_out, uint len, uint flags)
-	XE_OP_DEFINE1(tee, 				int fd_in, int fd_out, uint len, uint flags)
-
-	XE_OP_DEFINE1(statx, 			int fd, xe_cstr path, uint flags, uint mask, struct statx* statx)
-
-	XE_OP_DEFINE1(socket, 			int af, int type, int protocol, uint flags, uint file_index = 0)
-
-	XE_OP_DEFINE1(connect, 			int fd, const sockaddr* addr, socklen_t addrlen)
-	XE_OP_DEFINE2(accept, 			int fd, sockaddr* addr, socklen_t* addrlen, uint flags, uint file_index = 0)
-
-	XE_OP_DEFINE3(recv, 			int fd, xe_ptr buf, uint len, uint flags)
-	XE_OP_DEFINE2(send, 			int fd, xe_cptr buf, uint len, uint flags)
-	XE_OP_DEFINE3(recvmsg, 			int fd, msghdr* msg, uint flags)
-	XE_OP_DEFINE2(sendmsg, 			int fd, const msghdr* msg, uint flags)
-	XE_OP_DEFINE2(send_zc, 			int fd, xe_cptr buf, uint len, uint flags, uint buf_index = 0)
-	XE_OP_DEFINE2(sendto_zc, 		int fd, xe_cptr buf, uint len, uint flags, const sockaddr* addr, socklen_t addrlen, uint buf_index = 0)
-
-	XE_OP_DEFINE1(shutdown, 		int fd, int how)
-
-	XE_OP_DEFINE2(poll, 			int fd, uint mask)
-	XE_OP_DEFINE1(poll_update, 		xe_req& poll, uint mask, uint flags)
-	XE_OP_DEFINE1(epoll_ctl, 		int epfd, int op, int fd, epoll_event* events)
-
-	XE_OP_DEFINE1(poll_cancel, 		xe_req& cancel)
-	XE_OP_DEFINE1(cancel, 			xe_req& cancel, uint flags)
-	XE_OP_DEFINE1(cancel, 			int fd, uint flags)
-	XE_OP_DEFINE1(cancel_fixed, 	uint file_index, uint flags)
-	XE_OP_DEFINE1(cancel_all)
-
-	XE_OP_DEFINE1(files_update, 	int* fds, uint len, uint offset)
-
-	XE_OP_DEFINE1(provide_buffers, 	xe_ptr addr, uint len, ushort nr, ushort bgid, ushort bid)
-	XE_OP_DEFINE1(remove_buffers, 	ushort nr, ushort bgid)
-
-#undef XE_OP_DEFINE1
-#undef XE_OP_DEFINE2
 
 	~xe_loop() = default;
 

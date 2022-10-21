@@ -14,7 +14,7 @@ static void handle_error(xe_cstr where, int error){
 static task run(xe_loop& loop){
 	char msg[] = "Hello World!\n";
 
-	co_await loop.write(STDOUT_FILENO, msg, sizeof(msg) - 1, 0);
+	co_await loop.queue(xe_op::write(STDOUT_FILENO, msg, sizeof(msg) - 1, 0));
 }
 
 int main(){

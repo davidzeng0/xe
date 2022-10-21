@@ -660,7 +660,7 @@ int xe_http_singleconnection::parse_headers(byte* buf, size_t len){
 
 			if(!value)
 				xe_log_warn(this, "header separator not found");
-			xe_log_trace(this, ">> %.*s: %.*s", key.length(), key.data(), value.length(), value.data());
+			xe_log_trace(this, ">> %.*s: %.*s", key.length(), key.data(), xe_min<size_t>(100, value.length()), value.data());
 			xe_return_error(handle_header(key, value));
 		}
 	}
@@ -706,7 +706,7 @@ int xe_http_singleconnection::parse_trailers(byte* buf, size_t len){
 
 			if(!value)
 				xe_log_warn(this, "header separator not found");
-			xe_log_trace(this, ">> %.*s: %.*s", key.length(), key.data(), value.length(), value.data());
+			xe_log_trace(this, ">> %.*s: %.*s", key.length(), key.data(), xe_min<size_t>(100, value.length()), value.data());
 			xe_return_error(handle_trailer(key, value));
 		}else{
 			xe_return_error(posttransfer());
