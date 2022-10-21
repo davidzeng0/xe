@@ -455,7 +455,7 @@ int xe_loop::run(){
 				goto exit_error;
 		}
 
-		cqe_tail = io_uring_smp_load_acquire(ring.cq.ktail);
+		cqe_tail = *ring.cq.ktail;
 
 		if(cqe_tail == cqe_head)
 			continue;
