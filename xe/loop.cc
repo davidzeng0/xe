@@ -144,12 +144,12 @@ inline int xe_loop::submit(bool want_events){
 
 		/* submit sqes */
 		if(!(ring.flags & IORING_SETUP_SQPOLL)) [[likely]] {
-			io_uring_smp_store_release(ring.sq.ktail, ring.sq.sqe_tail);
+			IO_URING_WRITE_ONCE(*ring.sq.ktail, ring.sq.sqe_tail);
 
 			break;
 		}
 
-		IO_URING_WRITE_ONCE(*ring.sq.ktail, ring.sq.sqe_tail);
+		io_uring_smp_store_release(ring.sq.ktail, ring.sq.sqe_tail);
 		io_uring_smp_mb();
 
 		if(IO_URING_READ_ONCE(*ring.sq.kflags) & IORING_SQ_NEED_WAKEUP) [[unlikely]]
@@ -599,6 +599,51 @@ xe_ptr xe_loop::iobuf() const{
 
 xe_ptr xe_loop::iobuf_large() const{
 	return io_buf;
+}
+
+int xe_loop::register_buffers(const iovec* iov, uint vlen){
+	return io_uring_register_buffers(&ring, iov, vlen);
+}
+
+int xe_loop::register_buffers_sparse(uint len){
+	return io_uring_register_buffers_sparse(&ring, len);
+}
+
+int xe_loop::register_buffers_update_tag(uint off, const iovec* iov, const ulong* tags, uint len){
+	return io_uring_register_buffers_update_tag(&ring, off, iov, (__u64*)tags, len);
+}
+
+int xe_loop::unregister_buffers(){
+	return io_uring_unregister_buffers(&ring);
+}
+
+
+int xe_loop::register_files(const int* fds, uint len){
+	return io_uring_register_files(&ring, fds, len);
+}
+
+int xe_loop::register_files_tags(const int* fds, const ulong* tags, uint len){
+	return io_uring_register_files_tags(&ring, fds, (__u64*)tags, len);
+}
+
+int xe_loop::register_files_sparse(uint len){
+	return io_uring_register_files_sparse(&ring, len);
+}
+
+int xe_loop::register_files_update(uint off, const int* fds, uint len){
+	return io_uring_register_files_update(&ring, off, fds, len);
+}
+
+int xe_loop::register_files_update_tag(uint off, const int* fds, const ulong* tags, uint len){
+	return io_uring_register_files_update_tag(&ring, off, fds, (__u64*)tags, len);
+}
+
+int xe_loop::register_file_alloc_range(uint off, uint len){
+	return io_uring_register_file_alloc_range(&ring, off, len);
+}
+
+int xe_loop::unregister_files(){
+	return io_uring_unregister_files(&ring);
 }
 
 static inline void xe_sqe_init(io_uring_sqe& sqe, byte sq_flags, ushort ioprio){

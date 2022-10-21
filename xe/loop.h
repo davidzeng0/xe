@@ -300,6 +300,19 @@ public:
 	xe_ptr iobuf() const;
 	xe_ptr iobuf_large() const;
 
+	int register_buffers(const iovec* iov, uint vlen);
+	int register_buffers_sparse(uint len);
+	int register_buffers_update_tag(uint off, const iovec* iov, const ulong* tags, uint len);
+	int unregister_buffers();
+
+	int register_files(const int* fds, uint len);
+	int register_files_tags(const int* fds, const ulong* tags, uint len);
+	int register_files_sparse(uint len);
+	int register_files_update(uint off, const int* fds, uint len);
+	int register_files_update_tag(uint off, const int* fds, const ulong* tags, uint len);
+	int register_file_alloc_range(uint off, uint len);
+	int unregister_files();
+
 	/* regular op */
 #define XE_OP_DEFINE1(func, ...)			\
 	int func(xe_req& req, ##__VA_ARGS__);	\

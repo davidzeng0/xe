@@ -99,7 +99,7 @@ static void accept_callback(xe_req& req, int result){
 	server.accept(req, null, null, 0);
 
 	/* create a client socket */
-	echo_client* cl = xe_znew<echo_client>(server.loop(), result);
+	xe_znew<echo_client>(server.loop(), result);
 }
 
 static void setup_socket(){
@@ -123,6 +123,8 @@ static void setup_socket(){
 }
 
 int main(){
+	using namespace std::chrono_literals;
+
 	xe_loop loop;
 	xe_loop_options options;
 	xe_timer timer;
@@ -149,7 +151,7 @@ int main(){
 	/* accept clients */
 	last_time = xe_time_ns();
 	timer.callback = timer_callback;
-	loop.timer_ms(timer, 1000, 1000, XE_TIMER_REPEAT | XE_TIMER_ALIGN);
+	loop.timer(timer, 1s, 1s, XE_TIMER_REPEAT | XE_TIMER_ALIGN);
 
 	/* run */
 	loop.run();

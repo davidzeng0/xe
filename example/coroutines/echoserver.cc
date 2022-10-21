@@ -99,6 +99,8 @@ static task start_server(xe_loop& loop){
 }
 
 int main(){
+	using namespace std::chrono_literals;
+
 	xe_loop loop;
 	xe_loop_options options;
 	xe_timer timer;
@@ -117,7 +119,7 @@ int main(){
 
 	/* stats */
 	timer.callback = timer_callback;
-	loop.timer_ms(timer, 1000, 1000, XE_TIMER_REPEAT | XE_TIMER_ALIGN);
+	loop.timer(timer, 1s, 1s, XE_TIMER_REPEAT | XE_TIMER_ALIGN);
 	last_time = xe_time_ns();
 
 	loop.run();

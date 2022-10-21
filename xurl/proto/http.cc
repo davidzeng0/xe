@@ -156,7 +156,7 @@ public:
 	xe_connection_type connection;
 
 	xe_http_connection_node(xe_http& proto, xe_http_connection_list& list):
-		connection(proto), list(list){}
+		list(list), connection(proto){}
 
 	~xe_http_connection_node() = default;
 };
