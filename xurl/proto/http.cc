@@ -174,11 +174,13 @@ public:
 	}
 
 	void add(xe_http_connection_node<>& conn){
-		if(conn.node.in_list()) list.append(conn.node);
+		if(!conn.node.in_list())
+			list.append(conn.node);
 	}
 
 	void remove(xe_http_connection_node<>& conn){
-		if(conn.node.in_list()) list.erase(conn.node);
+		if(conn.node.in_list())
+			list.erase(conn.node);
 	}
 };
 
