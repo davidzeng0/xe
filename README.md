@@ -9,15 +9,27 @@ Documentation is still WIP
 - High Performance
 - Low Latency I/O
 - Fast Nanosecond Precision Timers
-- Ultra Lightweight (0.6% overhead for [echoserver](https://github.com/ilikdoge/xe/blob/master/example/echoserver.cc))
+- Ultra Lightweight (0.6% overhead for [echoserver](example/echoserver.cc))
 
 #### xe/io
 - Socket and File classes and utilities
-- Epoll-like [fast poll handle](https://github.com/ilikdoge/xe/blob/master/xe/io/poll.h)
+- Epoll-like [fast poll handle](xe/io/poll.h)
 
 #### xurl (WIP)
 - Async DNS resolution
 - HTTP, WS, and FILE url protocols (WIP)
+
+### Benchmarks
+
+| Library | Speed | %             |
+| ------- | ----- | ------------- |
+| xe      | 363K  | 100.0 %       |
+| l4cpp   | 362K  | &nbsp;99.8  % |
+| frevib  | 353K  | &nbsp;97.3  % |
+| epoll   | 351K  | &nbsp;96.8  % |
+| photon  | 305K  | &nbsp;84.1  % |
+
+See [benchmarks](benchmarks/benchmarks.md)
 
 ### Examples
 ```c++
@@ -28,7 +40,7 @@ static task run(xe_loop& loop){
 	co_await loop.queue(xe_op::write(STDOUT_FILENO, msg, sizeof(msg) - 1, 0));
 }
 ```
-Above snippet from [hello_world.cc](https://github.com/ilikdoge/xe/blob/master/example/coroutines/hello_world.cc)
+Above snippet from [hello_world.cc](example/coroutines/hello_world.cc)
 ```c++
 // echo server snippet
 static task echo(xe_socket& socket){
@@ -47,12 +59,12 @@ static task echo(xe_socket& socket){
 	}
 }
 ```
-Above snippet from [echoserver.cc](https://github.com/ilikdoge/xe/blob/master/example/coroutines/echoserver.cc)
+Above snippet from [echoserver.cc](example/coroutines/echoserver.cc)
 
-See [examples](https://github.com/ilikdoge/xe/tree/master/example) and [coroutine examples](https://github.com/ilikdoge/xe/tree/master/example/coroutines)
+See [examples](example) and [coroutine examples](example/coroutines)
 
 ### Running Examples
-##### See [Building xe](https://github.com/ilikdoge/xe#build-xe) below
+##### See [Building xe](README.md#build-xe) below
 ```bash
 cd build
 ./coroutine_hello_world
@@ -76,7 +88,7 @@ cd build
 
 One of:
 - OpenSSL >= 1.1.1 <code>apt install libssl-dev</code>
-- wolfSSL (must be installed from [source](https://github.com/wolfSSL/wolfssl), see [build flags](https://github.com/ilikdoge/xe/blob/master/build.sh#L9))
+- wolfSSL (must be installed from [source](https://github.com/wolfSSL/wolfssl), see [build flags](build.sh#L9))
 
 #### Use with cmake
 ```cmake
