@@ -19,6 +19,8 @@ Each echo bench thread uses epoll
 ![](chart.png)
 
 ## Notes
+- xe is compiled without -flto
+
 - xe, l4cpp, and photon use 512 byte buffers
 - xe and photon align buffers to 512 byte boundary
 
