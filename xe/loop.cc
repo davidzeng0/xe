@@ -429,10 +429,8 @@ int xe_loop::run(){
 	uint cqe_head;
 	uint cqe_tail;
 	uint cqe_mask;
-	io_uring_cqe* cqring = ring.cq.cqes;
 
 	cqe_head = *ring.cq.khead;
-	cqe_tail = cqe_head;
 	cqe_mask = ring.cq.ring_mask;
 
 	while(true){
@@ -462,19 +460,23 @@ int xe_loop::run(){
 			continue;
 		/* pending reqs take priority */
 		xe_return_error(queue_pending());
-
 		xe_log_trace(this, ">> ring %u", cqe_tail - cqe_head);
+
+		uint* khead = ring.cq.khead;
+		io_uring_cqe* cqring = ring.cq.cqes;
 
 		/* process events */
 		do{
 			io_uring_cqe* cqe;
 			xe_req* req;
-			int res, flags;
+			uint res, flags;
 
 			cqe = &cqring[cqe_head++ & cqe_mask];
 			req = (xe_req*)cqe -> user_data;
-			flags = cqe -> flags;
 			res = cqe -> res;
+			flags = cqe -> flags;
+
+			io_uring_smp_store_release(khead, cqe_head);
 
 			if(!(flags & IORING_CQE_F_MORE)) [[likely]]
 				handles_--;
@@ -483,8 +485,6 @@ int xe_loop::run(){
 			if(error) [[unlikely]]
 				goto exit_error;
 		}while(cqe_tail != cqe_head);
-
-		io_uring_smp_store_release(ring.cq.khead, cqe_tail);
 	}
 exit:
 	return res == XE_ENOENT ? 0 : res;
