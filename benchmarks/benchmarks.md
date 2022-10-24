@@ -21,13 +21,11 @@ Each echo bench thread uses epoll
 ## Notes
 - xe is compiled without -flto
 
-- xe, l4cpp, and photon use 512 byte buffers
-- xe and photon align buffers to 512 byte boundary
+- xe, l4cpp, photon, and epoll use 512 byte buffers
+- xe, photon, and epoll align buffers to 512 byte boundary
 
 - frevib uses **io_uring_prep_provide_buffers**
 - frevib did not complete for 2000 and 4000 connections (sqring size too small)
 
 - xe uses a submission ring size of 256 (faster than 512)
 - l4cpp uses a submission ring size of 512 (which is slower when connections > 1000)
-
-- epoll has the send immediately following the recv better utilizing cache leading to an overtake in performance at 4000 connections, but io_uring's **IORING_OP_POLL_ADD** + recvsend is faster than epoll at 4000+ connections
