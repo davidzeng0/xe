@@ -47,7 +47,7 @@ static inline int xe_ring_enter(io_uring& ring, uint submit, uint wait, uint fla
 }
 
 static inline bool xe_cqe_test_flags(io_uring& ring, uint flags){
-	return IO_URING_READ_ONCE(*ring.sq.kflags) & (flags) ? true : false;
+	return IO_URING_READ_ONCE(*ring.sq.kflags) & flags ? true : false;
 }
 
 static inline bool xe_cqe_needs_enter(io_uring& ring){
@@ -80,6 +80,7 @@ inline int xe_loop::submit(bool want_events){
 	wait = 0;
 
 	if(!want_events){
+		/* we want to flush cqring if possible, but not run any task work */
 		if(xe_cqe_needs_flush(ring)) [[unlikely]]
 			flags |= IORING_ENTER_GETEVENTS;
 	}else do{
@@ -459,6 +460,9 @@ int xe_loop::run(){
 
 		if(cqe_tail == cqe_head)
 			continue;
+		/* pending reqs take priority */
+		xe_return_error(queue_pending());
+
 		xe_log_trace(this, ">> ring %u", cqe_tail - cqe_head);
 
 		/* process events */

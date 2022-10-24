@@ -98,6 +98,9 @@ if(XE_ENABLE_EXAMPLES)
 	add_executable(echoserver "example/echoserver.cc")
 	target_link_libraries(echoserver xe)
 
+	add_executable(pollechoserver "example/pollechoserver.cc")
+	target_link_libraries(pollechoserver xe)
+
 	add_executable(client "example/client.cc")
 	target_link_libraries(client xe)
 

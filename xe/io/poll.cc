@@ -79,7 +79,7 @@ void xe_poll::cancel_cb(xe_req& req, int cancel_res){
 		/* cancel subsequent callbacks and inform the user of the error */
 		handle.active = false;
 
-		if(handle.poll_callback) handle.poll_callback(handle, res);
+		if(handle.poll_callback && !handle.closing) handle.poll_callback(handle, res);
 	}
 }
 

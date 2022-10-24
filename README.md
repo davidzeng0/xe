@@ -13,7 +13,7 @@ Documentation is still WIP
 
 #### xe/io
 - Socket and File classes and utilities
-- Epoll-like [fast poll handle](xe/io/poll.h)
+- Epoll/libuv-like [fast poll handle](example/pollechoserver.cc)
 
 #### xurl (WIP)
 - Async DNS resolution

@@ -19,8 +19,8 @@ static ares_socket_t ares_socket(int af, int type, int proto, xe_ptr data){
 	return socket(af, type, proto);
 }
 
-static int ares_close(ares_socket_t socket, xe_ptr data){
-	/* no-op
+static int ares_close(int fd, xe_ptr data){
+	/*
 	 * we cannot close the socket until we know
 	 * the poll request will not be started anymore.
 	 * the period between when a poll callback gets called and
@@ -29,7 +29,10 @@ static int ares_close(ares_socket_t socket, xe_ptr data){
 	 * and closing it during this time could poll another file
 	 * or a non-existent one
 	 */
-	return 0;
+	auto& handles = *(xe_rbtree<int>*)data;
+	auto it = handles.find(fd);
+
+	return it == handles.end() ? close(fd) : 0;
 }
 
 static int ares_connect(ares_socket_t fd, const sockaddr* addr, ares_socklen_t addrlen, xe_ptr data){
@@ -246,7 +249,8 @@ void xe_resolve::sockstate(xe_ptr data, int fd, int read, int write){
 		events |= XE_POLL_IN;
 	if(write)
 		events |= XE_POLL_OUT;
-	if(handle.poll.poll(events)) close_poll_handle(handle.poll);
+	if(handle.poll.poll(events))
+		close_poll_handle(handle.poll);
 }
 
 int xe_resolve::sockcreate(int fd, int type, xe_ptr data){
@@ -431,7 +435,7 @@ int xe_resolve::init(xe_loop& loop, const xe_resolve_ctx& shared){
 	if(ret != ARES_SUCCESS)
 		return xe_ares_error(ret);
 	ares_set_socket_callback(channel, sockcreate, this);
-	ares_set_socket_functions(channel, &socket_funcs, this);
+	ares_set_socket_functions(channel, &socket_funcs, &handles);
 
 	resolver = channel;
 	loop_ = &loop;
