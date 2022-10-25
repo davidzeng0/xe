@@ -383,22 +383,20 @@ int xe_connection::connect(const xe_string_view& host_, ushort port_, uint timeo
 	port = xe_htons(port_);
 	err = ctx -> resolve(*this, host_, endpoint);
 
-	if(err == XE_EINPROGRESS){
+	if(err){
+		if(err != XE_EINPROGRESS)
+			return err;
 		/* wait for name resolution */
 		set_state(XE_CONNECTION_STATE_RESOLVING);
+	}else{
+		/* name resolution completed synchronously */
+		xe_return_error(try_connect(*this));
+		set_state(XE_CONNECTION_STATE_CONNECTING);
 
-		goto ok;
+		ctx -> active_connections_++;
+		ctx -> add(*this);
 	}
 
-	xe_return_error(err);
-
-	/* name resolution completed synchronously */
-	xe_return_error(try_connect(*this));
-	set_state(XE_CONNECTION_STATE_CONNECTING);
-
-	ctx -> active_connections_++;
-	ctx -> add(*this);
-ok:
 	if(timeout_ms){
 		timer.callback = timeout;
 

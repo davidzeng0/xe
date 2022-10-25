@@ -155,7 +155,9 @@ public:
 		return poll_flags(IORING_POLL_UPDATE_EVENTS);
 	}
 
-	xe_op& poll_update_user_data(){
+	xe_op& poll_update_user_data(xe_req& new_req){
+		sqe.off = (ulong)&new_req;
+
 		return poll_flags(IORING_POLL_UPDATE_USER_DATA);
 	}
 

@@ -36,7 +36,7 @@ void xe_poll::poll_cb(xe_req& req, int events){
 		goto done;
 ok:
 	handle.updated = false;
-	res = handle.loop_ -> queue(handle.poll_req, xe_op::poll(handle.fd_, handle.events_));
+	res = handle.loop_ -> run(handle.poll_req, xe_op::poll(handle.fd_, handle.events_));
 
 	if(!res) [[likely]]
 		return;
@@ -184,7 +184,7 @@ int xe_poll::poll(uint events){
 		events |= XE_POLL_ERR | XE_POLL_HUP | XE_POLL_NVAL | XE_POLL_RDHUP;
 
 		if(!polling){
-			xe_return_error(loop_ -> queue(poll_req, xe_op::poll(fd_, events)));
+			xe_return_error(loop_ -> run(poll_req, xe_op::poll(fd_, events)));
 
 			polling = true;
 		}else{

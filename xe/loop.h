@@ -264,7 +264,7 @@ public:
 
 	int run();
 
-	xe_inline int queue(xe_req& req, xe_op op, xe_req_info* info = null){
+	xe_inline int run(xe_req& req, xe_op op, xe_req_info* info = null){
 		io_uring_sqe* sqe;
 
 		xe_return_error(get_sqe(req, sqe, info));
@@ -295,14 +295,14 @@ public:
 
 		op.sqe.addr = (ulong)&cancel;
 
-		return queue(req, op, info) ?: XE_EINPROGRESS;
+		return run(req, op, info) ?: XE_EINPROGRESS;
 	}
 
-	xe_inline xe_promise queue(xe_op op, xe_req_info* info = null){
+	xe_inline xe_promise run(xe_op op, xe_req_info* info = null){
 		xe_promise promise;
 		int res;
 
-		res = queue(promise, op, info);
+		res = run(promise, op, info);
 
 		if(res != 0){
 			promise.result_ = res;
