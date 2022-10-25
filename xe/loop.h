@@ -276,18 +276,18 @@ public:
 		return 0;
 	}
 
-	xe_inline int cancel(xe_req& req, xe_req& cancel, xe_op op, xe_req_info* info = null){
-		if(info && info -> node.in_list()){
+	xe_inline int cancel(xe_req& req, xe_req& cancel, xe_op op, xe_req_info* info = null, xe_req_info* cancel_info = null){
+		if(cancel_info && cancel_info -> node.in_list()){
 			/* the request was put in our deferred queue */
 			if(op.sqe.opcode == IORING_OP_POLL_REMOVE && op.sqe.len & (IORING_POLL_UPDATE_EVENTS | IORING_POLL_UPDATE_USER_DATA)){
 				/* poll update, not queued yet so just modify here */
 				if(op.sqe.len & IORING_POLL_UPDATE_EVENTS)
-					info -> op.sqe.poll32_events = op.sqe.poll32_events;
+					cancel_info -> op.sqe.poll32_events = op.sqe.poll32_events;
 				if(op.sqe.len & IORING_POLL_UPDATE_USER_DATA)
-					info -> op.sqe.user_data = op.sqe.user_data;
+					cancel_info -> op.sqe.user_data = op.sqe.user_data;
 			}else{
 				/* finish cancel */
-				info -> node.erase();
+				cancel_info -> node.erase();
 			}
 
 			return 0;
@@ -295,7 +295,7 @@ public:
 
 		op.sqe.addr = (ulong)&cancel;
 
-		return queue(req, op) ?: XE_EINPROGRESS;
+		return queue(req, op, info) ?: XE_EINPROGRESS;
 	}
 
 	xe_inline xe_promise queue(xe_op op, xe_req_info* info = null){
@@ -312,11 +312,11 @@ public:
 		return promise;
 	}
 
-	xe_inline xe_promise cancel(xe_req& cancel_req, xe_op op, xe_req_info* info = null){
+	xe_inline xe_promise cancel(xe_req& cancel_req, xe_op op, xe_req_info* info = null, xe_req_info* cancel_info = null){
 		xe_promise promise;
 		int res;
 
-		res = cancel(promise, cancel_req, op, info);
+		res = cancel(promise, cancel_req, op, info, cancel_info);
 
 		if(res != XE_EINPROGRESS){
 			promise.result_ = res;
