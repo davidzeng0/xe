@@ -23,6 +23,8 @@
 	xe_disallow_copy(class)				\
 	xe_disallow_move(class)
 
+#define xe_inline __attribute__ ((always_inline))
+
 template<class T, typename F>
 static constexpr inline uintptr_t xe_offsetof(F T::*field){
 	return (uintptr_t)&(((T*)null) ->* field);

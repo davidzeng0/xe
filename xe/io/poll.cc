@@ -96,7 +96,7 @@ int xe_poll::update_poll(){
 		restart = true;
 	}else{
 		/* force the poll request to return and restart using new events */
-		int res = loop_ -> cancel(cancel_req, poll_req, xe_op::poll_cancel());
+		int res = loop_ -> cancel(cancel_req, poll_req, xe_op::poll_cancel(), closing ? &cancel_info : null);
 
 		if(res != XE_EINPROGRESS){
 			xe_assert(res);
@@ -116,7 +116,6 @@ void xe_poll::check_close(){
 	if(!closing || modifying || polling)
 		return;
 	closing = false;
-	cancel_req.info = null;
 
 	if(close_callback) close_callback(*this);
 }
@@ -222,10 +221,7 @@ int xe_poll::close(){
 	 * active is unset, but the cancel request failed to submit.
 	 * try to force submit the cancel request
 	 */
-	if(polling){
-		cancel_req.info = &cancel_info;
+	if(polling)
 		res = update_poll();
-	}
-
 	return res ?: XE_EINPROGRESS;
 }

@@ -32,9 +32,7 @@ public:
 	bool insert(K&& key, V&& value){
 		try{
 			map.insert_or_assign(std::forward<K>(key), std::forward<V>(value));
-		}catch(std::bad_alloc& e){
-			return false;
-		}catch(std::overflow_error& e){
+		}catch(...){
 			return false;
 		}
 
@@ -45,9 +43,7 @@ public:
 	iterator insert(K&& key){
 		try{
 			return map.try_emplace(std::forward<K>(key), value_t()).first;
-		}catch(std::bad_alloc& e){
-			return end();
-		}catch(std::overflow_error& e){
+		}catch(...){
 			return end();
 		}
 	}
@@ -56,9 +52,7 @@ public:
 	bool emplace(K&& key, V&& value){
 		try{
 			map.try_emplace(std::forward<K>(key), std::forward<V>(value));
-		}catch(std::bad_alloc& e){
-			return false;
-		}catch(std::overflow_error& e){
+		}catch(...){
 			return false;
 		}
 

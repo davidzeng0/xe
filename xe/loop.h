@@ -49,10 +49,7 @@ public:
 		void (*callback)(xe_req& req, int res);
 	};
 
-	xe_req_info* info;
-
-	xe_req(): event(), info(){}
-
+	xe_req(): event(){}
 	~xe_req() = default;
 };
 
@@ -245,7 +242,7 @@ private:
 	int queue_io(xe_req_info&);
 	int queue_pending();
 
-	int get_sqe(xe_req&, io_uring_sqe*&);
+	int get_sqe(xe_req&, io_uring_sqe*&, xe_req_info* info);
 public:
 	xe_loop(){
 		active_timers = 0;
@@ -267,10 +264,10 @@ public:
 
 	int run();
 
-	__attribute__((always_inline)) int queue(xe_req& req, xe_op op){
+	xe_inline int queue(xe_req& req, xe_op op, xe_req_info* info = null){
 		io_uring_sqe* sqe;
 
-		xe_return_error(get_sqe(req, sqe));
+		xe_return_error(get_sqe(req, sqe, info));
 
 		/* copy io parameters */
 		*sqe = op.sqe;
@@ -279,12 +276,7 @@ public:
 		return 0;
 	}
 
-	__attribute__((always_inline)) int cancel(xe_req& req, xe_req& cancel, xe_op op){
-		xe_req_info* info;
-		int res;
-
-		info = cancel.info;
-
+	xe_inline int cancel(xe_req& req, xe_req& cancel, xe_op op, xe_req_info* info = null){
 		if(info && info -> node.in_list()){
 			/* the request was put in our deferred queue */
 			if(op.sqe.opcode == IORING_OP_POLL_REMOVE && op.sqe.len & (IORING_POLL_UPDATE_EVENTS | IORING_POLL_UPDATE_USER_DATA)){
@@ -306,9 +298,11 @@ public:
 		return queue(req, op) ?: XE_EINPROGRESS;
 	}
 
-	__attribute__((always_inline)) xe_promise queue(xe_op op){
+	xe_inline xe_promise queue(xe_op op, xe_req_info* info = null){
 		xe_promise promise;
-		int res = queue(promise, op);
+		int res;
+
+		res = queue(promise, op, info);
 
 		if(res != 0){
 			promise.result_ = res;
@@ -318,9 +312,11 @@ public:
 		return promise;
 	}
 
-	__attribute__((always_inline)) xe_promise cancel(xe_req& cancel_req, xe_op op){
+	xe_inline xe_promise cancel(xe_req& cancel_req, xe_op op, xe_req_info* info = null){
 		xe_promise promise;
-		int res = cancel(promise, cancel_req, op);
+		int res;
+
+		res = cancel(promise, cancel_req, op, info);
 
 		if(res != XE_EINPROGRESS){
 			promise.result_ = res;

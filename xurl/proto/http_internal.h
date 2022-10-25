@@ -64,6 +64,7 @@ public:
 
 	virtual void redirect(xe_request_internal& request, xe_string&& url);
 	virtual bool available(xe_http_connection& connection, bool available);
+	virtual int open(xe_request_internal& req, xe_url&& url) = 0;
 	virtual int open(xe_http_internal_data& data, xe_url&& url, bool redirect);
 
 	~xe_http_protocol() = default;

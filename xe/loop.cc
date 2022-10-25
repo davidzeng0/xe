@@ -304,8 +304,7 @@ int xe_loop::queue_pending(){
 	return 0;
 }
 
-int xe_loop::get_sqe(xe_req& req, io_uring_sqe*& sqe){
-	xe_req_info* info;
+int xe_loop::get_sqe(xe_req& req, io_uring_sqe*& sqe, xe_req_info* info){
 	int res;
 
 	xe_assert(queued_ <= capacity());
@@ -336,8 +335,6 @@ submit:
 
 		return res;
 	}
-
-	info = req.info;
 
 	if(!info)
 		return XE_ENOMEM;

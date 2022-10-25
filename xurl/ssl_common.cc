@@ -287,5 +287,15 @@ void xe_ssl_msg_callback(int direction, int version, int content_type, xe_cptr b
 			break;
 	}
 
+
+#ifndef XE_DEBUG
+	(void)ssl;
+	(void)data;
+	(void)type;
+	(void)alert_level;
+	(void)details;
+	(void)ssl_version_string;
+#endif
+
 	xe_log_trace(&ssl, "%s %s %s%s%s (%zu)", direction ? "<<" : ">>", ssl_version_string(version), type, alert_level, details, len);
 }

@@ -135,6 +135,8 @@ int xe_ssl::init(const xe_ssl_ctx& ctx){
 #ifdef XE_DEBUG
 	SSL_set_msg_callback(ssl, ssl_msg_callback);
 	SSL_set_msg_callback_arg(ssl, this);
+#else
+	(void)ssl_msg_callback;
 #endif
 
 	return 0;
