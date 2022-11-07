@@ -133,7 +133,7 @@ static void accept_callback(xe_poll& poll, int result){
 	}
 
 	if(result & XE_POLL_IN){
-		int client = server.accept_sync(null, null);
+		int client = server.accept_sync(null, null, 0);
 
 		if(client < 0){
 			xe_print("failed to accept: %s", xe_strerror(result));
