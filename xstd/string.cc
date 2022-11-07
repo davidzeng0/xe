@@ -51,20 +51,10 @@ bool xe_string_view::equal_case(xe_cstr o) const{
 	return xe_string_view(o).equal_case(*this);
 }
 
-xe_string::xe_string(xe_string&& src){
-	data_ = src.data_;
-	size_ = src.size_;
-	src.data_ = null;
-	src.size_ = 0;
-}
+xe_string::xe_string(xe_string&& src): xe_array(std::move(src)){}
 
 xe_string& xe_string::operator=(xe_string&& src){
-	clear();
-
-	data_ = src.data_;
-	size_ = src.size_;
-	src.data_ = null;
-	src.size_ = 0;
+	xe_array::operator=(std::move(src));
 
 	return *this;
 }

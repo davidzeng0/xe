@@ -120,13 +120,21 @@ public:
 	int init_async(xe_socket_req& req, int af, int type, int proto);
 	xe_socket_promise init_async(int af, int type, int proto);
 
+	int accept_sync(sockaddr* addr, socklen_t* addrlen, uint flags);
+	int connect_sync(const sockaddr* addr, socklen_t addrlen);
+
 	int accept(xe_req& req, sockaddr* addr, socklen_t* addrlen, uint flags);
 	int connect(xe_connect_req& req, const sockaddr* addr, socklen_t addrlen);
+
 	xe_promise accept(sockaddr* addr, socklen_t* addrlen, uint flags);
 	xe_connect_promise connect(const sockaddr* addr, socklen_t addrlen);
 
+	int recv_sync(xe_ptr buf, uint len, uint flags);
+	int send_sync(xe_cptr buf, uint len, uint flags);
+
 	int recv(xe_req& req, xe_ptr buf, uint len, uint flags);
 	int send(xe_req& req, xe_cptr buf, uint len, uint flags);
+
 	xe_promise recv(xe_ptr buf, uint len, uint flags);
 	xe_promise send(xe_cptr buf, uint len, uint flags);
 

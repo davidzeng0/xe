@@ -128,8 +128,10 @@ int xe_connection::socket_read(xe_connection& conn){
 			if(result < 0) result = xe_errno();
 		}
 
-		xe_log_trace(&conn, ">> connection %zi", result);
-
+		if(result < 0)
+			xe_log_trace(&conn, ">> connection %zi (%s)", result, xe_strerror(result));
+		else
+			xe_log_trace(&conn, ">> connection %zi", result);
 		if(result < 0)
 			return result != XE_EAGAIN ? result : 0;
 		result = conn.data(buf, result);
@@ -413,8 +415,10 @@ ssize_t xe_connection::send(xe_cptr data, size_t size){
 		sent = ssl.send(data, size, XE_CONNECTION_MSG_FLAGS);
 	else if((sent = ::send(fd, data, size, XE_CONNECTION_MSG_FLAGS)) < 0)
 		sent = xe_errno();
-	xe_log_trace(this, "<< connection %zi", sent);
-
+	if(sent < 0)
+		xe_log_trace(this, "<< connection %zi (%s)", sent, xe_strerror(sent));
+	else
+		xe_log_trace(this, "<< connection %zi", sent);
 	return sent;
 }
 

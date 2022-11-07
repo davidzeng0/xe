@@ -34,6 +34,12 @@ public:
 	xe_array() = default;
 	xe_array(xe_array<T>&& other): base(std::move(other)){}
 
+	xe_array& operator=(xe_array<T>&& other){
+		base::operator=(std::move(other));
+
+		return *this;
+	}
+
 	bool resize(size_t size){
 		if(size > max_size())
 			return false;

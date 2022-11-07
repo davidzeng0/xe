@@ -32,6 +32,20 @@ void xe_file::open(int res){
 	if(res >= 0) fd_ = res;
 }
 
+int xe_file::open_sync(xe_cstr path, uint flags){
+	return openat_sync(AT_FDCWD, path, flags);
+}
+
+int xe_file::openat_sync(int dfd, xe_cstr path, uint flags){
+	int fd = ::openat(dfd, path, flags);
+
+	if(fd < 0)
+		return xe_errno();
+	fd_ = fd;
+
+	return 0;
+}
+
 int xe_file::open(xe_open_req& req, xe_cstr path, uint flags){
 	return openat(req, AT_FDCWD, path, flags);
 }
@@ -72,6 +86,18 @@ xe_open_promise xe_file::openat(int dfd, xe_cstr path, uint flags){
 	}
 
 	return promise;
+}
+
+int xe_file::read_sync(xe_ptr buf, uint len, long offset){
+	int read = pread(fd_, buf, len, offset);
+
+	return read < 0 ? xe_errno() : read;
+}
+
+int xe_file::write_sync(xe_cptr buf, uint len, long offset){
+	int wrote = pwrite(fd_, buf, len, offset);
+
+	return wrote < 0 ? xe_errno() : wrote;
 }
 
 int xe_file::read(xe_req& req, xe_ptr buf, uint len, long offset){

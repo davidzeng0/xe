@@ -184,14 +184,14 @@ err:
 	if(res == XE_ETIME || res == XE_EBUSY || res == XE_EINTR) [[likely]]
 		return 0;
 	if(res == XE_EAGAIN){
-		xe_log_debug(this, "<< ring queue full");
+		xe_log_debug(this, ">> ring queue full");
 
 		sq_ring_full = true;
 
 		return want_events ? 0 : XE_EAGAIN;
 	}
 
-	xe_log_error(this, "<< ring fatal error: %s", xe_strerror(res));
+	xe_log_error(this, ">> ring fatal error: %s", xe_strerror(res));
 
 	return res == XE_EBADR ? XE_ENOMEM : XE_FATAL;
 }

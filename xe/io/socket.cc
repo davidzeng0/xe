@@ -136,6 +136,16 @@ xe_socket_promise xe_socket::init_async(int af, int type, int proto){
 	return promise;
 }
 
+int xe_socket::accept_sync(sockaddr* addr, socklen_t* addrlen, uint flags){
+	int fd = accept4(fd_, addr, addrlen, flags);
+
+	return fd < 0 ? xe_errno() : fd;
+}
+
+int xe_socket::connect_sync(const sockaddr* addr, socklen_t addrlen){
+	return ::connect(fd_, addr, addrlen) < 0 ? xe_errno() : 0;
+}
+
 int xe_socket::accept(xe_req& req, sockaddr* addr, socklen_t* addrlen, uint flags){
 	if(state != XE_SOCKET_LISTENING)
 		return XE_STATE;
@@ -180,6 +190,18 @@ xe_connect_promise xe_socket::connect(const sockaddr* addr, socklen_t addrlen){
 	}
 
 	return promise;
+}
+
+int xe_socket::recv_sync(xe_ptr buf, uint len, uint flags){
+	int recvd = ::recv(fd_, buf, len, flags);
+
+	return recvd < 0 ? xe_errno() : recvd;
+}
+
+int xe_socket::send_sync(xe_cptr buf, uint len, uint flags){
+	int sent = ::send(fd_, buf, len, flags);
+
+	return sent < 0 ? xe_errno() : sent;
 }
 
 int xe_socket::recv(xe_req& req, xe_ptr buf, uint len, uint flags){

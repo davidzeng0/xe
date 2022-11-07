@@ -52,12 +52,12 @@ struct echo_client{
 
 		/* we only asked for XE_POLL_IN, so we only have XE_POLL_IN (assuming we checked the err flags) */
 		do{
-			result = recv(client.socket.fd(), client.buf, buffer_length, MSG_DONTWAIT);
+			result = client.socket.recv_sync(client.buf, buffer_length, MSG_DONTWAIT);
 
 			if(result <= 0)
 				break;
 			recvs++;
-			result = send(client.socket.fd(), client.buf, result, MSG_DONTWAIT | MSG_NOSIGNAL);
+			result = client.socket.send_sync(client.buf, result, MSG_DONTWAIT | MSG_NOSIGNAL);
 
 			if(result < 0)
 				break;
@@ -133,7 +133,7 @@ static void accept_callback(xe_poll& poll, int result){
 	}
 
 	if(result & XE_POLL_IN){
-		int client = accept(server.fd(), null, null);
+		int client = server.accept_sync(null, null);
 
 		if(client < 0){
 			xe_print("failed to accept: %s", xe_strerror(result));

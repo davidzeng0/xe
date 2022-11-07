@@ -32,6 +32,26 @@ public:
 		return *this;
 	}
 
+	template<typename = std::enable_if<std::is_move_constructible_v<T>>>
+	xe_optional(T&& other): data(std::move(other)){}
+
+	template<typename = std::enable_if<std::is_copy_constructible_v<T>>>
+	xe_optional(const T& other): data(other){}
+
+	template<typename = std::enable_if<std::is_move_assignable_v<T>>>
+	xe_optional& operator=(T&& other){
+		data = std::move(other);
+
+		return *this;
+	}
+
+	template<typename = std::enable_if<std::is_copy_assignable_v<T>>>
+	xe_optional& operator=(const T& other){
+		data = other;
+
+		return *this;
+	}
+
 	void construct(){
 		xe_construct(&data);
 	}
@@ -41,11 +61,11 @@ public:
 	}
 
 	T* operator->(){
-		return data;
+		return &data;
 	}
 
 	const T* operator->() const{
-		return data;
+		return &data;
 	}
 
 	T& operator*(){

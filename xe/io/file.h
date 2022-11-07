@@ -77,13 +77,21 @@ public:
 		return fd_;
 	}
 
+	int open_sync(xe_cstr path, uint flags);
+	int openat_sync(int dfd, xe_cstr path, uint flags);
+
 	int open(xe_open_req& req, xe_cstr path, uint flags);
 	int openat(xe_open_req& req, int dfd, xe_cstr path, uint flags);
+
 	xe_open_promise open(xe_cstr path, uint flags);
 	xe_open_promise openat(int dfd, xe_cstr path, uint flags);
 
+	int read_sync(xe_ptr buf, uint len, long offset);
+	int write_sync(xe_cptr buf, uint len, long offset);
+
 	int read(xe_req& req, xe_ptr buf, uint len, long offset);
 	int write(xe_req& req, xe_cptr buf, uint len, long offset);
+
 	xe_promise read(xe_ptr buf, uint len, long offset);
 	xe_promise write(xe_cptr buf, uint len, long offset);
 

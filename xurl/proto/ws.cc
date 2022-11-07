@@ -183,8 +183,12 @@ protected:
 	}
 
 	int handle_status_line(xe_http_version version, uint status, const xe_string_view& reason){
-		if(status != 101)
+		if(status != 101){
 			failure = true;
+
+			xe_log_error(this, "status code mismatch");
+		}
+
 		return 0;
 	}
 
@@ -212,9 +216,7 @@ protected:
 		}else if(key.equal_case("Sec-WebSocket-Accept")){
 			websocket_accept_seen = true;
 
-			if(value == xe_string_view((char*)options().accept.data(), options().accept.size())){
-				xe_log_verbose(this, "accept header matching");
-			}else{
+			if(value != xe_string_view((char*)options().accept.data(), options().accept.size())){
 				failure = true;
 
 				xe_log_error(this, "accept header mismatch");
