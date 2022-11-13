@@ -77,7 +77,7 @@ protected:
 	int call(F xe_http_callbacks::*field, Args&& ...args){
 		auto callback = callbacks().*field;
 
-		return callback && callback(std::forward<Args>(args)...) ? XE_ABORTED : 0;
+		return callback && callback(std::forward<Args>(args)...) ? XE_ECANCELED : 0;
 	}
 
 	int init_socket(){

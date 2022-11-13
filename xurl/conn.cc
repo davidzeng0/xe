@@ -50,6 +50,8 @@ int xe_connection::io(xe_connection& conn, int res){
 				return res;
 			}
 
+			conn.endpoint.free();
+
 			xe_log_verbose(&conn, "connected to %.*s:%u after %zu tries in %f ms", conn.host.length(), conn.host.data(), xe_ntohs(conn.port), (size_t)conn.ip_index + 1, (xe_time_ns() - conn.time) / (float)XE_NANOS_PER_MS);
 			xe_return_error(conn.init_socket());
 
@@ -100,18 +102,18 @@ int xe_connection::io(xe_connection& conn, int res){
 	return 0;
 }
 
-void xe_connection::start_connect(xe_endpoint& endpoint_){
+void xe_connection::start_connect(const xe_shared_ref<xe_endpoint>& endpoint_){
 	/* name resolution completed asynchronously */
 	int err;
 
-	endpoint = &endpoint_;
+	endpoint = endpoint_;
 
 	if((err = try_connect(*this)))
 		close(err);
 	else{
 		set_state(XE_CONNECTION_STATE_CONNECTING);
 
-		ctx -> active_connections_++;
+		ctx -> active++;
 	}
 }
 
@@ -128,12 +130,16 @@ int xe_connection::socket_read(xe_connection& conn){
 			if(result < 0) result = xe_errno();
 		}
 
-		if(result < 0)
+		if(result < 0){
+			if(result == XE_EAGAIN)
+				return 0;
 			xe_log_trace(&conn, ">> connection %zi (%s)", result, xe_strerror(result));
-		else
-			xe_log_trace(&conn, ">> connection %zi", result);
-		if(result < 0)
-			return result != XE_EAGAIN ? result : 0;
+
+			return result;
+		}
+
+		xe_log_trace(&conn, ">> connection %zi", result);
+
 		result = conn.data(buf, result);
 
 		if(result <= 0){
@@ -153,7 +159,7 @@ int xe_connection::timeout(xe_loop& loop, xe_timer& timer){
 
 	conn.close(XE_ETIMEDOUT);
 
-	return XE_ABORTED;
+	return XE_ECANCELED;
 }
 
 int xe_connection::create_socket(xe_connection& conn, int af){
@@ -330,16 +336,14 @@ int xe_connection::writable(){
 }
 
 void xe_connection::closed(){
-	if(fd >= 0)
-		::close(fd);
-	if(node.in_list())
-		ctx -> remove(*this);
+	ctx -> remove(*this);
+
 	xe_log_trace(this, "closed()");
 }
 
 int xe_connection::init(xurl_ctx& ctx_){
 	fd = -1;
-	ctx = &ctx_;
+	ctx = &ctx_.connections;
 	buf = ctx_.loop().iobuf();
 	poll.set_loop(ctx_.loop());
 
@@ -395,7 +399,7 @@ int xe_connection::connect(const xe_string_view& host_, ushort port_, uint timeo
 		xe_return_error(try_connect(*this));
 		set_state(XE_CONNECTION_STATE_CONNECTING);
 
-		ctx -> active_connections_++;
+		ctx -> active++;
 		ctx -> add(*this);
 	}
 
@@ -451,9 +455,9 @@ int xe_connection::transferctl(uint flags){
 		recv_paused = prev_recv_paused;
 		send_paused = prev_send_paused;
 	}else if(events){
-		if(prev_recv_paused && prev_send_paused) ctx -> active_connections_++;
+		if(prev_recv_paused && prev_send_paused) ctx -> active++;
 	}else{
-		ctx -> active_connections_--;
+		ctx -> active--;
 	}
 
 	return err;
@@ -466,17 +470,27 @@ bool xe_connection::peer_closed(){
 }
 
 void xe_connection::close(int error){
+	xe_connection_state prev_state = state;
+
 	xe_assert(state != XE_CONNECTION_STATE_CLOSED);
+	set_state(XE_CONNECTION_STATE_CLOSED);
 	xe_log_trace(this, "close()");
+
+	endpoint.free();
 
 	if(timer.active())
 		xe_assertz(stop_timer());
-	if(state > XE_CONNECTION_STATE_RESOLVING &&
-		(state != XE_CONNECTION_STATE_ACTIVE || !recv_paused || !send_paused))
-		ctx -> active_connections_--;
-	error = poll.close();
+	error = 0;
 
-	set_state(XE_CONNECTION_STATE_CLOSED);
+	if(prev_state != XE_CONNECTION_STATE_IDLE){
+		ctx -> closing(*this);
+
+		if(prev_state > XE_CONNECTION_STATE_RESOLVING){
+			if(prev_state != XE_CONNECTION_STATE_ACTIVE || !recv_paused || !send_paused)
+				ctx -> active--;
+			error = poll.close();
+		}
+	}
 
 	if(!error) closed();
 }
@@ -486,6 +500,8 @@ xe_connection::~xe_connection(){
 		xe_dealloc(buf);
 	if(ssl_enabled)
 		ssl.close();
+	if(fd >= 0)
+		::close(fd);
 }
 
 xe_cstr xe_connection::class_name(){

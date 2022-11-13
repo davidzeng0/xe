@@ -55,7 +55,7 @@ public:
 			if(result <= 0)
 				break;
 			if(stream.request -> write(stream.buf, result)){
-				result = XE_ABORTED;
+				result = XE_ECANCELED;
 
 				break;
 			}

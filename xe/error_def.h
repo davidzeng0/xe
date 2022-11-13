@@ -24,7 +24,6 @@ enum xe_error : int{
 
 	XE_RECV_ERROR,
 	XE_SEND_ERROR,
-	XE_ABORTED,
 
 	XE_PARTIAL_FILE,
 	XE_HEADERS_TOO_LONG,

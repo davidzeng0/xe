@@ -30,9 +30,9 @@ static task run(xe_loop& loop){
 
 	/* create a socket */
 #if LINUX_VERSION_CODE < KERNEL_VERSION(5, 19, 0)
-	client.init(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+	client.init_sync(AF_INET, SOCK_STREAM, IPPROTO_TCP);
 #else
-	co_await client.init_async(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+	co_await client.init(AF_INET, SOCK_STREAM, IPPROTO_TCP);
 #endif
 	co_await client.connect((sockaddr*)&addr, sizeof(addr));
 

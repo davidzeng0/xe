@@ -27,11 +27,11 @@ public:
 	xe_disallow_copy(xe_http_headers)
 
 	bool has(const xe_string_view& key){
-		return xe_map::has((xe_string&)key);
+		return xe_map::has((const xe_string&)key);
 	}
 
 	iterator find(const xe_string_view& key){
-		return xe_map::find((xe_string&)key);
+		return xe_map::find((const xe_string&)key);
 	}
 
 	~xe_http_headers() = default;

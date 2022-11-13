@@ -110,6 +110,12 @@ public:
 		return map.cend();
 	}
 
+	void trim(){
+		try{
+			map.compact();
+		}catch(...){}
+	}
+
 	void clear(){
 		xe_destruct(&map);
 		xe_construct(&map);

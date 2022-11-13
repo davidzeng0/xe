@@ -6,7 +6,7 @@
 #include "xstd/fla.h"
 #include "xe/clock.h"
 #include "ws.h"
-#include "../writer.h"
+#include "xutil/writer.h"
 #include "../random.h"
 
 using namespace xurl;
@@ -140,7 +140,7 @@ protected:
 
 		conn.close(0);
 
-		return XE_ABORTED;
+		return XE_ECANCELED;
 	}
 
 	bool readable(){
@@ -241,7 +241,7 @@ protected:
 		}
 
 		if(call(&xe_websocket_callbacks::ready, *request))
-			return XE_ABORTED;
+			return XE_ECANCELED;
 		message_state = WS_FRAME_HEADER_FIRST;
 		bodyless = false;
 		is_first_fragment = true;
@@ -295,18 +295,18 @@ protected:
 				}
 
 				if(call(&xe_websocket_callbacks::close, *request, code, control_frame_data.slice(start, control_frame_length)))
-					return XE_ABORTED;
+					return XE_ECANCELED;
 				if(closing && !message_head)
 					return finish_close();
 				close(code, null, 0);
 			}else if(call(&xe_websocket_callbacks::ping, *request, opcode == WS_PING ? XE_WEBSOCKET_PING : XE_WEBSOCKET_PONG, control_frame_data.slice(0, control_frame_length))){
-				return XE_ABORTED;
+				return XE_ECANCELED;
 			}
 		}else{
 			if(!is_fin)
 				return 0;
 			if(call(&xe_websocket_callbacks::message, *request, (xe_websocket_op)current_message_opcode, current_message_data))
-				return XE_ABORTED;
+				return XE_ECANCELED;
 			current_message_data.resize(0);
 			is_first_fragment = true;
 		}
@@ -419,7 +419,7 @@ protected:
 					buf += wlen;
 
 					if(close_received && len)
-						return XE_ABORTED;
+						return XE_ECANCELED;
 					break;
 			}
 		}
@@ -431,7 +431,7 @@ protected:
 		int err;
 
 		if(close_received)
-			return XE_ABORTED;
+			return XE_ECANCELED;
 		in_callback = true;
 		err = ws_transfer(buf, len);
 		in_callback = false;
@@ -572,7 +572,7 @@ public:
 	}
 
 	void end(xe_request_internal& req){
-		close(XE_ABORTED);
+		close(XE_ECANCELED);
 	}
 
 	xe_cstr class_name(){

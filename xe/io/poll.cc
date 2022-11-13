@@ -101,7 +101,7 @@ int xe_poll::update_poll(){
 		if(res != XE_EINPROGRESS){
 			xe_assert(res);
 
-			return res;
+			return res ?: XE_FATAL;
 		}
 
 		modifying = true;

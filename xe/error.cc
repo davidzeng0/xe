@@ -42,8 +42,6 @@ xe_cstr xe_strerror(int err){
 			return "Failed to recv data";
 		case XE_SEND_ERROR:
 			return "Failed to send data";
-		case XE_ABORTED:
-			return "Aborted";
 		case XE_PARTIAL_FILE:
 			return "Partial file";
 		case XE_HEADERS_TOO_LONG:

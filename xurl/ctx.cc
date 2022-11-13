@@ -15,7 +15,7 @@
 using namespace xurl;
 
 enum{
-	DNS_EXPIRE = 60 * 1000 /* 60 seconds */
+	DNS_EXPIRE = 60 * 1'000'000'000ul /* 60 seconds */
 };
 
 int xurl_shared::init(){
@@ -49,7 +49,213 @@ void xurl_shared::close(){
 	ssl_ctx_.close();
 }
 
-static xe_protocol* allocate_protocol(xurl_ctx& ctx, int id){
+void xe_connection_ctx::resolved(const xe_shared_ref<xe_endpoint>& endpoint, xe_linked_list& pending, int status){
+	xe_connection* conn;
+
+	while(pending){
+		conn = &xe_containerof(pending.head(), &xe_connection::node);
+		pending.erase(conn -> node);
+		list.append(conn -> node);
+
+		if(status)
+			conn -> close(status);
+		else
+			conn -> start_connect(endpoint);
+	}
+}
+
+void xe_connection_ctx::close(){
+	xe_connection* conn;
+	auto cur = list.begin(),
+		end = list.end();
+	while(cur != end){
+		conn = &xe_containerof(*(cur++), &xe_connection::node);
+		conn -> close(XE_ECANCELED);
+	}
+}
+
+bool xe_connection_ctx::closing(){
+	return list || close_pending;
+}
+
+xe_loop& xe_connection_ctx::loop(){
+	xurl_ctx& ctx = xe_containerof(*this, &xurl_ctx::connections);
+
+	return ctx.loop();
+}
+
+int xe_connection_ctx::resolve(xe_connection& conn, const xe_string_view& host, xe_shared_ref<xe_endpoint>& ep){
+	xurl_ctx& ctx = xe_containerof(*this, &xurl_ctx::connections);
+	xe_linked_list* list;
+	int res;
+
+	res = ctx.resolve(conn, host, ep, &list);
+
+	if(res == XE_EINPROGRESS){
+		/* append to waiting list */
+		list -> append(conn.node);
+	}
+
+	return res;
+}
+
+void xe_connection_ctx::add(xe_connection& conn){
+	xe_assert(!conn.node.in_list());
+
+	list.append(conn.node);
+}
+
+void xe_connection_ctx::closing(xe_connection& conn){
+	xe_assert(conn.node.in_list());
+
+	list.erase(conn.node);
+	close_pending.append(conn.node);
+}
+
+void xe_connection_ctx::remove(xe_connection& conn){
+	xurl_ctx& ctx = xe_containerof(*this, &xurl_ctx::connections);
+
+	xe_assert(conn.node.in_list());
+
+	conn.node.erase();
+
+	if(ctx.closing) ctx.check_close();
+}
+
+void xurl_ctx::resolved(xe_ptr data, const xe_string_view& host, xe_endpoint&& endpoint, int status){
+	xurl_ctx& ctx = *(xurl_ctx*)data;
+	auto it = ctx.endpoints.find((const xe_string&)host);
+	xe_resolve_entry& entry = *it -> second;
+
+	xe_assert(it != ctx.endpoints.end());
+
+	ctx.active_resolves_--;
+
+	if(!status && ctx.closing)
+		status = XE_ECANCELED;
+	if(!status){
+		*entry.endpoint = std::move(endpoint);
+
+		ctx.resolve_success(entry);
+	}
+
+	ctx.connections.resolved(entry.endpoint, entry.pending, status);
+
+	if(status) ctx.endpoints.erase(it);
+}
+
+void xurl_ctx::close_cb(xe_resolve& resolve){
+	xurl_ctx& ctx = xe_containerof(resolve, &xurl_ctx::resolver);
+
+	ctx.resolver_closing = false;
+	ctx.check_close();
+}
+
+void xurl_ctx::expire_cb(xe_loop& loop, xe_timer& timer){
+	xurl_ctx& ctx = xe_containerof(timer, &xurl_ctx::expire_timer);
+
+	ctx.purge_expired();
+
+	if(ctx.expire) ctx.start_expire_timer();
+}
+
+int xurl_ctx::alloc_entry(const xe_string_view& host, xe_map<xe_string, xe_unique_ptr<xe_resolve_entry>>::iterator& it){
+	xe_shared_data<xe_endpoint>* shared = xe_znew<xe_shared_data<xe_endpoint>>();
+	xe_string host_copy;
+
+	if(!shared)
+		return XE_ENOMEM;
+	xe_shared_ref<xe_endpoint> ref(*shared);
+	xe_unique_ptr<xe_resolve_entry> data(xe_znew<xe_resolve_entry>(std::move(ref)));
+
+	if(!data || !host_copy.copy(host))
+		return XE_ENOMEM;
+	it = endpoints.insert(std::move(host_copy));
+
+	if(it == endpoints.end())
+		return XE_ENOMEM;
+	it -> second = std::move(data);
+	it -> second -> key = it -> first;
+
+	return 0;
+}
+
+void xurl_ctx::start_expire_timer(){
+	xe_resolve_entry& entry = xe_containerof(expire.head(), &xe_resolve_entry::expire);
+
+	xe_assertz(loop_ -> timer_ms(expire_timer, entry.time, 0, XE_TIMER_PASSIVE | XE_TIMER_ABS));
+}
+
+void xurl_ctx::resolve_success(xe_resolve_entry& entry){
+	entry.time = xe_time_ns() + DNS_EXPIRE;
+	expire.append(entry.expire);
+
+	if(!expire_timer.active()) start_expire_timer();
+}
+
+void xurl_ctx::purge_expired(){
+	ulong now = xe_time_ns();
+
+	while(expire){
+		xe_resolve_entry& entry = xe_containerof(expire.head(), &xe_resolve_entry::expire);
+
+		if(now < entry.time)
+			break;
+		expire.erase(entry.expire);
+		endpoints.erase((const xe_string&)entry.key);
+	}
+
+	endpoints.trim();
+}
+
+int xurl_ctx::resolve(xe_connection& conn, const xe_string_view& host, xe_shared_ref<xe_endpoint>& ep, xe_linked_list** queue){
+	purge_expired();
+
+	auto it = endpoints.find((const xe_string&)host);
+	int err;
+
+	if(it != endpoints.end()){
+		/* host resolution already started */
+		if(!it -> second -> in_progress){
+			/* host resolution already completed */
+			ep = it -> second -> endpoint;
+
+			return 0;
+		}
+	}else{
+		xe_return_error(alloc_entry(host, it));
+
+		err = resolver.resolve(it -> first, *it -> second -> endpoint, resolved, this);
+
+		if(err != XE_EINPROGRESS){
+			if(err)
+				endpoints.erase(it);
+			else{
+				ep = it -> second -> endpoint;
+
+				resolve_success(*it -> second);
+			}
+
+			return err;
+		}
+
+		active_resolves_++;
+	}
+
+	*queue = &it -> second -> pending;
+
+	return XE_EINPROGRESS;
+}
+
+void xurl_ctx::check_close(){
+	if(resolver_closing || connections.closing())
+		return;
+	closing = false;
+
+	if(close_callback) close_callback(*this);
+}
+
+static xe_protocol* allocate_protocol(xurl_ctx& ctx, xe_protocol_id id){
 	switch(id){
 		case XE_PROTOCOL_FILE:
 			return xe_file_new(ctx);
@@ -62,134 +268,31 @@ static xe_protocol* allocate_protocol(xurl_ctx& ctx, int id){
 	}
 }
 
-int xurl_ctx::resolve(xe_connection& conn, const xe_string_view& host, xe_endpoint*& ep){
-	auto entry = endpoints.find((xe_string&)host);
-
-	if(entry != endpoints.end()){
-		/* host resolution already started */
-		if(!entry -> second -> in_progress){
-			/* host resolution already completed */
-			ep = &entry -> second -> endpoint;
-
-			return 0;
-		}
-	}else{
-		xe_string host_copy;
-		xe_unique_ptr<xe_resolve_entry> data;
-		int err;
-
-		data.own(xe_znew<xe_resolve_entry>());
-
-		if(!data || !host_copy.copy(host))
-			return XE_ENOMEM;
-		entry = endpoints.insert(std::move(host_copy));
-
-		if(entry == endpoints.end())
-			return XE_ENOMEM;
-		entry -> second = std::move(data);
-		err = resolver.resolve(entry -> first, entry -> second -> endpoint, resolved, this);
-
-		if(err != XE_EINPROGRESS){
-			if(err)
-				endpoints.erase(entry);
-			else
-				ep = &entry -> second -> endpoint;
-			return err;
-		}
-
-		active_resolves_++;
-	}
-
-	/* append to waiting list */
-	entry -> second -> append(conn.node);
-
-	return XE_EINPROGRESS;
-}
-
-void xurl_ctx::close_cb(xe_resolve& resolve){
-	xurl_ctx& ctx = xe_containerof(resolve, &xurl_ctx::resolver);
-
-	ctx.resolver_closing = false;
-	ctx.check_close();
-}
-
-void xurl_ctx::resolved(xe_ptr data, const xe_string_view& host, xe_endpoint&& endpoint, int status){
-	xurl_ctx& ctx = *(xurl_ctx*)data;
-	auto entry = ctx.endpoints.find((xe_string&)host);
-	xe_resolve_entry& list = *entry -> second;
-	xe_connection* conn;
-
-	xe_assert(entry != ctx.endpoints.end());
-
-	ctx.active_resolves_--;
-
-	if(!status && ctx.closing)
-		status = XE_ECANCELED;
-	if(!status)
-		list.endpoint = std::move(endpoint);
-	while(list){
-		conn = &xe_containerof(list.head(), &xe_connection::node);
-		list.erase(conn -> node);
-		ctx.connections.append(conn -> node);
-
-		if(status)
-			conn -> close(status);
-		else
-			conn -> start_connect(list.endpoint);
-	}
-
-	if(status) ctx.endpoints.erase(entry);
-}
-
-void xurl_ctx::add(xe_connection& conn){
-	xe_assert(!conn.node.in_list());
-
-	connections.append(conn.node);
-}
-
-void xurl_ctx::remove(xe_connection& conn){
-	xe_assert(conn.node.in_list());
-
-	connections.erase(conn.node);
-
-	if(closing) check_close();
-}
-
-void xurl_ctx::check_close(){
-	if(resolver_closing || connections)
-		return;
-	closing = false;
-
-	if(close_callback) close_callback(*this);
-}
-
 int xurl_ctx::init(xe_loop& loop, xurl_shared& shared_){
-	size_t i;
 	int err;
 
 	loop_ = &loop;
 	shared = &shared_;
-	err = XE_ENOMEM;
+	err = 0;
 
-	for(i = 0; i < protocols.size(); i++){
-		protocols[i] = allocate_protocol(*this, i);
+	for(size_t i = 0; i < protocols.size(); i++){
+		protocols[i] = allocate_protocol(*this, (xe_protocol_id)i);
 
-		if(!protocols[i]) goto fail;
+		if(!protocols[i]){
+			err = XE_ENOMEM;
+
+			break;
+		}
 	}
 
-	err = resolver.init(loop, shared_.resolve_ctx());
-
+	if(!err)
+		err = resolver.init(loop, shared_.resolve_ctx());
 	if(err)
-		goto fail;
-	return 0;
-fail:
-	while(i--)
-		xe_delete(protocols[i]);
+		protocols.clear();
 	return err;
 }
 
 int xurl_ctx::close(){
-	xe_connection* conn;
 	int res;
 
 	if(closing)
@@ -200,16 +303,10 @@ int xurl_ctx::close(){
 
 	if(res)
 		resolver_closing = true;
-	auto cur = connections.begin(),
-		end = connections.end();
-	while(cur != end){
-		conn = &xe_containerof(*(cur++), &xe_connection::node);
-		conn -> close(XE_ECANCELED);
-	}
+	connections.close();
+	protocols.clear();
 
-	for(auto protocol : protocols)
-		xe_delete(protocol);
-	if(!resolver_closing && !connections)
+	if(!resolver_closing && !connections.closing())
 		closing = false;
 	else if(!res)
 		res = XE_EINPROGRESS;
@@ -228,7 +325,7 @@ int xurl_ctx::open(xe_request& request, const xe_string_view& url_){
 
 	xe_return_error(parser.parse());
 
-	for(auto protocol : protocols){
+	for(auto& protocol : protocols){
 		if(!protocol -> matches(parser.scheme()))
 			continue;
 		xe_return_error(protocol -> open((xe_request_internal&)request, std::move(parser)));

@@ -1,7 +1,7 @@
 #include "xarch/arch.h"
 #include "xutil/log.h"
 #include "http_internal.h"
-#include "../writer.h"
+#include "xutil/writer.h"
 #include "../request_internal.h"
 
 using namespace xurl;
@@ -711,7 +711,7 @@ int xe_http_singleconnection::parse_trailers(byte* buf, size_t len){
 		}else{
 			xe_return_error(posttransfer());
 
-			return len ? XE_ABORTED : 0;
+			return len ? XE_ECANCELED : 0;
 		}
 	}
 
@@ -790,7 +790,7 @@ int xe_http_singleconnection::chunked_body(byte* buf, size_t len){
 					if(!chunked_save(buf, write))
 						return XE_ENOMEM;
 				}else if(!client_write(buf, write)){
-					return XE_ABORTED;
+					return XE_ECANCELED;
 				}
 
 				len -= write;
@@ -866,24 +866,24 @@ int xe_http_singleconnection::write_body(byte* buf, size_t len){
 			if(!len)
 				xe_return_error(posttransfer());
 			else if(!client_write(buf, len))
-				return XE_ABORTED;
+				return XE_ECANCELED;
 			break;
 		case TRANSFER_MODE_CONTENTLENGTH: {
 			ulong write;
 
-			if(!data_len) return XE_ABORTED;
+			if(!data_len) return XE_ECANCELED;
 			if(!len) return XE_PARTIAL_FILE;
 
 			write = xe_min(data_len, len);
 
 			if(!client_write(buf, write))
-				return XE_ABORTED;
+				return XE_ECANCELED;
 			data_len -= write;
 
 			if(!data_len){
 				xe_return_error(posttransfer());
 
-				if(len > write) return XE_ABORTED;
+				if(len > write) return XE_ECANCELED;
 			}
 
 			break;
@@ -899,7 +899,7 @@ int xe_http_singleconnection::write_body(byte* buf, size_t len){
 int xe_http_singleconnection::transferctl(uint flags){
 	if(transfer_mode == TRANSFER_MODE_CHUNKS && read_state == READ_BODY && header_offset){
 		if(!client_write(header_buffer, header_offset))
-			return XE_ABORTED;
+			return XE_ECANCELED;
 		header_offset = 0;
 	}
 
@@ -949,7 +949,7 @@ int xe_http_singleconnection::transferctl(xe_request_internal& request, uint fla
 }
 
 void xe_http_singleconnection::end(xe_request_internal& req){
-	close(XE_ABORTED);
+	close(XE_ECANCELED);
 }
 
 xe_cstr xe_http_singleconnection::class_name(){

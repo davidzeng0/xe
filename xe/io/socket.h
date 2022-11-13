@@ -113,12 +113,11 @@ public:
 		return fd_;
 	}
 
-	int init(int af, int type, int proto);
-	int init_fd(int fd);
+	int init_sync(int af, int type, int proto);
 	int accept(int fd);
 
-	int init_async(xe_socket_req& req, int af, int type, int proto);
-	xe_socket_promise init_async(int af, int type, int proto);
+	int init(xe_socket_req& req, int af, int type, int proto);
+	xe_socket_promise init(int af, int type, int proto);
 
 	int accept_sync(sockaddr* addr, socklen_t* addrlen, uint flags);
 	int connect_sync(const sockaddr* addr, socklen_t addrlen);

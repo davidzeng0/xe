@@ -125,7 +125,7 @@ public:
 		xe_assert(start <= end);
 		xe_assert(end <= N);
 
-		return xe_slice<T, traits>((T*)*data_ + start, N - start);
+		return xe_slice<T, traits>((T*)*data_ + start, end - start);
 	}
 
 	constexpr auto slice(size_t start){

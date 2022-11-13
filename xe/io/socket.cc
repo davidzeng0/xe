@@ -72,23 +72,14 @@ void xe_socket::connect(int res){
 	state = res ? XE_SOCKET_READY : XE_SOCKET_CONNECTED;
 }
 
-int xe_socket::init(int af, int type, int proto){
+int xe_socket::init_sync(int af, int type, int proto){
 	if(state != XE_SOCKET_NONE)
 		return XE_STATE;
 	int fd = ::socket(af, type, proto);
 
 	if(fd < 0)
 		return xe_errno();
-	init_fd(fd);
-
-	return 0;
-}
-
-int xe_socket::init_fd(int fd){
-	if(state != XE_SOCKET_NONE)
-		return XE_STATE;
-	fd_ = fd;
-	state = XE_SOCKET_READY;
+	accept(fd);
 
 	return 0;
 }
@@ -102,7 +93,7 @@ int xe_socket::accept(int fd){
 	return 0;
 }
 
-int xe_socket::init_async(xe_socket_req& req, int af, int type, int proto){
+int xe_socket::init(xe_socket_req& req, int af, int type, int proto){
 	if(state == XE_SOCKET_OPENING)
 		return XE_EALREADY;
 	if(state != XE_SOCKET_NONE)
@@ -115,7 +106,7 @@ int xe_socket::init_async(xe_socket_req& req, int af, int type, int proto){
 	return 0;
 }
 
-xe_socket_promise xe_socket::init_async(int af, int type, int proto){
+xe_socket_promise xe_socket::init(int af, int type, int proto){
 	xe_socket_promise promise;
 	int res;
 

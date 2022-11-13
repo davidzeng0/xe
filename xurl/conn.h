@@ -27,7 +27,7 @@ private:
 	static int ready(xe_connection&);
 	static int socket_read(xe_connection&);
 
-	void start_connect(xe_endpoint&);
+	void start_connect(const xe_shared_ref<xe_endpoint>& endpoint_);
 
 	xe_linked_node node;
 
@@ -36,13 +36,13 @@ private:
 	ulong time;
 #endif
 
-	xurl_ctx* ctx;
+	xe_connection_ctx* ctx;
 
 	xe_poll poll;
 	xe_ptr buf;
 	xe_ssl ssl;
 
-	xe_endpoint* endpoint;
+	xe_shared_ref<xe_endpoint> endpoint;
 	size_t ip_index;
 	xe_ip_mode ip_mode;
 
@@ -52,7 +52,7 @@ private:
 	bool ssl_enabled: 1;
 	bool ssl_verify: 1;
 
-	friend class xurl_ctx;
+	friend class xe_connection_ctx;
 protected:
 	static int timeout(xe_loop&, xe_timer&);
 
