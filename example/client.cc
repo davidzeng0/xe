@@ -67,7 +67,7 @@ int main(){
 	c.send.callback = send_callback;
 
 	/* connect */
-	c.socket.init(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+	c.socket.init_sync(AF_INET, SOCK_STREAM, IPPROTO_TCP);
 	c.socket.connect(c.conn, (sockaddr*)&addr, sizeof(addr));
 
 	loop.run();

@@ -114,7 +114,7 @@ static void setup_socket(){
 	addr.sin_addr.s_addr = inet_addr("127.0.0.1");
 	addr.sin_port = xe_htons(8080);
 
-	server.init(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+	server.init_sync(AF_INET, SOCK_STREAM, IPPROTO_TCP);
 
 	setsockopt(server.fd(), SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes));
 
