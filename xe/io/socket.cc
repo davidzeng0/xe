@@ -79,7 +79,16 @@ int xe_socket::init_sync(int af, int type, int proto){
 
 	if(fd < 0)
 		return xe_errno();
-	accept(fd);
+	init_fd(fd);
+
+	return 0;
+}
+
+int xe_socket::init_fd(int fd){
+	if(state != XE_SOCKET_NONE)
+		return XE_STATE;
+	fd_ = fd;
+	state = XE_SOCKET_READY;
 
 	return 0;
 }

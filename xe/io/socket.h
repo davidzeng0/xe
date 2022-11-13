@@ -114,6 +114,7 @@ public:
 	}
 
 	int init_sync(int af, int type, int proto);
+	int init_fd(int fd);
 	int accept(int fd);
 
 	int init(xe_socket_req& req, int af, int type, int proto);
