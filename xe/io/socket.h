@@ -138,6 +138,19 @@ public:
 	xe_promise recv(xe_ptr buf, uint len, uint flags);
 	xe_promise send(xe_cptr buf, uint len, uint flags);
 
+	int recvmsg_sync(msghdr* msg, uint flags);
+	int sendmsg_sync(const msghdr* msg, uint flags);
+
+	int recvmsg(xe_req& req, msghdr* msg, uint flags);
+	int sendmsg(xe_req& req, const msghdr* msg, uint flags);
+
+	xe_promise recvmsg(msghdr* msg, uint flags);
+	xe_promise sendmsg(const msghdr* msg, uint flags);
+
+	int shutdown_sync(int how);
+	int shutdown(xe_req& req, int how);
+	xe_promise shutdown(int how);
+
 	int bind(sockaddr* addr, socklen_t addrlen);
 	int listen(int maxqueuesize);
 

@@ -37,7 +37,7 @@ int xe_connection::io(xe_connection& conn, int res){
 			if(res){
 				res = xe_syserror(res);
 
-				xe_log_debug(&conn, "connection failed, try %zu in %f ms, status: %s", conn.ip_index + 1, (xe_time_ns() - conn.time) / (float)XE_NANOS_PER_MS, xe_strerror(res));
+				xe_log_debug(&conn, "connection failed, try %zu in %.3f ms, status: %s", conn.ip_index + 1, (xe_time_ns() - conn.time) / (float)XE_NANOS_PER_MS, xe_strerror(res));
 
 				if(res != XE_ECONNREFUSED && res != XE_ETIMEDOUT)
 					return res;
@@ -52,7 +52,7 @@ int xe_connection::io(xe_connection& conn, int res){
 
 			conn.endpoint.free();
 
-			xe_log_verbose(&conn, "connected to %.*s:%u after %zu tries in %f ms", conn.host.length(), conn.host.data(), xe_ntohs(conn.port), (size_t)conn.ip_index + 1, (xe_time_ns() - conn.time) / (float)XE_NANOS_PER_MS);
+			xe_log_verbose(&conn, "connected to %.*s:%u after %zu tries in %.3f ms", conn.host.length(), conn.host.data(), xe_ntohs(conn.port), (size_t)conn.ip_index + 1, (xe_time_ns() - conn.time) / (float)XE_NANOS_PER_MS);
 			xe_return_error(conn.init_socket());
 
 			if(conn.ssl_enabled){
@@ -74,7 +74,7 @@ int xe_connection::io(xe_connection& conn, int res){
 			res = conn.ssl.connect(XE_CONNECTION_MSG_FLAGS);
 
 			if(!res){
-				xe_log_verbose(&conn, "ssl connected in %f ms", (xe_time_ns() - conn.time) / (float)XE_NANOS_PER_MS);
+				xe_log_verbose(&conn, "ssl connected in %.3f ms", (xe_time_ns() - conn.time) / (float)XE_NANOS_PER_MS);
 
 				return ready(conn);
 			}else if(res != XE_EAGAIN){

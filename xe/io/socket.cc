@@ -193,12 +193,16 @@ xe_connect_promise xe_socket::connect(const sockaddr* addr, socklen_t addrlen){
 }
 
 int xe_socket::recv_sync(xe_ptr buf, uint len, uint flags){
+	if(state != XE_SOCKET_CONNECTED)
+		return XE_ENOTCONN;
 	int recvd = ::recv(fd_, buf, len, flags);
 
 	return recvd < 0 ? xe_errno() : recvd;
 }
 
 int xe_socket::send_sync(xe_cptr buf, uint len, uint flags){
+	if(state != XE_SOCKET_CONNECTED)
+		return XE_ENOTCONN;
 	int sent = ::send(fd_, buf, len, flags);
 
 	return sent < 0 ? xe_errno() : sent;
@@ -206,26 +210,82 @@ int xe_socket::send_sync(xe_cptr buf, uint len, uint flags){
 
 int xe_socket::recv(xe_req& req, xe_ptr buf, uint len, uint flags){
 	if(state != XE_SOCKET_CONNECTED)
-		return XE_STATE;
+		return XE_ENOTCONN;
 	return loop_ -> run(req, xe_op::recv(fd_, buf, len, flags));
 }
 
 int xe_socket::send(xe_req& req, xe_cptr buf, uint len, uint flags){
 	if(state != XE_SOCKET_CONNECTED)
-		return XE_STATE;
+		return XE_ENOTCONN;
 	return loop_ -> run(req, xe_op::send(fd_, buf, len, flags));
 }
 
 xe_promise xe_socket::recv(xe_ptr buf, uint len, uint flags){
 	if(state != XE_SOCKET_CONNECTED)
-		return xe_promise::done(XE_STATE);
+		return xe_promise::done(XE_ENOTCONN);
 	return loop_ -> run(xe_op::recv(fd_, buf, len, flags));
 }
 
 xe_promise xe_socket::send(xe_cptr buf, uint len, uint flags){
 	if(state != XE_SOCKET_CONNECTED)
-		return xe_promise::done(XE_STATE);
+		return xe_promise::done(XE_ENOTCONN);
 	return loop_ -> run(xe_op::send(fd_, buf, len, flags));
+}
+
+int xe_socket::recvmsg_sync(msghdr* msg, uint flags){
+	if(state != XE_SOCKET_CONNECTED)
+		return XE_ENOTCONN;
+	int recvd = ::recvmsg(fd_, msg, flags);
+
+	return recvd < 0 ? xe_errno() : recvd;
+}
+
+int xe_socket::sendmsg_sync(const msghdr* msg, uint flags){
+	if(state != XE_SOCKET_CONNECTED)
+		return XE_ENOTCONN;
+	int sent = ::sendmsg(fd_, msg, flags);
+
+	return sent < 0 ? xe_errno() : sent;
+}
+
+int xe_socket::recvmsg(xe_req& req, msghdr* msg, uint flags){
+	if(state != XE_SOCKET_CONNECTED)
+		return XE_ENOTCONN;
+	return loop_ -> run(req, xe_op::recvmsg(fd_, msg, flags));
+}
+
+int xe_socket::sendmsg(xe_req& req, const msghdr* msg, uint flags){
+	if(state != XE_SOCKET_CONNECTED)
+		return XE_ENOTCONN;
+	return loop_ -> run(req, xe_op::sendmsg(fd_, msg, flags));
+}
+
+xe_promise xe_socket::recvmsg(msghdr* msg, uint flags){
+	if(state != XE_SOCKET_CONNECTED)
+		return xe_promise::done(XE_ENOTCONN);
+	return loop_ -> run(xe_op::recvmsg(fd_, msg, flags));
+}
+
+xe_promise xe_socket::sendmsg(const msghdr* msg, uint flags){
+	if(state != XE_SOCKET_CONNECTED)
+		return xe_promise::done(XE_ENOTCONN);
+	return loop_ -> run(xe_op::sendmsg(fd_, msg, flags));
+}
+
+int xe_socket::shutdown_sync(int how){
+	return ::shutdown(fd_, how) < 0 ? xe_errno() : 0;
+}
+
+int xe_socket::shutdown(xe_req& req, int how){
+	if(state != XE_SOCKET_CONNECTED)
+		return XE_ENOTCONN;
+	return loop_ -> run(req, xe_op::shutdown(fd_, how));
+}
+
+xe_promise xe_socket::shutdown(int how){
+	if(state != XE_SOCKET_CONNECTED)
+		return xe_promise::done(XE_ENOTCONN);
+	return loop_ -> run(xe_op::shutdown(fd_, how));
 }
 
 int xe_socket::bind(sockaddr* addr, socklen_t addrlen){

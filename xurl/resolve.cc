@@ -342,7 +342,7 @@ void xe_resolve::resolved(xe_ptr data, int status, int timeouts, xe_ptr ptr){
 
 #ifdef XE_DEBUG
 	xe_log_verbose(query.resolve,
-		status ? "failed to resolve %s in %f ms, status: %s" : "resolved %s in %f ms, status: %s",
+		status ? "failed to resolve %s in %.3f ms, status: %s" : "resolved %s in %.3f ms, status: %s",
 		query.host.c_str(), (xe_time_ns() - query.start) / (float)XE_NANOS_PER_MS, xe_strerror(status)
 	);
 

@@ -44,6 +44,8 @@ public:
 
 class xe_file{
 private:
+	int open(xe_open_req&, xe_op);
+	xe_open_promise open(xe_op);
 	void open(int);
 
 	xe_loop* loop_;
@@ -86,6 +88,15 @@ public:
 	xe_open_promise open(xe_cstr path, uint flags);
 	xe_open_promise openat(int dfd, xe_cstr path, uint flags);
 
+	int open2_sync(xe_cstr path, open_how* how);
+	int openat2_sync(int dfd, xe_cstr path, open_how* how);
+
+	int open2(xe_open_req& req, xe_cstr path, open_how* how);
+	int openat2(xe_open_req& req, int dfd, xe_cstr path, open_how* how);
+
+	xe_open_promise open2(xe_cstr path, open_how* how);
+	xe_open_promise openat2(int dfd, xe_cstr path, open_how* how);
+
 	int read_sync(xe_ptr buf, uint len, long offset);
 	int write_sync(xe_cptr buf, uint len, long offset);
 
@@ -94,6 +105,15 @@ public:
 
 	xe_promise read(xe_ptr buf, uint len, long offset);
 	xe_promise write(xe_cptr buf, uint len, long offset);
+
+	int readv_sync(const iovec* iovecs, uint vlen, long offset);
+	int writev_sync(const iovec* iovecs, uint vlen, long offset);
+
+	int readv(xe_req& req, const iovec* iovecs, uint vlen, long offset);
+	int writev(xe_req& req, const iovec* iovecs, uint vlen, long offset);
+
+	xe_promise readv(const iovec* iovecs, uint vlen, long offset);
+	xe_promise writev(const iovec* iovecs, uint vlen, long offset);
 
 	void close();
 
