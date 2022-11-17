@@ -143,7 +143,13 @@ int xe_socket::accept_sync(sockaddr* addr, socklen_t* addrlen, uint flags){
 }
 
 int xe_socket::connect_sync(const sockaddr* addr, socklen_t addrlen){
-	return ::connect(fd_, addr, addrlen) < 0 ? xe_errno() : 0;
+	if(state != XE_SOCKET_READY)
+		return XE_STATE;
+	if(::connect(fd_, addr, addrlen) < 0)
+		return xe_errno();
+	state = XE_SOCKET_CONNECTED;
+
+	return 0;
 }
 
 int xe_socket::accept(xe_req& req, sockaddr* addr, socklen_t* addrlen, uint flags){
@@ -273,6 +279,8 @@ xe_promise xe_socket::sendmsg(const msghdr* msg, uint flags){
 }
 
 int xe_socket::shutdown_sync(int how){
+	if(state != XE_SOCKET_CONNECTED)
+		return XE_ENOTCONN;
 	return ::shutdown(fd_, how) < 0 ? xe_errno() : 0;
 }
 
