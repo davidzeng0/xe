@@ -143,7 +143,7 @@ int xe_socket::accept_sync(sockaddr* addr, socklen_t* addrlen, uint flags){
 }
 
 int xe_socket::connect_sync(const sockaddr* addr, socklen_t addrlen){
-	if(state != XE_SOCKET_READY)
+	if(state != XE_SOCKET_READY && state != XE_SOCKET_CONNECTED)
 		return XE_STATE;
 	if(::connect(fd_, addr, addrlen) < 0)
 		return xe_errno();

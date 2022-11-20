@@ -64,7 +64,7 @@ Above snippet from [echoserver.cc](example/coroutines/echoserver.cc)
 See [examples](example) and [coroutine examples](example/coroutines)
 
 ### Running Examples
-##### See [Building xe](README.md#build-xe) below
+##### See [Building xe](#build-xe) below
 ```bash
 cd build
 ./coroutine_hello_world
