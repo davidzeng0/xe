@@ -105,9 +105,10 @@ public:
 	bool equal(xe_cstr o) const;
 	bool equal_case(xe_cstr o) const;
 
+	bool resize(size_t size);
 	bool copy(xe_cstr src, size_t n);
 	bool copy(xe_cstr src);
-	bool copy(const xe_string_view& src);
+	bool copy(const xe_slice<char>& src);
 
 	constexpr size_t hash() const{
 		return xe_hash_bytes(data_, size_);

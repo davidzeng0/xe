@@ -71,9 +71,16 @@ static inline constexpr size_t xe_hash_combine(size_t a, size_t b){
 	return a + 0xe6546b64;
 }
 
-template<class T>
+template<typename T, typename E = void>
 struct xe_hash{
+	size_t operator()(const T* key) const{
+		return xe_hash_int((ulong)key);
+	}
+};
+
+template<typename T>
+struct xe_hash<T, typename std::enable_if_t<std::is_integral_v<T>>>{
 	size_t operator()(const T& key) const{
-		return xe_hash_int((ulong)&key);
+		return xe_hash_int((ulong)key);
 	}
 };

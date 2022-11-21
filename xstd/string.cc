@@ -91,6 +91,14 @@ bool xe_string::equal_case(xe_cstr o) const{
 	return xe_string_view(o).equal_case(*this);
 }
 
+bool xe_string::resize(size_t size){
+	if(!xe_array::resize(size + 1))
+		return false;
+	data_[size] = 0;
+
+	return true;
+}
+
 bool xe_string::copy(xe_cstr src, size_t n){
 	char* data = xe_alloc<char>(n + 1);
 
@@ -110,6 +118,6 @@ bool xe_string::copy(xe_cstr src){
 	return copy(src, xe_strlen(src));
 }
 
-bool xe_string::copy(const xe_string_view& src){
-	return copy(src.data(), src.length());
+bool xe_string::copy(const xe_slice<char>& src){
+	return copy(src.data(), src.size());
 }
