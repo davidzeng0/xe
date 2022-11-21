@@ -95,6 +95,7 @@ bool xe_string::resize(size_t size){
 	if(!xe_array::resize(size + 1))
 		return false;
 	data_[size] = 0;
+	size_ = size;
 
 	return true;
 }
