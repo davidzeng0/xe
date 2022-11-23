@@ -26,7 +26,7 @@ static task run(xe_loop& loop){
 
 	addr.sin_family = AF_INET;
 	addr.sin_addr.s_addr = inet_addr("127.0.0.1");
-	addr.sin_port = xe_htons(8080);
+	addr.sin_port = xe_hton<ushort>(8080);
 
 	/* create a socket */
 #if LINUX_VERSION_CODE < KERNEL_VERSION(5, 19, 0)

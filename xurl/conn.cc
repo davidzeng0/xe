@@ -52,7 +52,7 @@ int xe_connection::io(xe_connection& conn, int res){
 
 			conn.endpoint.free();
 
-			xe_log_verbose(&conn, "connected to %.*s:%u after %zu tries in %.3f ms", conn.host.length(), conn.host.data(), xe_ntohs(conn.port), (size_t)conn.ip_index + 1, (xe_time_ns() - conn.time) / (float)XE_NANOS_PER_MS);
+			xe_log_verbose(&conn, "connected to %.*s:%u after %zu tries in %.3f ms", conn.host.length(), conn.host.data(), xe_ntoh(conn.port), (size_t)conn.ip_index + 1, (xe_time_ns() - conn.time) / (float)XE_NANOS_PER_MS);
 			xe_return_error(conn.init_socket());
 
 			if(conn.ssl_enabled){
@@ -278,7 +278,7 @@ int xe_connection::try_connect(xe_connection& conn){
 	char ip[INET6_ADDRSTRLEN];
 
 	inet_ntop(family, family == AF_INET ? (xe_ptr)&in.sin_addr : (xe_ptr)&in6.sin6_addr, ip, address_size);
-	xe_log_debug(&conn, "connecting to %.*s:%u - trying %s", conn.host.length(), conn.host.data(), xe_ntohs(conn.port), ip);
+	xe_log_debug(&conn, "connecting to %.*s:%u - trying %s", conn.host.length(), conn.host.data(), xe_ntoh(conn.port), ip);
 #endif
 	return 0;
 }
@@ -386,7 +386,7 @@ int xe_connection::connect(const xe_string_view& host_, ushort port_, uint timeo
 	host = host_;
 #endif
 
-	port = xe_htons(port_);
+	port = xe_hton(port_);
 	err = ctx -> resolve(*this, host_, endpoint);
 
 	if(err){

@@ -49,30 +49,26 @@ static constexpr inline T xe_htole(T value){
 }
 
 template<typename T>
+static constexpr inline T xe_etoh(T value, xe_byte_order endian){
+	return xe_htoe(value, endian);
+}
+
+template<typename T>
+static constexpr inline T xe_betoh(T value){
+	return xe_htobe(value);
+}
+
+template<typename T>
+static constexpr inline T xe_letoh(T value){
+	return xe_htole(value);
+}
+
+template<typename T>
 static constexpr inline T xe_hton(T value){
 	return xe_htobe(value);
 }
 
-static constexpr inline ushort xe_htons(ushort value){
-	return xe_hton(value);
-}
-
-static constexpr inline uint xe_htonl(uint value){
-	return xe_hton(value);
-}
-
-static constexpr inline ulong xe_htonll(ulong value){
-	return xe_hton(value);
-}
-
-static constexpr inline ushort xe_ntohs(ushort value){
-	return xe_hton(value);
-}
-
-static constexpr inline uint xe_ntohl(uint value){
-	return xe_hton(value);
-}
-
-static constexpr inline ulong xe_ntohll(ulong value){
+template<typename T>
+static constexpr inline T xe_ntoh(T value){
 	return xe_hton(value);
 }

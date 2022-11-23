@@ -64,7 +64,7 @@ static task start_server(xe_loop& loop){
 
 	addr.sin_family = AF_INET;
 	addr.sin_addr.s_addr = inet_addr("127.0.0.1");
-	addr.sin_port = xe_htons(8080);
+	addr.sin_port = xe_hton<ushort>(8080);
 
 	xe_socket server(loop);
 

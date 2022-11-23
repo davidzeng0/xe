@@ -385,7 +385,7 @@ int xe_resolve::ip_resolve(const xe_string& host, xe_endpoint& endpoint){
 			return XE_ENOMEM;
 		xe_zero(&endpoint.inet6_[0]);
 
-		endpoint.inet_[0].s_addr = xe_htonl(0x7f000001); /* 127.0.0.1 */
+		endpoint.inet_[0].s_addr = xe_hton<uint>(0x7f000001); /* 127.0.0.1 */
 		endpoint.inet6_[0].__in6_u.__u6_addr8[15] = 1; /* ::1 */
 
 		return 0;

@@ -289,7 +289,7 @@ protected:
 
 				if(control_frame_length >= 2){
 					start = 2;
-					code = xe_ntohs(*(ushort*)control_frame_data.data());
+					code = xe_ntoh(*(ushort*)control_frame_data.data());
 				}else{
 					code = 1005;
 				}
