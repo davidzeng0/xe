@@ -304,8 +304,9 @@ int xurl_ctx::close(){
 	if(res)
 		resolver_closing = true;
 	connections.close();
-	protocols.clear();
 
+	for(auto& protocol : protocols)
+		protocol.clear();
 	if(!resolver_closing && !connections.closing())
 		closing = false;
 	else if(!res)
