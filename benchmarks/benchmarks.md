@@ -1,7 +1,7 @@
 # Benchmarks
 
 Linux native 5.19<br>
-AMD Ryzen 5800X @ 4.6 GHz
+AMD Ryzen 5800X @ 4.50 GHz
 
 All echo servers pinned to CPU 0<br>
 Echo bench threads pinned to CPU 1-4<br>
