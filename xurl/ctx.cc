@@ -159,6 +159,8 @@ void xurl_ctx::expire_cb(xe_loop& loop, xe_timer& timer){
 	if(ctx.expire) ctx.start_expire_timer();
 }
 
+xurl_ctx::xe_resolve_entry::xe_resolve_entry(xe_shared_ref<xe_endpoint>&& ep): endpoint(std::move(ep)){}
+
 int xurl_ctx::alloc_entry(const xe_string_view& host, xe_map<xe_string, xe_unique_ptr<xe_resolve_entry>>::iterator& it){
 	xe_shared_data<xe_endpoint>* shared = xe_znew<xe_shared_data<xe_endpoint>>();
 	xe_string host_copy;

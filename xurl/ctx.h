@@ -65,6 +65,8 @@ private:
 		xe_string_view key;
 		ulong time;
 		bool in_progress: 1;
+
+		xe_resolve_entry(xe_shared_ref<xe_endpoint>&&);
 	};
 
 	static void resolved(xe_ptr, const xe_string_view&, xe_endpoint&&, int);

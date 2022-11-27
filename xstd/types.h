@@ -13,4 +13,4 @@ typedef const char* xe_cstr;
 typedef void* xe_ptr;
 typedef const void* xe_cptr;
 
-static constexpr nullptr_t null = nullptr;
+static constexpr std::nullptr_t null = nullptr;
