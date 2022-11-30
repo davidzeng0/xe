@@ -99,7 +99,7 @@ public:
 		loop_ = &loop;
 	}
 
-	xe_disallow_copy_move(xe_socket)
+	xe_disable_copy_move(xe_socket)
 
 	void set_loop(xe_loop& loop){
 		loop_ = &loop;

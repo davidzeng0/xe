@@ -149,38 +149,41 @@ public:
 class xe_http_connection_list;
 
 template<class xe_connection_type = xe_http_protocol_singleconnection>
-class xe_http_connection_node{
+class xe_http_connection_node : public xe_linked_node{
 public:
 	xe_http_connection_list& list;
-	xe_linked_node node;
 	xe_connection_type connection;
 
 	xe_http_connection_node(xe_http& proto, xe_http_connection_list& list):
 		list(list), connection(proto){}
 
 	~xe_http_connection_node() = default;
+
+	bool linked(){
+		return xe_linked_node::linked();
+	}
 };
 
 class xe_http_connection_list{
 public:
-	xe_linked_list list;
+	xe_linked_list<xe_http_connection_node<>> list;
 
 	operator bool(){
 		return !list.empty();
 	}
 
-	xe_http_connection_node<>& head(){
-		return xe_containerof(list.head(), &xe_http_connection_node<>::node);
+	xe_http_connection_node<>& front(){
+		return list.front();
 	}
 
 	void add(xe_http_connection_node<>& conn){
-		if(!conn.node.in_list())
-			list.append(conn.node);
+		if(!conn.linked())
+			list.append(conn);
 	}
 
 	void remove(xe_http_connection_node<>& conn){
-		if(conn.node.in_list())
-			list.erase(conn.node);
+		if(conn.linked())
+			list.erase(conn);
 	}
 };
 
@@ -253,7 +256,7 @@ int xe_http::start(xe_request_internal& request){
 		list = conn -> second;
 
 		while(*list){
-			xe_http_protocol_singleconnection& conn = list -> head().connection;
+			xe_http_protocol_singleconnection& conn = list -> front().connection;
 
 			err = 0;
 

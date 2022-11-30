@@ -29,8 +29,8 @@ static int ares_close(int fd, xe_ptr data){
 	 * and closing it during this time could poll another file
 	 * or a non-existent one
 	 */
-	auto& handles = *(xe_rbtree<int>*)data;
-	auto it = handles.find(fd);
+	auto& handles = *(xe_rbtree<xe_resolve_node>*)data;
+	auto it = handles.find(xe_resolve_node(fd));
 
 	return it == handles.end() ? close(fd) : 0;
 }
@@ -259,7 +259,7 @@ int xe_resolve::sockcreate(int fd, int type, xe_ptr data){
 
 	if(!handle)
 		return -1;
-	handle -> node.key = fd;
+	handle -> node.fd = fd;
 	handle -> poll.set_loop(*resolve.loop_);
 	handle -> poll.set_fd(fd);
 	handle -> poll.poll_callback = poll_cb;

@@ -26,7 +26,7 @@ public:
 	xe_url(xe_url&& other);
 	xe_url& operator=(xe_url&& other);
 
-	xe_disallow_copy(xe_url)
+	xe_disable_copy(xe_url)
 
 	xe_string_view href() const;
 

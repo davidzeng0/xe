@@ -20,7 +20,6 @@ typedef typename std::coroutine_handle<> xe_coroutine_handle;
 #include "xstd/linked_list.h"
 #include "xutil/util.h"
 #include "error.h"
-#include "xe.h"
 #include "op.h"
 
 enum xe_iobuf_size{
@@ -28,16 +27,15 @@ enum xe_iobuf_size{
 	XE_LOOP_IOBUF_SIZE_LARGE = 256 * 1024
 };
 
-class xe_req_info{
+class xe_req_info : public xe_linked_node{
 private:
-	xe_linked_node node;
 	xe_op op;
 
 	friend class xe_loop;
 public:
 	xe_req_info() = default;
 
-	xe_disallow_copy_move(xe_req_info)
+	xe_disable_copy_move(xe_req_info)
 
 	~xe_req_info() = default;
 };
@@ -61,9 +59,9 @@ enum xe_timer_flags{
 	XE_TIMER_PASSIVE = 0x8 /* timer does not prevent loop from exiting */
 };
 
-class xe_timer{
+class xe_timer : public xe_rb_node{
 private:
-	xe_rbtree<ulong>::node expire;
+	ulong expire;
 	ulong delay;
 
 	bool active_: 1;
@@ -77,7 +75,7 @@ public:
 	int (*callback)(xe_loop& loop, xe_timer& timer);
 
 	xe_timer(){
-		expire.key = 0;
+		expire = 0;
 		delay = 0;
 
 		active_ = false;
@@ -89,7 +87,7 @@ public:
 		callback = null;
 	}
 
-	xe_disallow_copy_move(xe_timer)
+	xe_disable_copy_move(xe_timer)
 
 	bool active() const{
 		return active_;
@@ -105,6 +103,18 @@ public:
 
 	bool passive() const{
 		return passive_;
+	}
+
+	bool operator<(const xe_timer& o) const{
+		return expire < o.expire;
+	}
+
+	bool operator>(const xe_timer& o) const{
+		return expire > o.expire;
+	}
+
+	bool operator==(const xe_timer& o) const{
+		return expire == o.expire;
 	}
 
 	~xe_timer() = default;
@@ -150,8 +160,8 @@ protected:
 	xe_promise();
 	xe_promise(xe_promise&&) = default;
 
-	xe_disallow_copy(xe_promise)
-	xe_disallow_move_assign(xe_promise)
+	xe_disable_copy(xe_promise)
+	xe_disable_move_assign(xe_promise)
 
 	xe_coroutine_handle waiter;
 	int result_;
@@ -222,10 +232,10 @@ private:
 	io_uring ring;
 
 	ulong active_timers;
-	xe_rbtree<ulong> timers;
+	xe_rbtree<xe_timer> timers;
 
 	xe_ptr io_buf;
-	xe_linked_list reqs;
+	xe_linked_list<xe_req_info> reqs;
 
 	ulong handles_;
 	uint queued_;
@@ -256,7 +266,7 @@ public:
 		sq_ring_full = false;
 	}
 
-	xe_disallow_copy_move(xe_loop)
+	xe_disable_copy_move(xe_loop)
 
 	int init(uint entries);
 	int init_options(xe_loop_options& options);
@@ -277,7 +287,7 @@ public:
 	}
 
 	xe_inline int cancel(xe_req& req, xe_req& cancel, xe_op op, xe_req_info* info = null, xe_req_info* cancel_info = null){
-		if(cancel_info && cancel_info -> node.in_list()){
+		if(cancel_info && cancel_info -> linked()){
 			/* the request was put in our deferred queue */
 			if(op.sqe.opcode == IORING_OP_POLL_REMOVE && op.sqe.len & (IORING_POLL_UPDATE_EVENTS | IORING_POLL_UPDATE_USER_DATA)){
 				/* poll update, not queued yet so just modify here */
@@ -287,7 +297,7 @@ public:
 					cancel_info -> op.sqe.user_data = op.sqe.user_data;
 			}else{
 				/* finish cancel */
-				cancel_info -> node.erase();
+				cancel_info -> erase();
 			}
 
 			return 0;

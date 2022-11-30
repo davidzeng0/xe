@@ -38,7 +38,7 @@ private:
 public:
 	xe_endpoint() = default;
 
-	xe_disallow_copy(xe_endpoint)
+	xe_disable_copy(xe_endpoint)
 
 	xe_endpoint(xe_endpoint&& other);
 	xe_endpoint& operator=(xe_endpoint&& other);
@@ -49,6 +49,35 @@ public:
 	void clear();
 
 	~xe_endpoint();
+};
+
+class xe_resolve_node : public xe_rb_node{
+public:
+	int fd;
+
+	xe_resolve_node(): fd(){}
+	xe_resolve_node(int fd): fd(fd){}
+
+	bool operator<(const xe_resolve_node& o) const{
+		return fd < o.fd;
+	}
+
+	bool operator>(const xe_resolve_node& o) const{
+		return fd > o.fd;
+	}
+
+	bool operator==(const xe_resolve_node& o) const{
+		return fd == o.fd;
+	}
+
+	~xe_resolve_node() = default;
+};
+
+class xe_resolve;
+struct xe_resolve_handle{
+	xe_resolve_node node;
+	xe_poll poll;
+	xe_resolve* resolve;
 };
 
 class xe_resolve{
@@ -63,17 +92,11 @@ private:
 
 	int ip_resolve(const xe_string&, xe_endpoint&);
 
-	struct xe_resolve_handle{
-		xe_rbtree<int>::node node;
-		xe_poll poll;
-		xe_resolve* resolve;
-	};
-
 	xe_loop* loop_;
 	xe_timer timer;
 	xe_ptr resolver;
 
-	xe_rbtree<int> handles;
+	xe_rbtree<xe_resolve_node> handles;
 
 	bool closing: 1;
 public:
@@ -85,7 +108,7 @@ public:
 		close_callback = null;
 	}
 
-	xe_disallow_copy_move(xe_resolve)
+	xe_disable_copy_move(xe_resolve)
 
 	xe_loop& loop() const{
 		return *loop_;

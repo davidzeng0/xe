@@ -69,7 +69,7 @@ public:
 		loop_ = &loop;
 	}
 
-	xe_disallow_copy_move(xe_poll)
+	xe_disable_copy_move(xe_poll)
 
 	void set_loop(xe_loop& loop){
 		loop_ = &loop;

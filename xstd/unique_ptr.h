@@ -27,7 +27,7 @@ public:
 		return *this;
 	}
 
-	xe_disallow_copy(xe_unique_ptr)
+	xe_disable_copy(xe_unique_ptr)
 
 	void own(T* t){
 		clear();

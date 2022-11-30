@@ -49,13 +49,13 @@ void xurl_shared::close(){
 	ssl_ctx_.close();
 }
 
-void xe_connection_ctx::resolved(const xe_shared_ref<xe_endpoint>& endpoint, xe_linked_list& pending, int status){
+void xe_connection_ctx::resolved(const xe_shared_ref<xe_endpoint>& endpoint, xe_linked_list<xe_connection>& pending, int status){
 	xe_connection* conn;
 
 	while(pending){
-		conn = &xe_containerof(pending.head(), &xe_connection::node);
-		pending.erase(conn -> node);
-		list.append(conn -> node);
+		conn = &pending.front();
+		pending.erase(*conn);
+		list.append(*conn);
 
 		if(status)
 			conn -> close(status);
@@ -69,7 +69,7 @@ void xe_connection_ctx::close(){
 	auto cur = list.begin(),
 		end = list.end();
 	while(cur != end){
-		conn = &xe_containerof(*(cur++), &xe_connection::node);
+		conn = &*(cur++);
 		conn -> close(XE_ECANCELED);
 	}
 }
@@ -86,38 +86,38 @@ xe_loop& xe_connection_ctx::loop(){
 
 int xe_connection_ctx::resolve(xe_connection& conn, const xe_string_view& host, xe_shared_ref<xe_endpoint>& ep){
 	xurl_ctx& ctx = xe_containerof(*this, &xurl_ctx::connections);
-	xe_linked_list* list;
+	xe_linked_list<xe_connection>* list;
 	int res;
 
-	res = ctx.resolve(conn, host, ep, &list);
+	res = ctx.resolve(conn, host, ep, list);
 
 	if(res == XE_EINPROGRESS){
 		/* append to waiting list */
-		list -> append(conn.node);
+		list -> append(conn);
 	}
 
 	return res;
 }
 
 void xe_connection_ctx::add(xe_connection& conn){
-	xe_assert(!conn.node.in_list());
+	xe_assert(!conn.linked());
 
-	list.append(conn.node);
+	list.append(conn);
 }
 
 void xe_connection_ctx::closing(xe_connection& conn){
-	xe_assert(conn.node.in_list());
+	xe_assert(conn.linked());
 
-	list.erase(conn.node);
-	close_pending.append(conn.node);
+	list.erase(conn);
+	close_pending.append(conn);
 }
 
 void xe_connection_ctx::remove(xe_connection& conn){
 	xurl_ctx& ctx = xe_containerof(*this, &xurl_ctx::connections);
 
-	xe_assert(conn.node.in_list());
+	xe_assert(conn.linked());
 
-	conn.node.erase();
+	conn.erase();
 
 	if(ctx.closing) ctx.check_close();
 }
@@ -183,14 +183,14 @@ int xurl_ctx::alloc_entry(const xe_string_view& host, xe_map<xe_string, xe_uniqu
 }
 
 void xurl_ctx::start_expire_timer(){
-	xe_resolve_entry& entry = xe_containerof(expire.head(), &xe_resolve_entry::expire);
+	xe_resolve_entry& entry = expire.front();
 
 	xe_assertz(loop_ -> timer_ms(expire_timer, entry.time, 0, XE_TIMER_PASSIVE | XE_TIMER_ABS));
 }
 
 void xurl_ctx::resolve_success(xe_resolve_entry& entry){
 	entry.time = xe_time_ns() + DNS_EXPIRE;
-	expire.append(entry.expire);
+	expire.append(entry);
 
 	if(!expire_timer.active()) start_expire_timer();
 }
@@ -199,18 +199,18 @@ void xurl_ctx::purge_expired(){
 	ulong now = xe_time_ns();
 
 	while(expire){
-		xe_resolve_entry& entry = xe_containerof(expire.head(), &xe_resolve_entry::expire);
+		xe_resolve_entry& entry = expire.front();
 
 		if(now < entry.time)
 			break;
-		expire.erase(entry.expire);
+		expire.erase(entry);
 		endpoints.erase((const xe_string&)entry.key);
 	}
 
 	endpoints.trim();
 }
 
-int xurl_ctx::resolve(xe_connection& conn, const xe_string_view& host, xe_shared_ref<xe_endpoint>& ep, xe_linked_list** queue){
+int xurl_ctx::resolve(xe_connection& conn, const xe_string_view& host, xe_shared_ref<xe_endpoint>& ep, xe_linked_list<xe_connection>*& queue){
 	purge_expired();
 
 	auto it = endpoints.find((const xe_string&)host);
@@ -244,7 +244,7 @@ int xurl_ctx::resolve(xe_connection& conn, const xe_string_view& host, xe_shared
 		active_resolves_++;
 	}
 
-	*queue = &it -> second -> pending;
+	queue = &it -> second -> pending;
 
 	return XE_EINPROGRESS;
 }

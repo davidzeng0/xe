@@ -21,7 +21,7 @@ private:
 public:
 	xurl_shared() = default;
 
-	xe_disallow_copy_move(xurl_shared)
+	xe_disable_copy_move(xurl_shared)
 
 	int init();
 	void close();
@@ -34,14 +34,14 @@ public:
 
 class xe_connection_ctx{
 private:
-	void resolved(const xe_shared_ref<xe_endpoint>&, xe_linked_list&, int);
+	void resolved(const xe_shared_ref<xe_endpoint>&, xe_linked_list<xe_connection>&, int);
 	void close();
 	bool closing();
 
 	friend class xurl_ctx;
 public:
-	xe_linked_list list;
-	xe_linked_list close_pending;
+	xe_linked_list<xe_connection> list;
+	xe_linked_list<xe_connection> close_pending;
 	size_t active; /* connections that are currently in the event loop */
 
 	xe_connection_ctx(): active(){}
@@ -58,10 +58,9 @@ public:
 
 class xurl_ctx{
 private:
-	struct xe_resolve_entry{
+	struct xe_resolve_entry : public xe_linked_node{
 		xe_shared_ref<xe_endpoint> endpoint;
-		xe_linked_list pending;
-		xe_linked_node expire;
+		xe_linked_list<xe_connection> pending;
 		xe_string_view key;
 		ulong time;
 		bool in_progress: 1;
@@ -77,7 +76,7 @@ private:
 	void start_expire_timer();
 	void resolve_success(xe_resolve_entry&);
 	void purge_expired();
-	int resolve(xe_connection&, const xe_string_view&, xe_shared_ref<xe_endpoint>&, xe_linked_list**);
+	int resolve(xe_connection&, const xe_string_view&, xe_shared_ref<xe_endpoint>&, xe_linked_list<xe_connection>*&);
 	void check_close();
 
 	xe_loop* loop_;
@@ -86,7 +85,7 @@ private:
 	xe_fla<xe_unique_ptr<xe_protocol>, XE_PROTOCOL_LAST> protocols;
 	xe_map<xe_string, xe_unique_ptr<xe_resolve_entry>> endpoints;
 
-	xe_linked_list expire;
+	xe_linked_list<xe_resolve_entry> expire;
 	xe_timer expire_timer;
 
 	xe_connection_ctx connections;
@@ -110,7 +109,7 @@ public:
 		close_callback = null;
 	}
 
-	xe_disallow_copy_move(xurl_ctx)
+	xe_disable_copy_move(xurl_ctx)
 
 	int init(xe_loop& loop, xurl_shared& shared);
 	int close();

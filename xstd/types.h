@@ -1,8 +1,8 @@
 #pragma once
 #include <sys/types.h>
-#include <stddef.h>
-#include <limits.h>
-#include <stdint.h>
+#include <cstddef>
+#include <climits>
+#include <cstdint>
 
 typedef unsigned long ulong;
 typedef unsigned int uint;

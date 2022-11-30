@@ -44,7 +44,7 @@ public:
 		return id_;
 	}
 
-	xe_disallow_copy_move(xe_protocol)
+	xe_disable_copy_move(xe_protocol)
 
 	virtual bool matches(const xe_string_view& scheme) const = 0;
 	virtual int open(xe_request_internal& request, xe_url&& url) = 0;

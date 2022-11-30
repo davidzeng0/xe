@@ -84,7 +84,7 @@ inline int xe_loop::submit(bool want_events){
 		if(xe_cqe_needs_flush(ring)) [[unlikely]]
 			flags |= IORING_ENTER_GETEVENTS;
 	}else do{
-		xe_rbtree<ulong>::iterator it;
+		xe_rbtree<xe_timer>::iterator it;
 		ulong now;
 
 		if(!(submit | handles_ | active_timers)) [[unlikely]] {
@@ -116,8 +116,8 @@ inline int xe_loop::submit(bool want_events){
 
 		if(it != timers.end()){
 			/* we may have to exit early to run the timer */
-			if(now < it -> key)
-				timeout = xe_min<ulong>(it -> key - now, MAX_WAIT);
+			if(now < it -> expire)
+				timeout = xe_min<ulong>(it -> expire - now, MAX_WAIT);
 			else{
 				/* if timer already expired, just submit and/or flush cqe, don't wait */
 				wait = 0;
@@ -162,25 +162,25 @@ inline int xe_loop::submit(bool want_events){
 
 	res = xe_ring_enter(ring, submit, wait, flags, timeout);
 
-	if(res < 0) [[unlikely]]
-		goto err;
-sqpoll_done:
-	sq_ring_full = false;
+	if(res >= 0) [[likely]] {
+	sqpoll_done:
+		sq_ring_full = false;
 
-	if(!want_events || submit) [[likely]] {
-		xe_log_trace(this, "<< ring %u", res);
+		if(!want_events || submit) [[likely]] {
+			xe_log_trace(this, "<< ring %u", res);
 
-		if(!res) [[unlikely]] {
-			/* didn't submit anything but kernel has memory for the next submit */
-			return want_events ? 0 : XE_EAGAIN;
+			if(!res) [[unlikely]] {
+				/* didn't submit anything but kernel has memory for the next submit */
+				return want_events ? 0 : XE_EAGAIN;
+			}
+
+			queued_ -= res;
+			handles_ += res;
 		}
 
-		queued_ -= res;
-		handles_ += res;
+		return 0;
 	}
 
-	return 0;
-err:
 	if(res == XE_ETIME || res == XE_EBUSY || res == XE_EINTR) [[likely]]
 		return 0;
 	if(res == XE_EAGAIN){
@@ -226,16 +226,16 @@ void xe_loop::run_timer(xe_timer& timer, ulong now){
 		now += delay;
 	else{
 		/* find how much we overshot */
-		if(now <= timer.expire.key + delay)
-			now = timer.expire.key + delay;
+		if(now <= timer.expire + delay)
+			now = timer.expire + delay;
 		else{
-			align = (now - timer.expire.key) % delay;
+			align = (now - timer.expire) % delay;
 			/* subtract the overshot */
 			now += delay - align;
 		}
 	}
 
-	timer.expire.key = now;
+	timer.expire = now;
 
 	queue_timer(timer);
 }
@@ -245,7 +245,7 @@ void xe_loop::queue_timer(xe_timer& timer){
 
 	if(!timer.passive_)
 		active_timers++;
-	timers.insert(timer.expire);
+	timers.insert(timer);
 }
 
 void xe_loop::erase_timer(xe_timer& timer){
@@ -253,7 +253,7 @@ void xe_loop::erase_timer(xe_timer& timer){
 
 	if(!timer.passive_)
 		active_timers--;
-	timers.erase(timer.expire);
+	timers.erase(timer);
 }
 
 inline int xe_loop::queue_io(xe_req_info& info){
@@ -291,10 +291,10 @@ int xe_loop::queue_pending(){
 	}
 
 	while(reqs){
-		err = queue_io(xe_containerof(reqs.head(), &xe_req_info::node));
+		err = queue_io(reqs.front());
 
 		if(!err)
-			reqs.erase(reqs.head());
+			reqs.erase(reqs.front());
 		else if(err != XE_EAGAIN)
 			return err;
 		else
@@ -338,7 +338,7 @@ submit:
 
 	if(!info)
 		return XE_ENOMEM;
-	reqs.append(info -> node);
+	reqs.append(*info);
 	sqe = &info -> op.sqe;
 
 	goto store;
@@ -372,6 +372,9 @@ int xe_loop::init_options(xe_loop_options& options){
 #endif
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 0, 0)
 	params.flags |= IORING_SETUP_SINGLE_ISSUER;
+#endif
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0)
+	params.flags |= IORING_SETUP_DEFER_TASKRUN;
 #endif
 
 	if(options.flag_iopoll)
@@ -441,9 +444,9 @@ int xe_loop::run(){
 
 		/* process outstanding timers */
 		for(auto it = timers.begin(); it != timers.end(); it = timers.begin()){
-			xe_timer& timer = xe_containerof(*it, &xe_timer::expire);
+			xe_timer& timer = *it;
 
-			if(now < timer.expire.key)
+			if(now < timer.expire)
 				break;
 			run_timer(timer, now);
 
@@ -538,7 +541,7 @@ int xe_loop::timer_ns(xe_timer& timer, ulong nanos, ulong repeat, uint flags){
 	timer.repeat_ = flags & XE_TIMER_REPEAT ? true : false;
 	timer.align_ = flags & XE_TIMER_ALIGN ? true : false;
 	timer.passive_ = flags & XE_TIMER_PASSIVE ? true : false;
-	timer.expire.key = nanos;
+	timer.expire = nanos;
 
 	queue_timer(timer);
 

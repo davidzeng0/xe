@@ -24,7 +24,7 @@ public:
 		return *this;
 	}
 
-	xe_disallow_copy(xe_http_headers)
+	xe_disable_copy(xe_http_headers)
 
 	bool has(const xe_string_view& key){
 		return xe_map::has((const xe_string&)key);
@@ -66,7 +66,7 @@ public:
 		return *this;
 	}
 
-	xe_disallow_copy(xe_http_response)
+	xe_disable_copy(xe_http_response)
 
 	void clear(){
 		headers.clear();

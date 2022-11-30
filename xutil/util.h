@@ -8,20 +8,20 @@
 		if(err_) [[unlikely]] return err_;	\
 	}while(0)
 
-#define xe_disallow_copy_construct(class) class(const class& src) = delete;
-#define xe_disallow_copy_assign(class) class& operator=(const class& src) = delete;
-#define xe_disallow_move_construct(class) class(class&& src) = delete;
-#define xe_disallow_move_assign(class) class& operator=(class&& src) = delete;
+#define xe_disable_copy_construct(class) class(const class& src) = delete;
+#define xe_disable_copy_assign(class) class& operator=(const class& src) = delete;
+#define xe_disable_move_construct(class) class(class&& src) = delete;
+#define xe_disable_move_assign(class) class& operator=(class&& src) = delete;
 
-#define xe_disallow_copy(class)			\
-	xe_disallow_copy_construct(class)	\
-	xe_disallow_copy_assign(class)
-#define xe_disallow_move(class)			\
-	xe_disallow_move_construct(class)	\
-	xe_disallow_move_assign(class)
-#define xe_disallow_copy_move(class)	\
-	xe_disallow_copy(class)				\
-	xe_disallow_move(class)
+#define xe_disable_copy(class)			\
+	xe_disable_copy_construct(class)	\
+	xe_disable_copy_assign(class)
+#define xe_disable_move(class)			\
+	xe_disable_move_construct(class)	\
+	xe_disable_move_assign(class)
+#define xe_disable_copy_move(class)	\
+	xe_disable_copy(class)				\
+	xe_disable_move(class)
 
 #define xe_inline __attribute__ ((always_inline))
 

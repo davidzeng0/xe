@@ -759,24 +759,6 @@ int xe_http_singleconnection::chunked_body(byte* buf, size_t len){
 				}
 
 				break;
-			case CHUNKED_READ_EXTENSION:
-				result = xe_string_view((char*)buf, len).index_of('\n');
-
-				if(result == (size_t)-1)
-					len = 0;
-				else{
-					len -= result + 1;
-					buf += result + 1;
-
-					if(data_len)
-						chunked_state = CHUNKED_READ_DATA;
-					else{
-						header_total = 0;
-						chunked_state = CHUNKED_READ_TRAILERS;
-					}
-				}
-
-				break;
 			case CHUNKED_READ_DATA:
 				write = data_len;
 
@@ -797,15 +779,27 @@ int xe_http_singleconnection::chunked_body(byte* buf, size_t len){
 				buf += write;
 
 				break;
+			case CHUNKED_READ_EXTENSION:
 			case CHUNKED_READ_END:
 				result = xe_string_view((char*)buf, len).index_of('\n');
 
-				if(result == (size_t)-1)
+				if(result == (size_t)-1){
 					len = 0;
-				else{
-					len -= result + 1;
-					buf += result + 1;
 
+					break;
+				}
+
+				len -= result + 1;
+				buf += result + 1;
+
+				if(chunked_state == CHUNKED_READ_EXTENSION){
+					if(data_len)
+						chunked_state = CHUNKED_READ_DATA;
+					else{
+						header_total = 0;
+						chunked_state = CHUNKED_READ_TRAILERS;
+					}
+				}else{
 					chunked_state = CHUNKED_READ_SIZE;
 				}
 

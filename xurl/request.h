@@ -41,7 +41,7 @@ public:
 		state_ = XE_REQUEST_STATE_IDLE;
 	}
 
-	xe_disallow_copy_move(xe_request)
+	xe_disable_copy_move(xe_request)
 
 	xe_request_state state();
 

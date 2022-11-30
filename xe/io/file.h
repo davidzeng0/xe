@@ -23,7 +23,7 @@ public:
 
 	xe_open_req(): xe_open_req(null){}
 
-	xe_disallow_copy_move(xe_open_req)
+	xe_disable_copy_move(xe_open_req)
 
 	~xe_open_req() = default;
 };
@@ -65,7 +65,7 @@ public:
 		loop_ = &loop;
 	}
 
-	xe_disallow_copy_move(xe_file)
+	xe_disable_copy_move(xe_file)
 
 	void set_loop(xe_loop& loop){
 		loop_ = &loop;

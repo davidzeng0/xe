@@ -26,7 +26,7 @@ public:
 		return *this;
 	}
 
-	xe_disallow_copy(xe_map)
+	xe_disable_copy(xe_map)
 
 	template<class K, class V>
 	bool insert(K&& key, V&& value){

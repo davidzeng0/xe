@@ -1,78 +1,16 @@
 #pragma once
-#include "types.h"
 #include "xutil/util.h"
+#include "types.h"
 
-template<typename T>
-class xe_rbtree{
+enum xe_rb_color{
+	BLACK = 0x0,
+	RED = 0x1
+};
+
+class xe_rb_node{
 private:
-	enum rbcolor{
-		BLACK = 0x0,
-		RED = 0x1
-	};
-
-	class rbnode{
-	private:
-		rbnode* left;
-		rbnode* right;
-		rbnode* parent;
-		rbcolor color;
-
-		friend class xe_rbtree;
-	public:
-		T key;
-	};
-
-	template<class node_t>
-	class rbiterator{
-	private:
-		node_t* node;
-	public:
-		constexpr rbiterator(): node(){}
-		constexpr rbiterator(node_t* node): node(node){}
-
-		constexpr node_t* operator->() const{
-			return node;
-		}
-
-		constexpr node_t& operator*() const{
-			return *node;
-		}
-
-		constexpr rbiterator& operator++(){
-			node = next(node);
-
-			return *this;
-		}
-
-		constexpr rbiterator operator++(int){
-			rbiterator tmp = *this;
-
-			node = next(node);
-
-			return tmp;
-		}
-
-		constexpr rbiterator& operator--(){
-			node = prev(node);
-		}
-
-		constexpr rbiterator operator--(int){
-			rbiterator tmp = *this;
-
-			node = prev(node);
-
-			return tmp;
-		}
-
-		constexpr bool operator==(const rbiterator& other) const{
-			return node == other.node;
-		}
-
-		~rbiterator() = default;
-	};
-
-	static rbnode* iterate(rbnode* node, rbnode* rbnode::*a, rbnode* rbnode::*b){
-		rbnode* parent;
+	xe_rb_node* iterate(xe_rb_node* xe_rb_node::*a, xe_rb_node* xe_rb_node::*b){
+		xe_rb_node* parent, *node = this;
 
 		if(node ->* b){
 			node = node ->* b;
@@ -93,15 +31,82 @@ private:
 		return node;
 	}
 
-	static rbnode* next(rbnode* node){
-		return iterate(node, &rbnode::left, &rbnode::right);
+	xe_rb_node* next(){
+		return iterate(&xe_rb_node::left, &xe_rb_node::right);
 	}
 
-	static rbnode* prev(rbnode* node){
-		return iterate(node, &rbnode::right, &rbnode::left);
+	xe_rb_node* prev(xe_rb_node* node){
+		return iterate(&xe_rb_node::right, &xe_rb_node::left);
 	}
 
-	void change_child(rbnode* parent, rbnode* from, rbnode* to){
+	xe_rb_node* left;
+	xe_rb_node* right;
+	xe_rb_node* parent;
+	xe_rb_color color;
+
+	template<class xe_node>
+	friend class xe_rbtree;
+
+	template<class xe_node>
+	friend class xe_rb_iterator_base;
+};
+
+template<class xe_node>
+class xe_rb_iterator_base{
+private:
+	xe_node* node;
+public:
+	constexpr xe_rb_iterator_base(): node(){}
+	constexpr xe_rb_iterator_base(xe_node* node): node(node){}
+
+	constexpr xe_node* operator->() const{
+		return node;
+	}
+
+	constexpr xe_node& operator*() const{
+		return *node;
+	}
+
+	constexpr xe_rb_iterator_base& operator++(){
+		node = (xe_node*)node -> next();
+
+		return *this;
+	}
+
+	constexpr xe_rb_iterator_base operator++(int){
+		xe_rb_iterator_base tmp = *this;
+
+		node = (xe_node*)node -> next();
+
+		return tmp;
+	}
+
+	constexpr xe_rb_iterator_base& operator--(){
+		node = (xe_node*)node -> prev();
+	}
+
+	constexpr xe_rb_iterator_base operator--(int){
+		xe_rb_iterator_base tmp = *this;
+
+		node = (xe_node*)node -> prev();
+
+		return tmp;
+	}
+
+	constexpr bool operator==(const xe_rb_iterator_base& other) const{
+		return node == other.node;
+	}
+
+	~xe_rb_iterator_base() = default;
+};
+
+typedef xe_rb_iterator_base<xe_rb_node> xe_rb_iterator;
+typedef xe_rb_iterator_base<const xe_rb_node> xe_rb_const_iterator;
+
+template<typename xe_node>
+class xe_rbtree{
+private:
+	void change_child(xe_rb_node* parent, xe_rb_node* from, xe_rb_node* to){
 		if(!parent)
 			root = to;
 		else if(parent -> left == from)
@@ -110,8 +115,8 @@ private:
 			parent -> right = to;
 	}
 
-	void shift_down(rbnode* node, rbnode* parent, rbnode* rbnode::*a, rbnode* rbnode::*b){
-		rbnode* tmp;
+	void shift_down(xe_rb_node* node, xe_rb_node* parent, xe_rb_node* xe_rb_node::*a, xe_rb_node* xe_rb_node::*b){
+		xe_rb_node* tmp;
 
 		/* move node's parent to node's child */
 		tmp = node ->* a;
@@ -122,8 +127,8 @@ private:
 		if(tmp) tmp -> parent = parent;
 	}
 
-	void rotate(rbnode* node, rbnode* parent, rbcolor node_color, rbcolor parent_color, rbnode* rbnode::*a, rbnode* rbnode::*b){
-		rbnode* tmp;
+	void rotate(xe_rb_node* node, xe_rb_node* parent, xe_rb_color node_color, xe_rb_color parent_color, xe_rb_node* xe_rb_node::*a, xe_rb_node* xe_rb_node::*b){
+		xe_rb_node* tmp;
 
 		/*
 		 * node is child or grandchild of parent
@@ -145,7 +150,7 @@ private:
 		parent -> color = parent_color;
 	}
 
-	void rotate_swap(rbnode* node, rbnode* parent, rbnode* gparent, rbcolor node_color, rbcolor gparent_color, rbnode* rbnode::*a, rbnode* rbnode::*b){
+	void rotate_swap(xe_rb_node* node, xe_rb_node* parent, xe_rb_node* gparent, xe_rb_color node_color, xe_rb_color gparent_color, xe_rb_node* xe_rb_node::*a, xe_rb_node* xe_rb_node::*b){
 		/*
 		 * move node from the bottom to the top
 		 * grandparent moves down to node's side
@@ -156,9 +161,9 @@ private:
 		shift_down(node, parent, a, b);
 	}
 
-	void insert(rbnode* node){
-		rbnode** link;
-		rbnode* parent, *gparent, *uncle;
+	void insert(xe_rb_node* node){
+		xe_rb_node** link;
+		xe_rb_node* parent, *gparent, *uncle;
 
 		node -> left = null;
 		node -> right = null;
@@ -178,7 +183,7 @@ private:
 		while(*link){
 			parent = *link;
 
-			if(node -> key < parent -> key)
+			if(*(xe_node*)node < *(xe_node*)parent)
 				link = &parent -> left;
 			else
 				link = &parent -> right;
@@ -216,18 +221,18 @@ private:
 			if(parent == gparent -> left){
 				if(node == parent -> left){
 					/* left - left */
-					rotate(parent, gparent, BLACK, RED, &rbnode::left, &rbnode::right);
+					rotate(parent, gparent, BLACK, RED, &xe_rb_node::left, &xe_rb_node::right);
 				}else{
 					/* left - right */
-					rotate_swap(node, parent, gparent, BLACK, RED, &rbnode::left, &rbnode::right);
+					rotate_swap(node, parent, gparent, BLACK, RED, &xe_rb_node::left, &xe_rb_node::right);
 				}
 			}else{
 				if(node == parent -> left){
 					/* right - left */
-					rotate_swap(node, parent, gparent, BLACK, RED, &rbnode::right, &rbnode::left);
+					rotate_swap(node, parent, gparent, BLACK, RED, &xe_rb_node::right, &xe_rb_node::left);
 				}else{
 					/* right - right */
-					rotate(parent, gparent, BLACK, RED, &rbnode::right, &rbnode::left);
+					rotate(parent, gparent, BLACK, RED, &xe_rb_node::right, &xe_rb_node::left);
 				}
 			}
 
@@ -235,14 +240,14 @@ private:
 		}
 	}
 
-	void balance_rotate(rbnode* child, rbnode* sibling, rbnode* parent, rbnode* rbnode::*a, rbnode* rbnode::*b){
+	void balance_rotate(xe_rb_node* child, xe_rb_node* sibling, xe_rb_node* parent, xe_rb_node* xe_rb_node::*a, xe_rb_node* xe_rb_node::*b){
 		rotate(sibling, parent, parent -> color, BLACK, a, b);
 
 		child -> color = BLACK;
 	}
 
-	bool balance(rbnode*& sibling, rbnode* parent, rbnode* rbnode::*a, rbnode* rbnode::*b){
-		rbnode* child, *tmp;
+	bool balance(xe_rb_node*& sibling, xe_rb_node* parent, xe_rb_node* xe_rb_node::*a, xe_rb_node* xe_rb_node::*b){
+		xe_rb_node* child, *tmp;
 
 		if(sibling -> color == RED){
 			/*
@@ -300,7 +305,7 @@ private:
 		child = sibling -> left;
 
 		if(child && child -> color == RED){
-			if(a == &rbnode::left){
+			if(a == &xe_rb_node::left){
 				/* left - left */
 				balance_rotate(child, sibling, parent, a, b);
 			}else{
@@ -314,7 +319,7 @@ private:
 		child = sibling -> right;
 
 		if(child && child -> color == RED){
-			if(a == &rbnode::left){
+			if(a == &xe_rb_node::left){
 				/* left - right */
 				rotate_swap(child, sibling, parent, parent -> color, BLACK, a, b);
 			}else{
@@ -328,8 +333,8 @@ private:
 		return false;
 	}
 
-	void balance(rbnode* parent){
-		rbnode* node, *sibling;
+	void balance(xe_rb_node* parent){
+		xe_rb_node* node, *sibling;
 
 		node = null;
 
@@ -339,9 +344,9 @@ private:
 			if(sibling == node){
 				sibling = parent -> right;
 
-				if(balance(sibling, parent, &rbnode::right, &rbnode::left))
+				if(balance(sibling, parent, &xe_rb_node::right, &xe_rb_node::left))
 					break;
-			}else if(balance(sibling, parent, &rbnode::left, &rbnode::right)){
+			}else if(balance(sibling, parent, &xe_rb_node::left, &xe_rb_node::right)){
 				break;
 			}
 
@@ -359,13 +364,13 @@ private:
 		}
 	}
 
-	void move_child(rbnode* to, rbnode* child, rbnode* rbnode::*side){
+	void move_child(xe_rb_node* to, xe_rb_node* child, xe_rb_node* xe_rb_node::*side){
 		to ->* side = child;
 
 		if(child) child -> parent = to;
 	}
 
-	rbnode* replace(rbnode* node, rbnode* replacement){
+	xe_rb_node* replace(xe_rb_node* node, xe_rb_node* replacement){
 		/* single child replacement */
 		change_child(node -> parent, node, replacement);
 
@@ -379,14 +384,14 @@ private:
 		return null;
 	}
 
-	void erase(rbnode* node){
-		rbnode* double_black, *successor, *parent, *tmp;
+	void erase(xe_rb_node* node){
+		xe_rb_node* double_black, *successor, *parent, *tmp;
 
 		double_black = null;
 		size_--;
 
 		if(node == begin_)
-			begin_ = next(begin_);
+			begin_ = begin_ -> next();
 		if(!node -> left)
 			double_black = replace(node, node -> right);
 		else if(!node -> right)
@@ -406,8 +411,8 @@ private:
 				parent = successor -> parent;
 				tmp = successor -> right;
 
-				move_child(parent, tmp, &rbnode::left);
-				move_child(successor, node -> right, &rbnode::right);
+				move_child(parent, tmp, &xe_rb_node::left);
+				move_child(successor, node -> right, &xe_rb_node::right);
 			}else{
 				parent = successor;
 				tmp = successor -> right;
@@ -417,7 +422,7 @@ private:
 				tmp -> color = BLACK;
 			else if(successor -> color == BLACK)
 				double_black = parent;
-			move_child(successor, node -> left, &rbnode::left);
+			move_child(successor, node -> left, &xe_rb_node::left);
 			change_child(node -> parent, node, successor);
 
 			successor -> parent = node -> parent;
@@ -427,28 +432,28 @@ private:
 		if(double_black) balance(double_black);
 	}
 
-	rbnode* root;
-	rbnode* begin_;
+	xe_rb_node* root;
+	xe_rb_node* begin_;
 	size_t size_;
 public:
-	typedef rbiterator<rbnode> iterator;
-	typedef rbiterator<const rbnode> const_iterator;
-	typedef rbnode node;
+	typedef xe_rb_iterator_base<xe_node> iterator;
+	typedef xe_rb_iterator_base<const xe_node> const_iterator;
+	typedef xe_node node;
 
 	xe_rbtree(): root(), begin_(), size_(){}
 
-	xe_disallow_copy_move(xe_rbtree)
+	xe_disable_copy_move(xe_rbtree)
 
-	iterator insert(rbnode& node){
+	iterator insert(xe_node& node){
 		insert(&node);
 
 		return iterator(&node);
 	}
 
-	iterator erase(rbnode& node){
+	iterator erase(xe_node& node){
 		erase(&node);
 
-		return iterator(begin_);
+		return iterator((xe_node*)begin_);
 	}
 
 	iterator erase(iterator it){
@@ -460,7 +465,7 @@ public:
 	}
 
 	iterator begin(){
-		return iterator(begin_);
+		return iterator((xe_node*)begin_);
 	}
 
 	iterator end(){
@@ -475,19 +480,19 @@ public:
 		return const_iterator(null);
 	}
 
-	iterator find(const T& key){
-		rbnode* node = root;
+	iterator find(const xe_node& key){
+		xe_rb_node* node = root;
 
 		while(node){
-			if(key < node -> key)
-				node = node -> left;
-			else if(key == node -> key)
-				break;
-			else
+			if(*(xe_node*)node < key)
 				node = node -> right;
+			else if(*(xe_node*)node > key)
+				node = node -> left;
+			else
+				break;
 		}
 
-		return iterator(node);
+		return iterator((xe_node*)node);
 	}
 
 	~xe_rbtree() = default;

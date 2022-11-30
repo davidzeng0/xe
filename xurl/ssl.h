@@ -13,7 +13,7 @@ private:
 public:
 	xe_ssl_ctx(): data(){}
 
-	xe_disallow_copy_move(xe_ssl_ctx)
+	xe_disable_copy_move(xe_ssl_ctx)
 
 	int init();
 	int load_default_verify_locations();
@@ -31,7 +31,7 @@ private:
 public:
 	xe_ssl(): data(){}
 
-	xe_disallow_copy_move(xe_ssl)
+	xe_disable_copy_move(xe_ssl)
 
 	int init(const xe_ssl_ctx& ctx);
 	void close();

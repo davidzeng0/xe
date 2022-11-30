@@ -313,7 +313,7 @@ public:
 		return *this;
 	}
 
-	xe_disallow_copy(xe_vla)
+	xe_disable_copy(xe_vla)
 
 	operator bool() const{
 		return size_ > 0;

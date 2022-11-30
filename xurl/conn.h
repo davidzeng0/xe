@@ -16,7 +16,7 @@ enum xe_connection_state{
 	XE_CONNECTION_STATE_CLOSED
 };
 
-class xe_connection{
+class xe_connection : public xe_linked_node{
 private:
 	static void poll_cb(xe_poll&, int);
 	static void close_cb(xe_poll&);
@@ -28,8 +28,6 @@ private:
 	static int socket_read(xe_connection&);
 
 	void start_connect(const xe_shared_ref<xe_endpoint>& endpoint_);
-
-	xe_linked_node node;
 
 #ifdef XE_DEBUG
 	xe_string_view host;
@@ -93,7 +91,7 @@ public:
 		state = XE_CONNECTION_STATE_IDLE;
 	}
 
-	xe_disallow_copy_move(xe_connection)
+	xe_disable_copy_move(xe_connection)
 
 	int init(xurl_ctx& ctx);
 	int init_ssl(const xe_ssl_ctx& ctx);

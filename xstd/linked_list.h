@@ -4,22 +4,7 @@
 #include "xutil/assert.h"
 
 class xe_linked_node{
-	union{
-		struct{
-			xe_linked_node* prev_;
-			xe_linked_node* next_;
-		};
-
-		struct{
-			xe_linked_node* tail;
-			xe_linked_node* head;
-		};
-	};
-
-	friend class xe_linked_list;
-public:
-	constexpr xe_linked_node(): prev_(), next_(){}
-
+private:
 	constexpr xe_linked_node* prev(){
 		return prev_;
 	}
@@ -36,6 +21,24 @@ public:
 		return next_;
 	}
 
+	union{
+		struct{
+			xe_linked_node* prev_;
+			xe_linked_node* next_;
+		};
+
+		struct{
+			xe_linked_node* tail;
+			xe_linked_node* head;
+		};
+	};
+
+	template<class xe_node>
+	friend class xe_linked_list;
+
+	template<class xe_node>
+	friend class xe_linked_iterator_base;
+protected:
 	constexpr void detach(){
 		xe_assert(prev_);
 
@@ -50,87 +53,92 @@ public:
 		next_ = null;
 	}
 
-	constexpr bool in_list() const{
+	constexpr bool linked() const{
 		return prev_ != null;
 	}
 
 	constexpr operator bool() const{
-		return in_list();
+		return linked();
 	}
+public:
+	constexpr xe_linked_node(): prev_(), next_(){}
 
 	~xe_linked_node() = default;
 };
 
-template<class node_t>
-class xe_linked_iterator{
+template<class xe_node>
+class xe_linked_iterator_base{
 private:
-	node_t* node;
+	xe_node* node;
 public:
-	constexpr xe_linked_iterator(): node(){}
-	constexpr xe_linked_iterator(node_t* node): node(node){}
+	constexpr xe_linked_iterator_base(): node(){}
+	constexpr xe_linked_iterator_base(xe_node* node): node(node){}
 
-	constexpr node_t* operator->() const{
+	constexpr xe_node* operator->() const{
 		return node;
 	}
 
-	constexpr node_t& operator*() const{
+	constexpr xe_node& operator*() const{
 		return *node;
 	}
 
-	constexpr xe_linked_iterator& operator++(){
-		node = node -> next();
+	constexpr xe_linked_iterator_base& operator++(){
+		node = (xe_node*)node -> next();
 
 		return *this;
 	}
 
-	constexpr xe_linked_iterator operator++(int){
-		xe_linked_iterator tmp = *this;
+	constexpr xe_linked_iterator_base operator++(int){
+		xe_linked_iterator_base tmp = *this;
 
-		node = node -> next();
-
-		return tmp;
-	}
-
-	constexpr xe_linked_iterator& operator--(){
-		node = node -> prev();
-	}
-
-	constexpr xe_linked_iterator operator--(int){
-		xe_linked_iterator tmp = *this;
-
-		node = node -> prev();
+		node = (xe_node*)node -> next();
 
 		return tmp;
 	}
 
-	constexpr bool operator==(const xe_linked_iterator& other) const{
+	constexpr xe_linked_iterator_base& operator--(){
+		node = (xe_node*)node -> prev();
+	}
+
+	constexpr xe_linked_iterator_base operator--(int){
+		xe_linked_iterator_base tmp = *this;
+
+		node = (xe_node*)node -> prev();
+
+		return tmp;
+	}
+
+	constexpr bool operator==(const xe_linked_iterator_base& other) const{
 		return node == other.node;
 	}
 
-	constexpr ~xe_linked_iterator() = default;
+	constexpr ~xe_linked_iterator_base() = default;
 };
 
+typedef xe_linked_iterator_base<xe_linked_node> xe_linked_iterator;
+typedef xe_linked_iterator_base<const xe_linked_node> xe_linked_const_iterator;
+
+template<class xe_node>
 class xe_linked_list{
 	xe_linked_node list;
 public:
-	typedef xe_linked_iterator<xe_linked_node> iterator;
-	typedef xe_linked_iterator<const xe_linked_node> const_iterator;
+	typedef xe_linked_iterator_base<xe_node> iterator;
+	typedef xe_linked_iterator_base<const xe_node> const_iterator;
 
 	/* circularly & doubly linked list */
 	constexpr xe_linked_list(){
-		/* &list means null */
 		list.tail = &list;
 		list.head = &list;
 	}
 
-	xe_disallow_copy_move(xe_linked_list)
+	xe_disable_copy_move(xe_linked_list)
 
-	constexpr xe_linked_node& head(){
-		return *list.head;
+	constexpr xe_node& head(){
+		return (xe_node&)*list.head;
 	}
 
-	constexpr xe_linked_node& tail(){
-		return *list.tail;
+	constexpr xe_node& tail(){
+		return (xe_node&)*list.tail;
 	}
 
 	constexpr void prepend(xe_linked_node& node){
@@ -156,51 +164,51 @@ public:
 	}
 
 	constexpr iterator begin(){
-		return iterator(list.head);
+		return iterator((xe_node*)list.head);
 	}
 
 	constexpr iterator end(){
-		return iterator(&list);
+		return iterator((xe_node*)&list);
 	}
 
 	constexpr const_iterator begin() const{
-		return const_iterator(list.head);
+		return const_iterator((xe_node*)list.head);
 	}
 
 	constexpr const_iterator end() const{
-		return const_iterator(&list);
+		return const_iterator((xe_node*)&list);
 	}
 
 	constexpr const_iterator cbegin() const{
-		return const_iterator(list.head);
+		return const_iterator((xe_node*)list.head);
 	}
 
 	constexpr const_iterator cend() const{
-		return const_iterator(&list);
+		return const_iterator((xe_node*)&list);
 	}
 
-	constexpr xe_linked_node& front(){
+	constexpr xe_node& front(){
 		xe_assert(list.head != &list);
 
-		return *list.head;
+		return (xe_node&)*list.head;
 	}
 
-	constexpr const xe_linked_node& front() const{
+	constexpr const xe_node& front() const{
 		xe_assert(list.head != &list);
 
-		return *list.head;
+		return (xe_node&)*list.head;
 	}
 
-	constexpr xe_linked_node& back(){
+	constexpr xe_node& back(){
 		xe_assert(list.tail != &list);
 
-		return *list.tail;
+		return (xe_node&)*list.tail;
 	}
 
-	constexpr const xe_linked_node& back() const{
+	constexpr const xe_node& back() const{
 		xe_assert(list.tail != &list);
 
-		return *list.tail;
+		return (xe_node&)*list.tail;
 	}
 
 	constexpr bool empty() const{
