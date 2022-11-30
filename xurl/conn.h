@@ -16,7 +16,7 @@ enum xe_connection_state{
 	XE_CONNECTION_STATE_CLOSED
 };
 
-class xe_connection : public xe_linked_node{
+class xe_connection : protected xe_linked_node{
 private:
 	static void poll_cb(xe_poll&, int);
 	static void close_cb(xe_poll&);

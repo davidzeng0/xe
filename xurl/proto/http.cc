@@ -158,10 +158,6 @@ public:
 		list(list), connection(proto){}
 
 	~xe_http_connection_node() = default;
-
-	bool linked(){
-		return xe_linked_node::linked();
-	}
 };
 
 class xe_http_connection_list{

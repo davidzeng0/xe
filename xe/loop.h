@@ -27,7 +27,7 @@ enum xe_iobuf_size{
 	XE_LOOP_IOBUF_SIZE_LARGE = 256 * 1024
 };
 
-class xe_req_info : public xe_linked_node{
+class xe_req_info : protected xe_linked_node{
 private:
 	xe_op op;
 

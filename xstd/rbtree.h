@@ -35,7 +35,7 @@ private:
 		return iterate(&xe_rb_node::left, &xe_rb_node::right);
 	}
 
-	xe_rb_node* prev(xe_rb_node* node){
+	xe_rb_node* prev(){
 		return iterate(&xe_rb_node::right, &xe_rb_node::left);
 	}
 
@@ -54,21 +54,21 @@ private:
 template<class xe_node>
 class xe_rb_iterator_base{
 private:
-	xe_node* node;
+	xe_rb_node* node;
 public:
 	constexpr xe_rb_iterator_base(): node(){}
-	constexpr xe_rb_iterator_base(xe_node* node): node(node){}
+	constexpr xe_rb_iterator_base(xe_rb_node* node): node(node){}
 
 	constexpr xe_node* operator->() const{
-		return node;
+		return (xe_node*)node;
 	}
 
 	constexpr xe_node& operator*() const{
-		return *node;
+		return *(xe_node*)node;
 	}
 
 	constexpr xe_rb_iterator_base& operator++(){
-		node = (xe_node*)node -> next();
+		node = node -> next();
 
 		return *this;
 	}
@@ -76,19 +76,19 @@ public:
 	constexpr xe_rb_iterator_base operator++(int){
 		xe_rb_iterator_base tmp = *this;
 
-		node = (xe_node*)node -> next();
+		node = node -> next();
 
 		return tmp;
 	}
 
 	constexpr xe_rb_iterator_base& operator--(){
-		node = (xe_node*)node -> prev();
+		node = node -> prev();
 	}
 
 	constexpr xe_rb_iterator_base operator--(int){
 		xe_rb_iterator_base tmp = *this;
 
-		node = (xe_node*)node -> prev();
+		node = node -> prev();
 
 		return tmp;
 	}
@@ -103,7 +103,7 @@ public:
 typedef xe_rb_iterator_base<xe_rb_node> xe_rb_iterator;
 typedef xe_rb_iterator_base<const xe_rb_node> xe_rb_const_iterator;
 
-template<typename xe_node>
+template<typename xe_node = xe_rb_node>
 class xe_rbtree{
 private:
 	void change_child(xe_rb_node* parent, xe_rb_node* from, xe_rb_node* to){
@@ -453,7 +453,7 @@ public:
 	iterator erase(xe_node& node){
 		erase(&node);
 
-		return iterator((xe_node*)begin_);
+		return iterator(begin_);
 	}
 
 	iterator erase(iterator it){
@@ -465,7 +465,7 @@ public:
 	}
 
 	iterator begin(){
-		return iterator((xe_node*)begin_);
+		return iterator(begin_);
 	}
 
 	iterator end(){
@@ -492,7 +492,7 @@ public:
 				break;
 		}
 
-		return iterator((xe_node*)node);
+		return iterator(node);
 	}
 
 	~xe_rbtree() = default;

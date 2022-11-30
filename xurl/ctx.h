@@ -56,18 +56,19 @@ public:
 	~xe_connection_ctx() = default;
 };
 
+struct xe_resolve_entry : public xe_linked_node{
+	xe_shared_ref<xe_endpoint> endpoint;
+	xe_linked_list<xe_connection> pending;
+	xe_string_view key;
+	ulong time;
+	bool in_progress: 1;
+
+	xe_resolve_entry(xe_shared_ref<xe_endpoint>&&);
+	~xe_resolve_entry() = default;
+};
+
 class xurl_ctx{
 private:
-	struct xe_resolve_entry : public xe_linked_node{
-		xe_shared_ref<xe_endpoint> endpoint;
-		xe_linked_list<xe_connection> pending;
-		xe_string_view key;
-		ulong time;
-		bool in_progress: 1;
-
-		xe_resolve_entry(xe_shared_ref<xe_endpoint>&&);
-	};
-
 	static void resolved(xe_ptr, const xe_string_view&, xe_endpoint&&, int);
 	static void close_cb(xe_resolve&);
 	static void expire_cb(xe_loop&, xe_timer&);
