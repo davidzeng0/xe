@@ -36,6 +36,7 @@ static inline int xe_ring_enter(io_uring& ring, uint submit, uint wait, uint fla
 	/*
 	 * the kernel doesn't read the timespec until it's actually time to wait for cqes
 	 * avoid loss due to branching here and set EXT_ARG on every enter
+	 * even if we're not waiting for events
 	 */
 	flags |= IORING_ENTER_EXT_ARG;
 
