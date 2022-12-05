@@ -33,6 +33,10 @@ static inline int xe_ring_enter(io_uring& ring, uint submit, uint wait, uint fla
 	io_uring_getevents_arg args;
 	__kernel_timespec ts;
 
+	/*
+	 * the kernel doesn't read the timespec until it's actually time to wait for cqes
+	 * avoid loss due to branching here and set EXT_ARG on every enter
+	 */
 	flags |= IORING_ENTER_EXT_ARG;
 
 	args.sigmask = 0;
@@ -310,38 +314,43 @@ int xe_loop::get_sqe(xe_req& req, io_uring_sqe*& sqe, xe_req_info* info){
 	xe_assert(queued_ <= capacity());
 	xe_return_error(error);
 
-	if(queued_ >= capacity()) [[unlikely]]
-		goto submit;
-enqueue:
+	do{
+		if(queued_ < capacity()) [[likely]]
+			break;
+		/*
+		 * sq ring is filled,
+		 * try freeing up a spot to submit I/O.
+		 * upon failure, put the request in a queue
+		 * and try again when there are free sqes
+		 */
+		if(sq_ring_full) [[unlikely]]
+			res = XE_EAGAIN;
+		else
+			res = submit(false);
+		if(!res) [[likely]] {
+			/* submit success, go queue */
+			break;
+		}
+
+		if(res != XE_EAGAIN) [[unlikely]] {
+			error = res;
+
+			return res;
+		}
+
+		if(!info)
+			return XE_ENOMEM;
+		reqs.append(*info);
+		sqe = &info -> op.sqe;
+
+		return 0;
+	}while(false);
+
+	/* get the next sqe */
 	queued_++;
 	sqe = &ring.sq.sqes[ring.sq.sqe_tail++ & ring.sq.ring_mask];
-store:
+
 	return 0;
-submit:
-	/*
-	 * sq ring is filled,
-	 * try freeing up a spot to submit I/O.
-	 * upon failure, put the request in a queue
-	 * and try again when there are free sqes
-	 */
-	if(sq_ring_full) [[unlikely]]
-		res = XE_EAGAIN;
-	else
-		res = submit(false);
-	if(!res) [[likely]]
-		goto enqueue;
-	if(res != XE_EAGAIN) [[unlikely]] {
-		error = res;
-
-		return res;
-	}
-
-	if(!info)
-		return XE_ENOMEM;
-	reqs.append(*info);
-	sqe = &info -> op.sqe;
-
-	goto store;
 }
 
 int xe_loop::init(uint entries){
@@ -476,6 +485,11 @@ int xe_loop::run(){
 			res = cqe -> res;
 			flags = cqe -> flags;
 
+			/*
+			 * more requests may be queued in callback, so
+			 * update the cqe head here so that we have one more cqe
+			 * available for completions before overflow occurs
+			 */
 			io_uring_smp_store_release(khead, cqe_head);
 
 			if(!(flags & IORING_CQE_F_MORE)) [[likely]]
