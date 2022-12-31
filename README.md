@@ -98,7 +98,7 @@ project(sample CXX)
 set(XE_ENABLE_XURL ON)
 set(XE_USE_OPENSSL ON) # alternatively set(XE_USE_WOLFSSL ON)
 
-FetchContent_Declare(xe GIT_REPOSITORY https://github.com/ilikdoge/xe.git GIT_TAG master)
+FetchContent_Declare(xe GIT_REPOSITORY https://github.com/davidzeng0/xe.git GIT_TAG master)
 FetchContent_MakeAvailable(xe)
 
 ...

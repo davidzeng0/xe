@@ -8,7 +8,7 @@ Echo bench threads pinned to CPU 1-4<br>
 Each echo bench thread uses epoll
 
 ## Comparisons
-- [xe](https://github.com/ilikdoge/xe)
+- [xe](https://github.com/davidzeng0/xe)
 - [l4cpp](https://github.com/CarterLi/liburing4cpp) (aka liburing4cpp)
 - [photon](https://github.com/alibaba/PhotonLibOS)
 - [frevib](https://github.com/frevib/io_uring-echo-server)
