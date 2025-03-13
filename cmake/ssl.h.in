@@ -1,0 +1,2 @@
+#cmakedefine XE_SSL_CAFILE @XE_SSL_CAFILE@
+#cmakedefine XE_SSL_CAPATH @XE_SSL_CAPATH@

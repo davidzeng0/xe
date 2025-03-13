@@ -1,0 +1,2 @@
+#cmakedefine XE_PAGESIZE @XE_PAGESIZE@
+#cmakedefine XE_CACHESIZE @XE_CACHESIZE@

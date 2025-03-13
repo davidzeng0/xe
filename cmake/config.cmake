@@ -1,0 +1,1 @@
+configure_file("cmake/config.h.in" "${CMAKE_CURRENT_SOURCE_DIR}/include/xconfig/config.h")

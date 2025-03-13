@@ -1,0 +1,13 @@
+function(check_simd VAR FILE)
+	if(NOT DEFINED ${VAR})
+		try_compile(${VAR} ${PROJECT_BINARY_DIR} "${PROJECT_SOURCE_DIR}/cmake/${FILE}" COMPILE_DEFINITIONS "-march=native")
+	endif()
+endfunction()
+
+if(CMAKE_SYSTEM_PROCESSOR MATCHES "(amd64|AMD64|x86_64)")
+	check_simd(XE_AVX2 "avx2.cc")
+elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "(arm|aarch64)")
+	set(XE_NEON TRUE)
+else()
+	message(SEND_ERROR "Unsupported CPU")
+endif()

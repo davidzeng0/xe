@@ -1,0 +1,2 @@
+#cmakedefine XE_DEBUG
+#cmakedefine XE_ENABLE_XURL
